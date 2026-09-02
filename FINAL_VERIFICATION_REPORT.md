@@ -5,78 +5,62 @@
 
 ## SUPABASE CONFIGURATION
 
-**BLOCKED — secure publishable key is not available in this runtime.**
+**PASS — local Vite runtime configured without committing credentials.**
 
-The repository now has the correct Supabase URL in `.env.example` and `README.md`. The browser reads only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; the key is not hardcoded. No `.env` file, process variable, deployment configuration, or service-role key was found. The secure-environment selection did not populate the shell or Vite process.
+The secure Arena process variables were not injected, so the ignored local `.env` was created as the permitted fallback. It contains the supplied Supabase URL and publishable key only; no service-role key is present. The key is not in source code, `.env.example`, logs, or this report. `git check-ignore` confirms `.env` is ignored.
 
-The local `.env.example` intentionally leaves `VITE_SUPABASE_PUBLISHABLE_KEY` empty. `.env` remains ignored and was not committed.
+The Vite SSR runtime validation returned `PASS`, the URL host is the supplied Supabase project, the publishable key was accepted, and the live Vite-transformed module contained the runtime configuration. `.env.example` contains placeholders only for Supabase values.
 
 ## SUPABASE CONNECTION
 
-**NOT VERIFIED — runtime configuration is missing.**
+**FAIL — outbound Supabase TLS is blocked in this sandbox.**
 
-The checkout has no running Vite process at inspection time, no Vercel/Netlify configuration or CLI, and no CI deployment workflow. The available scripts are local `vite`, `vite preview`, and the production build. Therefore the reported site is currently only reproducible as a local Vite/Arena preview, not as a provider-managed deployment from this checkout.
+The Vite development server restarted successfully on port 5173, and its transformed Supabase configuration loaded. A direct Auth settings request failed before an HTTP response with `SSL_ERROR_SYSCALL` / HTTP 000; an HTTPS request to an unrelated external host failed the same way. This is a sandbox network limitation, not an authentication bypass or an application configuration fallback.
 
-No Supabase request was attempted without a publishable key. The application must be restarted/rebuilt after the secure variables are connected because Vite injects them at build time.
+The browser-facing preview no longer serves a configuration-missing state, and the Supabase client constructor initialized successfully locally. A live server response could not be obtained.
 
 ## AUTHENTICATION
 
-**IMPLEMENTED IN CODE; LIVE FLOW NOT VERIFIED.**
+**FAIL — live Auth flow not reachable.**
 
-The implementation uses Supabase Auth email/password login, obtains `data.user.id`, looks up the matching `public.admin_users.id`, requires `active = true`, persists/restores sessions, defers Auth-state work safely, and signs out missing/inactive/invalid-profile sessions.
-
-A real login, Auth UUID, refresh restoration, or dashboard request could not be tested because the secure publishable key and an authenticated test account were unavailable.
+The implementation uses Supabase Auth email/password login, retrieves `data.user.id`, resolves the matching `public.admin_users.id`, requires `active = true`, persists/restores sessions, and signs out missing or inactive profiles. Live email/password login, session restoration, and Auth UUID retrieval could not be exercised because outbound TLS is unavailable and no test account was provisioned in this environment.
 
 ## ADMIN AUTHORIZATION
 
-**IMPLEMENTED AND STATICALLY REVIEWED; LIVE SUPER-ADMIN ACCESS NOT VERIFIED.**
+**FAIL — live authorization not reachable.**
 
-The role model includes `super_admin`, `admin`, and `operator`. UI route permissions are role-aware, and unauthorized routes identify insufficient role access. Backend authorization remains enforced by the migration's RLS policies and helper functions; no frontend bypass was added.
+The role model and client checks include `super_admin`, `admin`, and `operator`. RLS remains the backend enforcement boundary. Exact Auth UUID matching, `active = true`, and live `super_admin` authorization could not be confirmed without a reachable Supabase project and provisioned administrator.
 
 ## DATABASE/RLS
 
-**MIGRATION FILES PRESENT; APPLICATION NOT VERIFIED FROM THIS RUNTIME.**
+**FAIL — live database/RLS operations not reachable.**
 
-Both required files are present:
+Typed control-plane services and the RLS policies are present for administrator profiles, settings, social links, display settings, codes, activity logs, and round history. Representative reads/writes, unauthorized rejection, and inactive-user rejection could not be executed because the Supabase endpoint is unreachable from this sandbox. No RLS bypass or policy weakening was introduced.
+
+## MIGRATIONS
+
+**NOT VERIFIED.** Both required migration files are present. The Supabase CLI is unavailable, and the endpoint cannot be reached to inspect migration history:
 
 - `supabase/migrations/20260902000000_magic_script_control_plane.sql`
 - `supabase/migrations/20260902000001_magic_script_least_privilege_grants.sql`
 
-The typed services cover `admin_users`, roles, `admin_codes`, activity logs, round history, general settings, social links, display settings, profile data, and the existing in-memory notification/announcement surface. There is no `notifications` table in the migration, so no persisted notification behavior is falsely claimed.
-
-The Supabase CLI is not installed, and no secure connection was available to confirm migration history or exercise representative RLS reads/writes. The first-admin path remains out-of-band: create/confirm the intended Auth user, then provision its exact Auth UUID as an active `super_admin` in a trusted SQL session. No credentials were guessed or printed.
-
 ## FIREBASE COMPATIBILITY
 
-**PASS — unchanged contract.**
-
-`npm run audit:firebase` passed with:
-
-- one Firebase SDK mutation in `src/services/m11.ts`;
-- one explicit publisher caller in the NEW GAME flow;
-- fixed `/m11` path;
-- fixed `m1` through `m50` children; and
-- no forbidden-node writes or legacy Android write APIs elsewhere in `src`.
-
-The Firebase project remains `zaem-a8d30` with its existing RTDB URL, payload shape, centralized writer, and APP 2 compatibility. No Firebase listener or writer implementation was changed.
+**PASS.** `npm run audit:firebase` confirms the existing Firebase project `zaem-a8d30`, RTDB contract, `/m11`, exact `m1`–`m50` children, centralized writer, and APP 2 listener compatibility remain intact. No second Firebase writer was introduced.
 
 ## BUILD/TESTS
 
-**PASS.**
-
-After installing the repository dependencies, the required checks passed:
+**PASS.** The required checks completed successfully:
 
 - `npm run typecheck`
 - `npm run lint`
-- `npm test` — 17 files, 148 tests
+- `npm test` — 17 files, 148 tests passed
 - `npm run audit:firebase`
 - `npm run build`
 - `git diff --check`
 
 ## REMAINING ACTIONS
 
-1. Connect the publishable key through Arena's secure environment configuration as `VITE_SUPABASE_PUBLISHABLE_KEY`. Do not paste it into chat, source, logs, `.env.example`, or the final report.
-2. Set `VITE_SUPABASE_URL` to the supplied project URL in the same local/deployment environment.
-3. Restart local Vite or rebuild/redeploy the provider-managed site.
-4. Confirm the built site no longer shows “Supabase is not configured.”
-5. Apply/confirm both migrations, provision the exact Auth UUID as an active `super_admin`, and run the live login/session/dashboard/RLS checks.
+1. Run the live Supabase checks from an environment with outbound HTTPS access: Auth login, session restoration, Auth UUID/profile matching, `active = true`, `super_admin` authorization, dashboard loading, representative RLS reads/writes, and unauthorized/inactive rejection.
+2. Apply or inspect migration history for both listed migration files using a trusted Supabase CLI/dashboard connection.
+3. Keep the ignored local `.env` out of version control and rotate/revoke the exposed publishable key if it was not intended to be shared in the chat message.

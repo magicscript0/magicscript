@@ -22,7 +22,7 @@ npm run dev
 Set the Supabase values in `.env` using the project configuration supplied for your deployment. Only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are read by the browser. The publishable/anon key is safe for browser use; never put a service-role or secret key in a `VITE_*` variable or committed file. If either value is missing or a privileged key is detected, the sign-in screen reports that control-plane setup is required rather than attempting a login.
 
 ```dotenv
-VITE_SUPABASE_URL=https://eeffakpnyhqoxgbpxelj.supabase.co
+VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=
 
 # Existing Firebase bridge — keep the project and database URL unchanged.
