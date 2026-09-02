@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AUTHORIZED_ADMIN_ROLES,
   AdminProfileMissingError,
   EmailNotConfirmedError,
   InactiveAdminError,
@@ -10,6 +11,7 @@ import {
   SupabaseSessionError,
   classifySupabaseRequestError,
   friendlyControlError,
+  isAuthorizedAdminRole,
 } from './supabase'
 
 describe('Supabase integration diagnostics', () => {
@@ -55,5 +57,23 @@ describe('Supabase integration diagnostics', () => {
     expect(diagnostic.kind).toBe('database')
     expect(diagnostic.message).toBe('The admin code could not be created.')
     expect(diagnostic.message).not.toContain('secret')
+  })
+})
+
+describe('admin authorization gate', () => {
+  it('accepts only the roles that may open the dashboard', () => {
+    expect([...AUTHORIZED_ADMIN_ROLES]).toEqual(['super_admin', 'admin', 'operator'])
+    expect(isAuthorizedAdminRole('super_admin')).toBe(true)
+    expect(isAuthorizedAdminRole('admin')).toBe(true)
+    expect(isAuthorizedAdminRole('operator')).toBe(true)
+  })
+
+  it('rejects unknown, empty, and non-string roles', () => {
+    expect(isAuthorizedAdminRole('viewer')).toBe(false)
+    expect(isAuthorizedAdminRole('SUPER_ADMIN')).toBe(false)
+    expect(isAuthorizedAdminRole('')).toBe(false)
+    expect(isAuthorizedAdminRole(null)).toBe(false)
+    expect(isAuthorizedAdminRole(undefined)).toBe(false)
+    expect(isAuthorizedAdminRole({ role: 'admin' })).toBe(false)
   })
 })
