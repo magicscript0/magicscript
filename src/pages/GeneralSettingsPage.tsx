@@ -4,11 +4,12 @@ import { InlineError, PageHeader, PanelHeading, SaveButton, StatusBadge } from '
 import { useSharedControlSettings } from '../layouts/AdminLayout'
 import { recordActivity } from '../services/activity'
 import { saveGeneralSettings } from '../services/control'
+import { friendlyControlError } from '../services/supabase'
 import { useToast } from '../components/ToastProvider'
 import type { AdminProfile, GeneralSettings } from '../types/supabase'
 
 export function GeneralSettingsPage({ admin }: { admin: AdminProfile }) {
-  const { settings, setSettings, available } = useSharedControlSettings()
+  const { settings, setSettings, available, error: settingsError } = useSharedControlSettings()
   const { success, error } = useToast()
   const [form, setForm] = useState<GeneralSettings>(settings.general)
   const [saving, setSaving] = useState(false)
@@ -25,10 +26,16 @@ export function GeneralSettingsPage({ admin }: { admin: AdminProfile }) {
       await saveGeneralSettings(form, admin.id)
       setSettings((current) => ({ ...current, general: form }))
       document.title = form.browserTitle || 'MAGIC SCRIPT Admin Console'
-      await recordActivity(admin.id, 'UPDATE_SETTINGS', { maintenance_mode: form.maintenanceMode, announcement_configured: Boolean(form.announcement.trim()) }).catch(() => undefined)
+      let auditError: string | null = null
+      try {
+        await recordActivity(admin.id, 'UPDATE_SETTINGS', { maintenance_mode: form.maintenanceMode, announcement_configured: Boolean(form.announcement.trim()) })
+      } catch (cause) {
+        auditError = friendlyControlError(cause, 'The change was saved, but the audit event could not be recorded.')
+      }
       success('General settings saved.')
+      if (auditError) error(`General settings saved, but audit logging failed: ${auditError}`)
     } catch (cause) {
-      error(cause instanceof Error ? cause.message : 'General settings could not be saved.')
+      error(friendlyControlError(cause, 'General settings could not be saved.'))
     } finally {
       setSaving(false)
     }
@@ -36,7 +43,7 @@ export function GeneralSettingsPage({ admin }: { admin: AdminProfile }) {
 
   return <>
     <PageHeader eyebrow="Configuration / identity" title="General settings" description="Manage the workspace name, browser title, and operator-facing announcements." />
-    {!available && <div className="mb-5"><InlineError message="Control system temporarily unavailable. Changes will be enabled when Supabase is configured." /></div>}
+    {!available && <div className="mb-5"><InlineError message={settingsError ?? 'Supabase control data is unavailable.'} /></div>}
     <form className="panel max-w-4xl" onSubmit={handleSubmit}>
       <PanelHeading icon={Settings2} title="Workspace identity" description="These values are presentation settings. They do not alter the Firebase bridge contract." />
       <div className="grid gap-5 sm:grid-cols-2">

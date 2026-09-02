@@ -4,12 +4,13 @@ import { InlineError, PageHeader, PanelHeading, SaveButton, StatusBadge } from '
 import { useSharedControlSettings } from '../layouts/AdminLayout'
 import { recordActivity } from '../services/activity'
 import { saveDisplaySettings } from '../services/control'
+import { friendlyControlError } from '../services/supabase'
 import { useToast } from '../components/ToastProvider'
 import { useConfiguredOnlineUsers } from '../hooks/useConfiguredOnlineUsers'
 import type { AdminProfile, DisplaySettings } from '../types/supabase'
 
 export function DisplaySettingsPage({ admin }: { admin: AdminProfile }) {
-  const { settings, setSettings, available } = useSharedControlSettings()
+  const { settings, setSettings, available, error: settingsError } = useSharedControlSettings()
   const { success, error } = useToast()
   const [form, setForm] = useState<DisplaySettings>(settings.display)
   const [saving, setSaving] = useState(false)
@@ -27,10 +28,16 @@ export function DisplaySettingsPage({ admin }: { admin: AdminProfile }) {
     try {
       await saveDisplaySettings(form, admin.id)
       setSettings((current) => ({ ...current, display: form }))
-      await recordActivity(admin.id, 'UPDATE_ONLINE_SETTINGS', { enabled: form.onlineCountEnabled, mode: form.onlineCountMode, min: form.onlineCountMin, max: form.onlineCountMax }).catch(() => undefined)
+      let auditError: string | null = null
+      try {
+        await recordActivity(admin.id, 'UPDATE_ONLINE_SETTINGS', { enabled: form.onlineCountEnabled, mode: form.onlineCountMode, min: form.onlineCountMin, max: form.onlineCountMax })
+      } catch (cause) {
+        auditError = friendlyControlError(cause, 'The display settings were saved, but the audit event could not be recorded.')
+      }
       success('Online display settings saved.')
+      if (auditError) error(`Display settings saved, but audit logging failed: ${auditError}`)
     } catch (cause) {
-      error(cause instanceof Error ? cause.message : 'Display settings could not be saved.')
+      error(friendlyControlError(cause, 'Display settings could not be saved.'))
     } finally {
       setSaving(false)
     }
@@ -38,7 +45,7 @@ export function DisplaySettingsPage({ admin }: { admin: AdminProfile }) {
 
   return <>
     <PageHeader eyebrow="Configuration / display" title="Display settings" description="Configure the online display value used by the site interface. It is a presentation value, not verified traffic analytics." />
-    {!available && <div className="mb-5"><InlineError message="Control system temporarily unavailable. Changes will be enabled when Supabase is configured." /></div>}
+    {!available && <div className="mb-5"><InlineError message={settingsError ?? 'Supabase control data is unavailable.'} /></div>}
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,.62fr)]">
       <form className="panel" onSubmit={handleSubmit}>
         <PanelHeading icon={SlidersHorizontal} title="Online display" description="Set the range, mode, and refresh cadence for the value shown in the navigation." />

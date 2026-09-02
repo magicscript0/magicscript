@@ -3,7 +3,6 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string
-  readonly VITE_DEMO_PASSWORD?: string
   readonly VITE_FIREBASE_API_KEY?: string
   readonly VITE_FIREBASE_AUTH_DOMAIN?: string
   readonly VITE_FIREBASE_DATABASE_URL?: string

@@ -1,4 +1,4 @@
-import { requireClient } from './supabase'
+import { classifySupabaseRequestError, requireClient } from './supabase'
 import type { AdminCodeRow, AdminCodeSummary, AdminRole } from '../types/supabase'
 
 export type CodeExpiryPreset = '1h' | '6h' | '12h' | '1d' | '7d' | '30d' | 'custom'
@@ -75,7 +75,7 @@ export async function listAdminCodes(): Promise<AdminCodeSummary[]> {
     .from('admin_codes')
     .select('id, role, active, expires_at, max_uses, uses_count, created_at, created_by, revoked_at')
     .order('created_at', { ascending: false })
-  if (error) throw new Error('Admin codes could not be loaded.')
+  if (error) throw classifySupabaseRequestError(error, 'Admin codes could not be loaded. Check the admin_codes table and its RLS policy.')
   return data ?? []
 }
 
@@ -101,14 +101,17 @@ export async function createAdminCode(
     })
     .select('id, role, active, expires_at, max_uses, uses_count, created_at, created_by, revoked_at')
     .single()
-  if (error || !data) throw new Error('Admin code could not be created.')
+  if (error || !data) {
+    if (error) throw classifySupabaseRequestError(error, 'Admin code could not be created. Check the admin_codes table and its RLS policy.')
+    throw new Error('Admin code could not be created.')
+  }
   return { record: data, plainCode }
 }
 
 export async function setAdminCodeActive(id: string, active: boolean): Promise<void> {
   const client = requireClient()
   const { error } = await client.from('admin_codes').update({ active }).eq('id', id)
-  if (error) throw new Error('The admin code status could not be updated.')
+  if (error) throw classifySupabaseRequestError(error, 'The admin code status could not be updated. Check the admin_codes table and its RLS policy.')
 }
 
 export async function revokeAdminCode(id: string): Promise<void> {
@@ -117,11 +120,11 @@ export async function revokeAdminCode(id: string): Promise<void> {
     .from('admin_codes')
     .update({ active: false, revoked_at: new Date().toISOString() })
     .eq('id', id)
-  if (error) throw new Error('The admin code could not be revoked.')
+  if (error) throw classifySupabaseRequestError(error, 'The admin code could not be revoked. Check the admin_codes table and its RLS policy.')
 }
 
 export async function deleteAdminCode(id: string): Promise<void> {
   const client = requireClient()
   const { error } = await client.from('admin_codes').delete().eq('id', id)
-  if (error) throw new Error('The admin code could not be deleted.')
+  if (error) throw classifySupabaseRequestError(error, 'The admin code could not be deleted. Check the admin_codes table and its RLS policy.')
 }

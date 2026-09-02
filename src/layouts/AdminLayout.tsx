@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { AdminSidebar } from '../components/AdminSidebar'
 import { AdminTopbar } from '../components/AdminTopbar'
+import { InlineError } from '../components/AdminPrimitives'
 import { SocialLinks } from '../components/SocialLinks'
 import { ToastProvider } from '../components/ToastProvider'
 import { useControlSettings } from '../hooks/useControlSettings'
@@ -12,10 +13,11 @@ export interface AdminLayoutProps {
   route: PageRoute
   onNavigate: (route: PageRoute) => void
   onLogout: () => void
+  sessionError?: string | null
   children: ReactNode
 }
 
-export function AdminLayout({ admin, route, onNavigate, onLogout, children }: AdminLayoutProps) {
+export function AdminLayout({ admin, route, onNavigate, onLogout, sessionError = null, children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { settings, setSettings, loading: settingsLoading, available: settingsAvailable, error: settingsError, reload } = useControlSettings()
   const displayName = admin.username || admin.email.split('@')[0]
@@ -43,6 +45,10 @@ export function AdminLayout({ admin, route, onNavigate, onLogout, children }: Ad
             onClose={() => setSidebarOpen(false)}
           />
           <AdminTopbar admin={admin} route={route} announcement={settings.general.announcement} onOpenMenu={() => setSidebarOpen(true)} />
+          {(sessionError || settingsError) && <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-3 px-4 pt-4 sm:px-7 sm:pt-6 lg:px-9">
+            {sessionError && <InlineError message={sessionError} onRetry={onLogout} />}
+            {settingsError && <InlineError message={settingsError} onRetry={() => { void reload() }} />}
+          </div>}
           <main className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-7 sm:py-7 lg:px-9 lg:py-8">
             <div className="page-enter">{children}</div>
           </main>

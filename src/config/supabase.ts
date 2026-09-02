@@ -8,11 +8,40 @@ export const SUPABASE_ENV = {
   publishableKey: 'VITE_SUPABASE_PUBLISHABLE_KEY',
 } as const
 
+function looksLikeServiceRoleKey(value: string): boolean {
+  const normalized = value.toLowerCase()
+  if (normalized.includes('service_role') || normalized.includes('service-role') || normalized.startsWith('sb_secret_')) {
+    return true
+  }
+
+  // Legacy Supabase browser keys are JWTs. Reject a privileged JWT even if it
+  // was accidentally placed in the publishable-key variable.
+  const payloadPart = value.split('.')[1]
+  if (!payloadPart || typeof globalThis.atob !== 'function') return false
+  try {
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(globalThis.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))) as { role?: unknown }
+    return payload.role === 'service_role' || payload.role === 'supabase_admin'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The browser accepts a Supabase publishable/anon key only. This deliberately
+ * rejects the server-only service-role/secret key formats before createClient
+ * can ever receive them.
+ */
+export function isPublishableSupabaseKey(value: string): boolean {
+  const normalized = value.trim()
+  return normalized.length > 0 && !looksLikeServiceRoleKey(normalized)
+}
+
 export function readSupabaseConfig(): { url: string; publishableKey: string } | null {
   const url = String(import.meta.env[SUPABASE_ENV.url] ?? '').trim()
   const publishableKey = String(import.meta.env[SUPABASE_ENV.publishableKey] ?? '').trim()
 
-  if (!url || !publishableKey) return null
+  if (!url || !isPublishableSupabaseKey(publishableKey)) return null
 
   try {
     const parsed = new URL(url)

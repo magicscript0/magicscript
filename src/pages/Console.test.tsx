@@ -74,10 +74,10 @@ describe('Console screen', () => {
     expect(value).toBeLessThanOrEqual(600)
   })
 
-  it('shows the persistent demo banner and offline mode notice', () => {
+  it('shows the persistent non-real-money disclaimer and publishing boundary', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
     expect(screen.getByText(/no real money · no wagering/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/Offline demo mode/i).length).toBeGreaterThan(0)
+    expect(screen.getByText('Local generation')).toBeInTheDocument()
     expect(screen.getByText('Publishing')).toBeInTheDocument()
     expect(screen.getByText(/NEW GAME only \(guarded\)/i)).toBeInTheDocument()
   })
@@ -104,7 +104,7 @@ describe('Console screen', () => {
     expect(cells).toHaveLength(50)
     expect(screen.getByRole('button', { name: /show/i })).toBeEnabled()
     expect(screen.getByRole('button', { name: /new demo round/i })).toBeEnabled()
-    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/Demo \/ Local Simulation/i)
+    expect(screen.getByTestId('data-source-badge')).toHaveTextContent('Local generation')
   })
 
   it('NEW DEMO ROUND keeps SHOW disabled while the round is being prepared', () => {

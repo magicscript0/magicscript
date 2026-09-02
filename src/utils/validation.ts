@@ -97,15 +97,3 @@ export function rowSafeCounts(node: M11Node): number[] {
     row.keys.filter((key) => (node[key] as M11ChildRecord)[key] === '1').length,
   )
 }
-
-/** Validates the operator ID entered at the demo gate. */
-export function validateOperatorId(id: string): Validation {
-  const trimmed = id.trim()
-  if (trimmed.length === 0) {
-    return { valid: false, errors: ['Enter your operator ID.'] }
-  }
-  if (trimmed.length > 40) {
-    return { valid: false, errors: ['Operator ID is too long (max 40 characters).'] }
-  }
-  return { valid: true }
-}

@@ -1,6 +1,6 @@
 # Supabase CLI project configuration for MAGIC SCRIPT.
-# Link this directory to the Supabase project before applying migrations.
-project_id = "your-project-ref"
+# The project ref is derived from the supplied control-plane URL.
+project_id = "eeffakpnyhqoxgbpxelj"
 
 [functions.redeem-admin-code]
 verify_jwt = false

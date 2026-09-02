@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   getCurrentAdmin,
+  friendlyControlError,
+  isControlSystemConfigured,
   signInAdmin,
   signOutAdmin,
   subscribeToAuthChanges,
@@ -22,39 +24,58 @@ export function useAdminSession(): AdminSessionState {
 
   useEffect(() => {
     let mounted = true
+    let refreshSequence = 0
+
+    if (!isControlSystemConfigured()) {
+      setError('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, then rebuild the site.')
+      setLoading(false)
+      return () => { mounted = false }
+    }
+
+    const refreshAdmin = () => {
+      const sequence = ++refreshSequence
+      void getCurrentAdmin()
+        .then((profile) => {
+          if (mounted && sequence === refreshSequence) {
+            setAdmin(profile)
+            setError(null)
+          }
+        })
+        .catch((cause) => {
+          if (mounted && sequence === refreshSequence) {
+            setAdmin(null)
+            setError(friendlyControlError(cause, 'The authenticated workspace could not be loaded.'))
+          }
+        })
+        .finally(() => {
+          if (mounted && sequence === refreshSequence) setLoading(false)
+        })
+    }
+
     const unsubscribe = subscribeToAuthChanges((session) => {
       if (!session) {
+        // Do not clear an actionable profile/RLS error after getCurrentAdmin
+        // signs out an unauthorized Auth session. A deliberate logout clears
+        // the message in logout() instead.
         if (mounted) {
           setAdmin(null)
           setLoading(false)
         }
         return
       }
-      void getCurrentAdmin()
-        .then((profile) => {
-          if (mounted) setAdmin(profile)
-        })
-        .catch(() => {
-          if (mounted) setAdmin(null)
-        })
-        .finally(() => {
-          if (mounted) setLoading(false)
-        })
+
+      // Supabase advises deferring work from inside onAuthStateChange so an
+      // Auth callback never calls another Auth API while the lock is held.
+      window.setTimeout(() => {
+        if (mounted) refreshAdmin()
+      }, 0)
     })
 
-    void getCurrentAdmin()
-      .then((profile) => {
-        if (mounted) setAdmin(profile)
-      })
-      .catch(() => {
-        if (mounted) setAdmin(null)
-      })
-      .finally(() => {
-        if (mounted) setLoading(false)
-      })
+    refreshAdmin()
 
     return () => {
       mounted = false
+      refreshSequence += 1
       unsubscribe?.()
     }
   }, [])
@@ -66,9 +87,10 @@ export function useAdminSession(): AdminSessionState {
       setAdmin(profile)
       return profile
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'Sign in could not be completed.'
+      const message = friendlyControlError(cause, 'Supabase authentication could not be completed.')
       setError(message)
-      throw cause
+      if (cause instanceof Error) throw cause
+      throw new Error(message)
     }
   }, [])
 
@@ -78,7 +100,7 @@ export function useAdminSession(): AdminSessionState {
       await signOutAdmin()
       setAdmin(null)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The session could not be closed.')
+      setError(friendlyControlError(cause, 'The Supabase session could not be closed.'))
     }
   }, [])
 

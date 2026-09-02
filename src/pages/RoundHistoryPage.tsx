@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ClipboardList, Database, Eye, Radio, RefreshCw, Rocket } from 'lucide-react'
 import { EmptyState, InlineError, LoadingRows, PageHeader, PanelHeading, StatusBadge } from '../components/AdminPrimitives'
 import { listRoundHistory } from '../services/roundHistory'
+import { friendlyControlError } from '../services/supabase'
 import type { RoundHistoryRow } from '../types/supabase'
 import { formatRelativeTime } from '../utils/time'
 
@@ -11,7 +12,7 @@ export function RoundHistoryPage() {
   const [error, setError] = useState<string | null>(null)
   const load = useCallback(async () => {
     setLoading(true)
-    try { setRecords(await listRoundHistory()); setError(null) } catch (cause) { setError(cause instanceof Error ? cause.message : 'Round history could not be loaded.') } finally { setLoading(false) }
+    try { setRecords(await listRoundHistory()); setError(null) } catch (cause) { setError(friendlyControlError(cause, 'Round history could not be loaded.')) } finally { setLoading(false) }
   }, [])
   useEffect(() => { void load() }, [load])
 

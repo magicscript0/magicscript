@@ -19,7 +19,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Set the Supabase values in `.env` using the project credentials supplied for your deployment. Only the publishable key belongs in the browser. Never put a service-role key in `VITE_*` variables or committed files.
+Set the Supabase values in `.env` using the project configuration supplied for your deployment. Only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are read by the browser. The publishable/anon key is safe for browser use; never put a service-role or secret key in a `VITE_*` variable or committed file. If either value is missing or a privileged key is detected, the sign-in screen reports that control-plane setup is required rather than attempting a login.
 
 ```dotenv
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -35,16 +35,16 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
 
-The Supabase control plane must be configured and migrated before production sign-in is available. Create an Auth user in Supabase, then provision the first administrator from a trusted SQL session:
+The Supabase control plane must be configured and migrated before production sign-in is available. Create and confirm the intended Auth user through the Supabase dashboard or another trusted administrative channel. Then, from a trusted SQL session, use that user's exact Auth UUID (copied from Supabase, never guessed) to provision the first administrator:
 
 ```sql
 insert into public.admin_users (id, email, username, role)
 select id, email, 'primary-admin', 'super_admin'
 from auth.users
-where email = 'admin@example.com';
+where id = '<exact-auth-user-uuid>';
 ```
 
-`admin_users` is intentionally not self-enrolling: the first privileged account must be provisioned out of band.
+Do not put the user's password or any service credential in SQL or source control. `admin_users` is intentionally not self-enrolling: the first privileged account must be provisioned out of band, with `active = true` and the Auth UUID as the profile primary key.
 
 ## Supabase setup
 
@@ -52,12 +52,13 @@ The reproducible schema is in:
 
 ```text
 supabase/migrations/20260902000000_magic_script_control_plane.sql
+supabase/migrations/20260902000001_magic_script_least_privilege_grants.sql
 ```
 
-Apply it with the Supabase CLI after linking the project:
+The second migration tightens anonymous read columns, removes browser deletes for singleton public settings, and narrows browser insert columns for append-only records. Apply both with the Supabase CLI after linking the project:
 
 ```bash
-supabase link --project-ref <project-ref>
+supabase link --project-ref eeffakpnyhqoxgbpxelj
 supabase db push
 ```
 
@@ -95,6 +96,12 @@ Row Level Security is enabled on every table.
 - No policy grants anonymous insert, update, delete, permission changes, code creation, or admin management.
 
 Frontend permission checks improve the interface, but every sensitive operation is also enforced by RLS.
+
+### Auth and failure handling
+
+The browser enables a persistent Supabase Auth session, resolves the Auth UUID to the matching `public.admin_users.id`, and requires `active = true` before rendering the workspace. A missing profile or inactive profile signs the Auth session out. Login and control-plane surfaces keep configuration, network, invalid-credential, unconfirmed-email, rate-limit, profile, insufficient-role, session, and database/RLS failures separate while showing only safe operational text.
+
+The notification popover is intentionally limited to the announcement setting and temporary in-memory action feedback. The executed migration has no `notifications` table, so the client does not claim to provide persisted notification history.
 
 ## Admin code handling
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DEFAULT_CONTROL_SETTINGS, loadControlSettings } from '../services/control'
+import { friendlyControlError } from '../services/supabase'
 import type { ControlSettings } from '../types/supabase'
 
 export function useControlSettings() {
@@ -15,9 +16,9 @@ export function useControlSettings() {
       setSettings(next)
       setAvailable(true)
       setError(null)
-    } catch {
+    } catch (cause) {
       setAvailable(false)
-      setError('Control system temporarily unavailable.')
+      setError(friendlyControlError(cause, 'Supabase control data could not be loaded.'))
     } finally {
       setLoading(false)
     }

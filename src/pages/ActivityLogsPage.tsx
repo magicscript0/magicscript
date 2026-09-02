@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { Activity, CheckCircle2, Clipboard, RefreshCw, ShieldCheck } from 'lucide-react'
 import { EmptyState, InlineError, LoadingRows, PageHeader, PanelHeading, StatusBadge } from '../components/AdminPrimitives'
 import { listActivityLogs, type ActivityLogEntry } from '../services/activity'
+import { friendlyControlError } from '../services/supabase'
 import { formatRelativeTime } from '../utils/time'
 
 export function ActivityLogsPage() {
   const [logs, setLogs] = useState<ActivityLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const load = useCallback(async () => { setLoading(true); try { setLogs(await listActivityLogs(100)); setError(null) } catch (cause) { setError(cause instanceof Error ? cause.message : 'Activity logs could not be loaded.') } finally { setLoading(false) } }, [])
+  const load = useCallback(async () => { setLoading(true); try { setLogs(await listActivityLogs(100)); setError(null) } catch (cause) { setError(friendlyControlError(cause, 'Activity logs could not be loaded.')) } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
   return <>
     <PageHeader eyebrow="Security / audit trail" title="Activity logs" description="An append-only record of important administrator actions. Secret codes and passwords are never written here." action={<button type="button" className="btn-ghost" onClick={() => { void load() }}><RefreshCw className="h-4 w-4" /> Refresh</button>} />

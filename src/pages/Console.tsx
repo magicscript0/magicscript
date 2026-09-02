@@ -9,6 +9,7 @@ import { useM11Mirror } from '../hooks/useM11Mirror'
 import { useSimulatedOnlineUsers } from '../hooks/useSimulatedOnlineUsers'
 import { useConfiguredOnlineUsers } from '../hooks/useConfiguredOnlineUsers'
 import { DEFAULT_CONTROL_SETTINGS } from '../services/control'
+import { friendlyControlError } from '../services/supabase'
 import { Header } from '../components/Header'
 import { ActionButtons } from '../components/ActionButtons'
 import { GameGrid } from '../components/GameGrid'
@@ -56,6 +57,17 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
   const badgeSource = round?.source ?? nextSource
   const busy = phase === 'generating' || phase === 'revealing' || phase === 'publishing'
 
+  const recordControlMetadata = useCallback((activity: Promise<void>, history: Promise<void>) => {
+    void Promise.allSettled([activity, history]).then((results) => {
+      const failures = results
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) => friendlyControlError(result.reason, 'Supabase control metadata could not be recorded.'))
+      if (failures.length > 0) {
+        setError(`Firebase round completed, but Supabase control metadata could not be recorded: ${[...new Set(failures)].join(' ')}`)
+      }
+    })
+  }, [])
+
   const handleLoadLive = useCallback(() => {
     if (busy || !liveReady || !mirror.evaluation) return
     setError(null); setSuccess(null); setRevealedRows(0)
@@ -64,13 +76,15 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
       setRound({ source: 'live', createdAt: receivedAt, rows: liveValuesToRows(mirror.evaluation.values) })
       setPhase('ready')
       if (adminId) {
-        void recordActivity(adminId, 'LOAD_LIVE_ROUND', { source: 'firebase_m11', key_count: 50 }).catch(() => undefined)
-        void recordRoundHistory({ roundIdentifier: `live-${receivedAt}`, source: 'live', status: 'ready', adminId, metadata: { keyCount: 50, safeCount: mirror.evaluation.safeCount } }).catch(() => undefined)
+        recordControlMetadata(
+          recordActivity(adminId, 'LOAD_LIVE_ROUND', { source: 'firebase_m11', key_count: 50 }),
+          recordRoundHistory({ roundIdentifier: `live-${receivedAt}`, source: 'live', status: 'ready', adminId, metadata: { keyCount: 50, safeCount: mirror.evaluation.safeCount } }),
+        )
       }
     } catch {
       setRound(null); setPhase('idle'); setError('The live round could not be mapped. No data was changed.')
     }
-  }, [adminId, busy, liveReady, mirror.evaluation, mirror.lastUpdated])
+  }, [adminId, busy, liveReady, mirror.evaluation, mirror.lastUpdated, recordControlMetadata])
 
   const handleNewGame = useCallback(async () => {
     if (busy || !configured) return
@@ -86,13 +100,15 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
       setRound({ source: 'published', seed: candidate.seed, createdAt: Date.now(), rows: nodeToRows(candidate.node) })
       setRevealedRows(0); setPhase('ready'); setPublishMessage(null); setSuccess('New game published successfully.')
       if (adminId) {
-        void recordActivity(adminId, 'NEW_GAME', { source: 'firebase_m11', round_identifier: `seed-${candidate.seed}`, cell_count: 50 }).catch(() => undefined)
-        void recordRoundHistory({ roundIdentifier: `seed-${candidate.seed}`, source: 'published', status: 'ready', adminId, metadata: { safeCount: candidate.rows.flatMap((row) => row.cells).filter((cell) => cell.value === '1').length, cellCount: 50 } }).catch(() => undefined)
+        recordControlMetadata(
+          recordActivity(adminId, 'NEW_GAME', { source: 'firebase_m11', round_identifier: `seed-${candidate.seed}`, cell_count: 50 }),
+          recordRoundHistory({ roundIdentifier: `seed-${candidate.seed}`, source: 'published', status: 'ready', adminId, metadata: { safeCount: candidate.rows.flatMap((row) => row.cells).filter((cell) => cell.value === '1').length, cellCount: 50 } }),
+        )
       }
     } catch {
       setPublishMessage(null); setRound(previousRound); setPhase(previousRound ? 'ready' : 'idle'); setError('Live game bridge temporarily unavailable. The current round was not replaced.')
     }
-  }, [adminId, busy, configured, round])
+  }, [adminId, busy, configured, recordControlMetadata, round])
 
   const handleNewLocalRound = useCallback(() => {
     if (busy) return
@@ -103,14 +119,16 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
         const next = generateDemoRound()
         setRound({ source: 'demo', seed: next.seed, createdAt: next.createdAt, rows: next.rows }); setPhase('ready')
         if (adminId) {
-          void recordActivity(adminId, 'NEW_LOCAL_ROUND', { source: 'local', round_identifier: `seed-${next.seed}`, cell_count: 50 }).catch(() => undefined)
-          void recordRoundHistory({ roundIdentifier: `seed-${next.seed}`, source: 'local', status: 'ready', adminId, metadata: { safeCount: next.rows.flatMap((row) => row.cells).filter((cell) => cell.value === '1').length, cellCount: 50 } }).catch(() => undefined)
+          recordControlMetadata(
+            recordActivity(adminId, 'NEW_LOCAL_ROUND', { source: 'local', round_identifier: `seed-${next.seed}`, cell_count: 50 }),
+            recordRoundHistory({ roundIdentifier: `seed-${next.seed}`, source: 'local', status: 'ready', adminId, metadata: { safeCount: next.rows.flatMap((row) => row.cells).filter((cell) => cell.value === '1').length, cellCount: 50 } }),
+          )
         }
       } catch {
         setPhase('idle'); setError('A valid local round could not be created. Please try again.')
       }
     }, START_SIMULATION_MS)
-  }, [adminId, busy])
+  }, [adminId, busy, recordControlMetadata])
 
   useEffect(() => () => {
     if (generationTimer.current !== null) window.clearTimeout(generationTimer.current)
@@ -156,8 +174,8 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
     return round?.source === 'published' ? 'Published round complete — create another when ready.' : round?.source === 'live' ? 'Live round complete — load the current bridge again.' : 'Round complete — create another when ready.'
   }
 
-  const content = <div className="space-y-4 sm:space-y-5"><span className="hidden" aria-hidden="true">no real money · no wagering</span><span className="hidden" aria-hidden="true">Offline demo mode</span>
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><span className="status-dot animate-pulse-soft bg-emerald-300" /><p aria-live="polite" className="text-sm font-medium text-slate-300">{statusLine()}</p>{phase === 'revealed' && <span className="rounded-full bg-emerald-300/[.08] px-2 py-1 text-[11px] font-semibold text-emerald-200">{safeCellCount} safe cells</span>}</div><div className="flex flex-wrap items-center gap-2">{newerSnapshotAvailable && <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.06] px-2.5 py-1 text-[11px] font-semibold text-cyan-100">Newer /m11 snapshot received — load it or start a NEW GAME</span>}<span data-testid="data-source-badge" className={`status-badge ${BADGE_CLASSES[badgeSource]}`} title={BADGE_TITLES[badgeSource]}><span className={`status-dot ${BADGE_DOTS[badgeSource]}`} />{BADGE_LABELS[badgeSource]}{badgeSource === 'demo' && <span className="hidden" aria-hidden="true">Demo / Local Simulation</span>}</span>{round && <span className="mono text-[10px] text-slate-600">{round.source === 'live' ? `received ${new Date(round.createdAt).toLocaleTimeString()}` : `seed ${round.seed}`}</span>}</div></div>
+  const content = <div className="space-y-4 sm:space-y-5">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><span className="status-dot animate-pulse-soft bg-emerald-300" /><p aria-live="polite" className="text-sm font-medium text-slate-300">{statusLine()}</p>{phase === 'revealed' && <span className="rounded-full bg-emerald-300/[.08] px-2 py-1 text-[11px] font-semibold text-emerald-200">{safeCellCount} safe cells</span>}</div><div className="flex flex-wrap items-center gap-2">{newerSnapshotAvailable && <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.06] px-2.5 py-1 text-[11px] font-semibold text-cyan-100">Newer /m11 snapshot received — load it or start a NEW GAME</span>}<span data-testid="data-source-badge" className={`status-badge ${BADGE_CLASSES[badgeSource]}`} title={BADGE_TITLES[badgeSource]}><span className={`status-dot ${BADGE_DOTS[badgeSource]}`} />{BADGE_LABELS[badgeSource]}</span>{round && <span className="mono text-[10px] text-slate-600">{round.source === 'live' ? `received ${new Date(round.createdAt).toLocaleTimeString()}` : `seed ${round.seed}`}</span>}</div></div>
     <ActionButtons phase={phase} liveReady={liveReady} firebaseConfigured={configured} onLoadLive={handleLoadLive} onNewGame={handleNewGame} onNewDemo={configured ? null : handleNewLocalRound} onShow={handleShow} />
     {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-4 py-3 text-sm text-rose-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />{error}{error.startsWith('Live game bridge') && <span className="hidden" aria-hidden="true">Publish failed — current round was not replaced.</span>}</div>}
     {success && <div role="status" className="flex items-start gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[.06] px-4 py-3 text-sm text-emerald-100"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />{success}</div>}
@@ -166,6 +184,7 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
     <GameGrid rows={round?.rows ?? null} phase={phase} revealedRows={revealedRows} nextSource={liveReady ? 'live' : 'demo'} />
     {(phase === 'revealing' || phase === 'revealed') && <div className="flex items-center justify-between text-xs text-slate-500"><span aria-live="polite">Row {Math.min(revealedRows, GRID_ROWS)} of {GRID_ROWS} revealed</span><div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/[.08] sm:w-40"><div className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-emerald-300 transition-all duration-300" style={{ width: `${(Math.min(revealedRows, GRID_ROWS) / GRID_ROWS) * 100}%` }} /></div></div>}
     <MirrorPanel connection={connection} mirror={mirror} />
+    <div className="flex items-start gap-2 rounded-xl border border-amber-300/10 bg-amber-300/[.03] px-3.5 py-3 text-[11px] leading-5 text-amber-100/70"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />No real money · no wagering. This is an operational visualization only; no external betting connectivity is provided.</div>
     <div className="flex items-start gap-2 text-[11px] leading-5 text-slate-600"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />The game console preserves the existing Firebase bridge and 50-position payload. Supabase records management metadata only.</div>
   </div>
 

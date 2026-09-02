@@ -31,8 +31,8 @@ const ROUTE_PERMISSIONS: Record<PageRoute, Permission> = {
   profile: 'profile.view',
 }
 
-function Workspace({ admin, route, navigate, onLogout }: { admin: NonNullable<ReturnType<typeof useAdminSession>['admin']>; route: PageRoute; navigate: (route: PageRoute) => void; onLogout: () => void }) {
-  return <AdminLayout admin={admin} route={route} onNavigate={navigate} onLogout={onLogout}><WorkspacePage admin={admin} route={route} onLogout={onLogout} /></AdminLayout>
+function Workspace({ admin, route, navigate, onLogout, sessionError }: { admin: NonNullable<ReturnType<typeof useAdminSession>['admin']>; route: PageRoute; navigate: (route: PageRoute) => void; onLogout: () => void; sessionError: string | null }) {
+  return <AdminLayout admin={admin} route={route} onNavigate={navigate} onLogout={onLogout} sessionError={sessionError}><WorkspacePage admin={admin} route={route} onLogout={onLogout} /></AdminLayout>
 }
 
 function WorkspacePage({ admin, route, onLogout }: { admin: NonNullable<ReturnType<typeof useAdminSession>['admin']>; route: PageRoute; onLogout: () => void }) {
@@ -41,8 +41,8 @@ function WorkspacePage({ admin, route, onLogout }: { admin: NonNullable<ReturnTy
     document.title = settings.general.browserTitle || 'MAGIC SCRIPT Admin Console'
   }, [settings.general.browserTitle])
 
-  if (!can(admin.role, ROUTE_PERMISSIONS[route])) return <NotAuthorizedPage />
-  if (route === 'dashboard') return <DashboardPage adminId={admin.id} />
+  if (!can(admin.role, ROUTE_PERMISSIONS[route])) return <NotAuthorizedPage role={admin.role} />
+  if (route === 'dashboard') return <DashboardPage adminId={admin.id} adminRole={admin.role} />
   if (route === 'game') return <Console operatorId={admin.username || admin.email} adminId={admin.id} displaySettings={settings.display} onLogout={onLogout} embedded />
   if (route === 'history') return <RoundHistoryPage />
   if (route === 'codes') return <AdminCodesPage admin={admin} />
@@ -57,5 +57,5 @@ export default function App() {
   const session = useAdminSession()
   const { route, navigate } = usePageRoute()
   if (session.loading) return <LoadingScreen />
-  return <ErrorBoundary>{session.admin ? <Workspace admin={session.admin} route={route} navigate={navigate} onLogout={() => { void session.logout() }} /> : <Login onAuthenticate={session.login} />}</ErrorBoundary>
+  return <ErrorBoundary>{session.admin ? <Workspace admin={session.admin} route={route} navigate={navigate} onLogout={() => { void session.logout() }} sessionError={session.error} /> : <Login onAuthenticate={session.login} statusMessage={session.error} />}</ErrorBoundary>
 }

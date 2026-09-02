@@ -1,5 +1,5 @@
 import { isValidHttpUrl } from '../utils/urls'
-import { getSupabaseClient, requireClient } from './supabase'
+import { classifySupabaseRequestError, requireClient } from './supabase'
 import type {
   ControlSettings,
   DisplaySettings,
@@ -88,8 +88,7 @@ function normalizeDisplay(row: DisplaySettingsRow | null): DisplaySettings {
 
 /** Reads the control plane once for the active console shell. */
 export async function loadControlSettings(): Promise<ControlSettings> {
-  const client = getSupabaseClient()
-  if (!client) return DEFAULT_CONTROL_SETTINGS
+  const client = requireClient()
 
   const [generalResult, socialResult, displayResult] = await Promise.all([
     client
@@ -110,9 +109,9 @@ export async function loadControlSettings(): Promise<ControlSettings> {
       .maybeSingle(),
   ])
 
-  if (generalResult.error || socialResult.error || displayResult.error) {
-    throw new Error('Control system temporarily unavailable.')
-  }
+  if (generalResult.error) throw classifySupabaseRequestError(generalResult.error, 'General settings could not be loaded. Check the site_settings table and its RLS policy.')
+  if (socialResult.error) throw classifySupabaseRequestError(socialResult.error, 'Social links could not be loaded. Check the social_links table and its RLS policy.')
+  if (displayResult.error) throw classifySupabaseRequestError(displayResult.error, 'Display settings could not be loaded. Check the display_settings table and its RLS policy.')
 
   return {
     general: normalizeGeneral(generalResult.data ?? []),
@@ -149,7 +148,7 @@ export async function saveGeneralSettings(settings: GeneralSettings, adminId: st
     { key: 'maintenance_mode', value: settings.maintenanceMode, type: 'boolean', is_public: true, updated_by: adminId },
   ]
   const { error } = await client.from('site_settings').upsert(rows, { onConflict: 'key' })
-  if (error) throw new Error('General settings could not be saved.')
+  if (error) throw classifySupabaseRequestError(error, 'General settings could not be saved. Check the site_settings table and its RLS policy.')
 }
 
 export async function saveSocialLinks(social: SocialLinks, adminId: string): Promise<void> {
@@ -169,7 +168,7 @@ export async function saveSocialLinks(social: SocialLinks, adminId: string): Pro
     },
     { onConflict: 'id' },
   )
-  if (error) throw new Error('Social links could not be saved.')
+  if (error) throw classifySupabaseRequestError(error, 'Social links could not be saved. Check the social_links table and its RLS policy.')
 }
 
 export async function saveDisplaySettings(display: DisplaySettings, adminId: string): Promise<void> {
@@ -200,5 +199,5 @@ export async function saveDisplaySettings(display: DisplaySettings, adminId: str
     },
     { onConflict: 'id' },
   )
-  if (error) throw new Error('Display settings could not be saved.')
+  if (error) throw classifySupabaseRequestError(error, 'Display settings could not be saved. Check the display_settings table and its RLS policy.')
 }

@@ -4,11 +4,12 @@ import { PageHeader, PanelHeading, SaveButton, InlineError } from '../components
 import { useSharedControlSettings } from '../layouts/AdminLayout'
 import { recordActivity } from '../services/activity'
 import { saveSocialLinks } from '../services/control'
+import { friendlyControlError } from '../services/supabase'
 import { useToast } from '../components/ToastProvider'
 import type { AdminProfile } from '../types/supabase'
 
 export function SocialLinksPage({ admin }: { admin: AdminProfile }) {
-  const { settings, setSettings, available } = useSharedControlSettings()
+  const { settings, setSettings, available, error: settingsError } = useSharedControlSettings()
   const { success, error } = useToast()
   const [telegramUrl, setTelegramUrl] = useState(settings.social.telegramUrl)
   const [youtubeUrl, setYoutubeUrl] = useState(settings.social.youtubeUrl)
@@ -26,10 +27,16 @@ export function SocialLinksPage({ admin }: { admin: AdminProfile }) {
       const social = { telegramUrl, youtubeUrl }
       await saveSocialLinks(social, admin.id)
       setSettings((current) => ({ ...current, social }))
-      await recordActivity(admin.id, 'UPDATE_SOCIAL_LINKS', { telegram_configured: Boolean(telegramUrl.trim()), youtube_configured: Boolean(youtubeUrl.trim()) }).catch(() => undefined)
+      let auditError: string | null = null
+      try {
+        await recordActivity(admin.id, 'UPDATE_SOCIAL_LINKS', { telegram_configured: Boolean(telegramUrl.trim()), youtube_configured: Boolean(youtubeUrl.trim()) })
+      } catch (cause) {
+        auditError = friendlyControlError(cause, 'The links were saved, but the audit event could not be recorded.')
+      }
       success('Social links updated across the site.')
+      if (auditError) error(`Social links saved, but audit logging failed: ${auditError}`)
     } catch (cause) {
-      error(cause instanceof Error ? cause.message : 'Social links could not be saved.')
+      error(friendlyControlError(cause, 'Social links could not be saved.'))
     } finally {
       setSaving(false)
     }
@@ -37,7 +44,7 @@ export function SocialLinksPage({ admin }: { admin: AdminProfile }) {
 
   return <>
     <PageHeader eyebrow="Configuration / public surface" title="Social links" description="Control the links displayed in the workspace footer and public-facing surfaces. Empty links stay hidden." />
-    {!available && <div className="mb-5"><InlineError message="Control system temporarily unavailable. Changes will be enabled when Supabase is configured." /></div>}
+    {!available && <div className="mb-5"><InlineError message={settingsError ?? 'Supabase control data is unavailable.'} /></div>}
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,.65fr)]">
       <form className="panel" onSubmit={handleSubmit}>
         <PanelHeading icon={Send} title="Channel destinations" description="Use complete http or https URLs. Links open in a new tab." />

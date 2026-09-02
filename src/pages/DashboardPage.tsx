@@ -24,12 +24,13 @@ import { isSupabaseConfigured } from '../config/supabase'
 import { listActivityLogs } from '../services/activity'
 import { listAdminCodes, adminCodeStatus } from '../services/adminCodes'
 import { listRoundHistory } from '../services/roundHistory'
+import { friendlyControlError } from '../services/supabase'
 import { useSharedControlSettings } from '../layouts/AdminLayout'
 import type { ActivityLogEntry } from '../services/activity'
-import type { AdminCodeSummary, RoundHistoryRow } from '../types/supabase'
+import type { AdminCodeSummary, AdminRole, RoundHistoryRow } from '../types/supabase'
 import { formatRelativeTime } from '../utils/time'
 
-export function DashboardPage({ adminId }: { adminId: string }) {
+export function DashboardPage({ adminId, adminRole }: { adminId: string; adminRole: AdminRole }) {
   const { settings } = useSharedControlSettings()
   const connection = useFirebaseConnection()
   const mirror = useM11Mirror()
@@ -43,18 +44,21 @@ export function DashboardPage({ adminId }: { adminId: string }) {
   useEffect(() => {
     let mounted = true
     setLoading(true)
-    void Promise.allSettled([listAdminCodes(), listActivityLogs(8), listRoundHistory(8)])
+    const codesRequest = adminRole === 'operator' ? Promise.resolve<AdminCodeSummary[]>([]) : listAdminCodes()
+    void Promise.allSettled([codesRequest, listActivityLogs(8), listRoundHistory(8)])
       .then(([codesResult, logsResult, historyResult]) => {
         if (!mounted) return
-        const failed = [codesResult, logsResult, historyResult].some((result) => result.status === 'rejected')
         if (codesResult.status === 'fulfilled') setCodes(codesResult.value)
         if (logsResult.status === 'fulfilled') setLogs(logsResult.value)
         if (historyResult.status === 'fulfilled') setHistory(historyResult.value)
-        setError(failed ? 'Some control data could not be loaded.' : null)
+        const failures = [codesResult, logsResult, historyResult]
+          .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+          .map((result) => friendlyControlError(result.reason, 'Some control data could not be loaded.'))
+        setError(failures.length > 0 ? [...new Set(failures)].join(' ') : null)
       })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
-  }, [adminId])
+  }, [adminId, adminRole])
 
   const activeCodes = useMemo(() => codes.filter((code) => adminCodeStatus(code) === 'active').length, [codes])
   const expiringCodes = useMemo(() => codes.filter((code) => {
@@ -118,7 +122,8 @@ export function DashboardPage({ adminId }: { adminId: string }) {
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
         <section className="panel">
           <PanelHeading icon={FileKey2} title="Access posture" description="Time-bound admin code inventory." action={<a href="#/codes" className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-300 hover:text-emerald-200">Manage <ArrowUpRight className="h-3.5 w-3.5" /></a>} />
-          {loading ? <LoadingRows count={2} /> : <div className="grid grid-cols-2 gap-3"><MiniStat label="Active codes" value={activeCodes} tone="green" /><MiniStat label="Expiring soon" value={expiringCodes} tone="amber" /></div>}
+          {loading ? <LoadingRows count={2} /> : <div className="grid grid-cols-2 gap-3"><MiniStat label="Active codes" value={adminRole === 'operator' ? '—' : activeCodes} tone="green" /><MiniStat label="Expiring soon" value={adminRole === 'operator' ? '—' : expiringCodes} tone="amber" /></div>}
+          {adminRole === 'operator' && <p className="mt-3 text-xs text-slate-600">Access-code inventory is restricted to administrator roles.</p>}
           {error && <p className="mt-4 text-xs text-amber-200">{error}</p>}
           <div className="mt-5 flex items-center gap-2 text-xs leading-5 text-slate-500"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /> Codes are hashed before they leave the browser.</div>
         </section>
@@ -136,7 +141,7 @@ function StatusTile({ icon: Icon, label, value, tone }: { icon: typeof Database;
   return <div className="rounded-xl border border-white/[.07] bg-white/[.02] p-3.5"><div className="flex items-center gap-2 text-xs text-slate-500"><Icon className={`h-3.5 w-3.5 ${tone === 'success' ? 'text-emerald-300' : tone === 'info' ? 'text-cyan-300' : 'text-amber-300'}`} />{label}</div><p className="mt-2 truncate text-sm font-semibold text-slate-200">{value}</p></div>
 }
 
-function MiniStat({ label, value, tone }: { label: string; value: number; tone: 'green' | 'amber' }) {
+function MiniStat({ label, value, tone }: { label: string; value: number | string; tone: 'green' | 'amber' }) {
   return <div className={`rounded-xl border p-4 ${tone === 'green' ? 'border-emerald-300/15 bg-emerald-300/[.05]' : 'border-amber-300/15 bg-amber-300/[.05]'}`}><p className="eyebrow">{label}</p><p className="mono mt-2 text-2xl font-semibold text-slate-100">{value}</p></div>
 }
 

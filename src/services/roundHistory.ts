@@ -1,4 +1,4 @@
-import { getSupabaseClient, requireClient } from './supabase'
+import { classifySupabaseRequestError, requireClient } from './supabase'
 import type { Json, RoundHistoryRow, RoundHistorySource, RoundHistoryStatus } from '../types/supabase'
 
 export interface RoundHistoryInput {
@@ -10,8 +10,7 @@ export interface RoundHistoryInput {
 }
 
 export async function recordRoundHistory(input: RoundHistoryInput): Promise<void> {
-  const client = getSupabaseClient()
-  if (!client) return
+  const client = requireClient()
   const { error } = await client.from('round_history').insert({
     round_identifier: input.roundIdentifier,
     source: input.source,
@@ -19,7 +18,7 @@ export async function recordRoundHistory(input: RoundHistoryInput): Promise<void
     created_by: input.adminId,
     metadata: input.metadata,
   })
-  if (error) throw new Error('Round history could not be recorded.')
+  if (error) throw classifySupabaseRequestError(error, 'Round history could not be recorded. Check the round_history table and its RLS policy.')
 }
 
 export async function listRoundHistory(limit = 50): Promise<RoundHistoryRow[]> {
@@ -29,6 +28,6 @@ export async function listRoundHistory(limit = 50): Promise<RoundHistoryRow[]> {
     .select('id, round_identifier, source, created_by, created_at, status, metadata')
     .order('created_at', { ascending: false })
     .limit(limit)
-  if (error) throw new Error('Round history could not be loaded.')
+  if (error) throw classifySupabaseRequestError(error, 'Round history could not be loaded. Check the round_history table and its RLS policy.')
   return data ?? []
 }

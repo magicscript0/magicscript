@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { M_KEYS } from '../config/game'
 import type { M11Node } from '../types/game'
 import { generateDemoRound } from './generator'
-import { isM11Value, validateM11Node, validateOperatorId } from './validation'
+import { isM11Value, validateM11Node } from './validation'
 
 /** Hand-built canonical valid node (independent of the generator). */
 function validNode(): M11Node {
@@ -125,22 +125,5 @@ describe('validateM11Node', () => {
     const result = validateM11Node(node)
     expect(result.valid).toBe(false)
     if (!result.valid) expect(result.errors.length).toBeGreaterThanOrEqual(3)
-  })
-})
-
-describe('validateOperatorId', () => {
-  it('accepts any non-empty id up to 40 characters', () => {
-    expect(validateOperatorId('op-7')).toEqual({ valid: true })
-    expect(validateOperatorId('  spaced  ')).toEqual({ valid: true })
-    expect(validateOperatorId('x'.repeat(40)).valid).toBe(true)
-  })
-
-  it('rejects empty / whitespace-only ids', () => {
-    expect(validateOperatorId('').valid).toBe(false)
-    expect(validateOperatorId('   ').valid).toBe(false)
-  })
-
-  it('rejects ids longer than 40 characters', () => {
-    expect(validateOperatorId('x'.repeat(41)).valid).toBe(false)
   })
 })
