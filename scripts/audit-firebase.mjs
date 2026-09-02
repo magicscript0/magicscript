@@ -40,12 +40,17 @@ const publisherReferences = [...contents.entries()].flatMap(([path, text]) => {
   const count = (text.match(/publishDemoRound/g) ?? []).length
   return count ? [{ path, count }] : []
 })
-const expectedPublisherFiles = new Set([approvedWriter, join(sourceRoot, 'pages', 'Console.tsx')])
+const expectedPublisherFiles = new Set([
+  approvedWriter,
+  join(sourceRoot, 'pages', 'Console.tsx'),
+  join(sourceRoot, 'pages', 'Fortune.tsx'),
+])
 for (const { path } of publisherReferences) {
   if (!expectedPublisherFiles.has(path)) fail(`${relative(root, path)} references the Firebase publisher unexpectedly`)
 }
 if (!publisherReferences.some(({ path }) => path === approvedWriter)) fail('approved Firebase publisher export is missing')
 if (!publisherReferences.some(({ path }) => path === join(sourceRoot, 'pages', 'Console.tsx'))) fail('Game Console is no longer the explicit publisher caller')
+if (!publisherReferences.some(({ path }) => path === join(sourceRoot, 'pages', 'Fortune.tsx'))) fail('Apple of Fortune is no longer an explicit publisher caller')
 
 const config = contents.get(join(sourceRoot, 'config', 'game.ts')) ?? ''
 const keys = [...config.matchAll(/'m(\d+)'/g)].map((match) => Number(match[1]))
@@ -72,6 +77,6 @@ if (failures.length) {
 
 console.log('Firebase static audit passed.')
 console.log('- One Firebase SDK mutation: update() in src/services/m11.ts')
-console.log('- One publisher caller: the explicit NEW GAME flow in src/pages/Console.tsx')
+console.log('- Publisher callers: the explicit NEW GAME flow in src/pages/Console.tsx and Apple of Fortune in src/pages/Fortune.tsx')
 console.log('- Fixed path: /m11; fixed children: m1 through m50')
 console.log('- No Firebase mutation primitives or legacy Android write APIs elsewhere in src')

@@ -10,6 +10,7 @@ const TITLES: Record<PageRoute, { title: string; subtitle: string }> = {
   game: { title: 'Game console', subtitle: 'Generate, validate, publish, and reveal a round.' },
   history: { title: 'Round history', subtitle: 'Operational records for recent round activity.' },
   codes: { title: 'Admin codes', subtitle: 'Issue and control time-bound administrator access.' },
+  access: { title: 'Game access', subtitle: 'Issue time-bound Apple of Fortune access codes.' },
   logs: { title: 'Activity logs', subtitle: 'A transparent trail of workspace actions.' },
   social: { title: 'Social links', subtitle: 'Manage the public links shown across the site.' },
   display: { title: 'Display settings', subtitle: 'Tune the public-facing presence and visual counters.' },

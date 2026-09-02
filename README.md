@@ -11,6 +11,30 @@ MAGIC SCRIPT UI ── Supabase ── administration, Auth, roles, settings, co
 
 Supabase never replaces Firebase. The existing Firebase project, `/m11` path, 50-child payload, and APP 2 consumer contract remain intact.
 
+## Two products, one application
+
+The repository hosts two completely separate experiences:
+
+| Experience | Entry | Auth |
+| --- | --- | --- |
+| **MAGIC SCRIPT — Apple of Fortune** (end users) | `/` → Game Login → `/play` | Account ID (9–11 digits) + time-bound Access Code |
+| **MAGIC SCRIPT — Admin Dashboard** (administrators) | `/login/admin` → `/admin` | Existing Supabase Auth (`admin_users`, roles, `active`, RLS) |
+
+- `/` shows the Apple of Fortune game login — never the admin dashboard.
+- `/play` is guarded by a server-validated game session; missing/expired/revoked sessions redirect to the game login. Refreshing only restores access while the server confirms the session.
+- `/login/admin` is the Supabase email/password screen; `/admin` renders the existing dashboard (workspace sections keep their `#/section` hash routing). Old `/#/section` bookmarks are forwarded into `/admin`.
+- Access Codes are created in the dashboard under **Game Access**: duration presets (15 min – 24 h or custom), one-time copy, created/expires/status/uses visibility, last Account ID, and revocation. Revoking a code cuts off its active sessions at their next server check (≤ 30 s heartbeat).
+- The game UI exposes no control-plane terminology: no Firebase/Supabase/diagnostics text, only the game itself.
+
+Game access is enforced server-side by the migration `supabase/migrations/20260902000002_game_access.sql`:
+
+- `game_access_codes` — SHA-256 hashes only, duration, server-computed `expires_at`, revocation, usage, last Account ID.
+- `game_access_sessions` — opaque bearer tokens (SHA-256 hashes only) bound to a code's expiry.
+- `redeem_game_access` / `check_game_access` — SECURITY DEFINER RPCs callable by anonymous clients; every verdict uses the database clock. Expiry timestamps are computed by the server (`create_game_access_code`), never by the client.
+- No anonymous table access; administrators read/write only through RLS with least-privilege column grants (hashes are never selected).
+
+The end-user game console reuses the existing round engine (`generator` → `validation` → the single guarded `publishDemoRound` write → reveal) and the read-only `/m11` mirror — the Firebase contract and APP 2 are untouched.
+
 ## Quick start
 
 ```bash
@@ -53,7 +77,10 @@ The reproducible schema is in:
 ```text
 supabase/migrations/20260902000000_magic_script_control_plane.sql
 supabase/migrations/20260902000001_magic_script_least_privilege_grants.sql
+supabase/migrations/20260902000002_game_access.sql
 ```
+
+The third migration adds the Apple of Fortune end-user access system (`game_access_codes`, `game_access_sessions`, and the `create/redeem/check` RPCs) without changing any existing table.
 
 The second migration tightens anonymous read columns, removes browser deletes for singleton public settings, and narrows browser insert columns for append-only records. Apply both with the Supabase CLI after linking the project:
 
@@ -79,6 +106,8 @@ It uses `SUPABASE_SERVICE_ROLE_KEY` only in the Edge Function runtime. That key 
 - `display_settings` — online display enablement, random/fixed mode, range, fixed value, and refresh interval.
 - `activity_logs` — append-only administrative actions and non-sensitive metadata.
 - `round_history` — non-sensitive operational round records; never a money or wager ledger.
+- `game_access_codes` — hashed, time-bound Apple of Fortune access codes (duration, server-computed expiry, revocation, last Account ID).
+- `game_access_sessions` — hashed opaque session tokens bound to a code expiry; the only end-user authorization state.
 
 All tables have timestamps, relevant constraints, and indexes. A shared trigger keeps `updated_at` consistent.
 

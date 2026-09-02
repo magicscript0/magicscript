@@ -5,6 +5,7 @@ export type Permission =
   | 'game.use'
   | 'history.view'
   | 'codes.manage'
+  | 'access.manage'
   | 'logs.view'
   | 'social.manage'
   | 'display.manage'
@@ -17,6 +18,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     'game.use',
     'history.view',
     'codes.manage',
+    'access.manage',
     'logs.view',
     'social.manage',
     'display.manage',
@@ -28,6 +30,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     'game.use',
     'history.view',
     'codes.manage',
+    'access.manage',
     'logs.view',
     'social.manage',
     'display.manage',

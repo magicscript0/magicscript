@@ -5,6 +5,7 @@ export type PageRoute =
   | 'game'
   | 'history'
   | 'codes'
+  | 'access'
   | 'logs'
   | 'social'
   | 'display'
@@ -16,6 +17,7 @@ const VALID_ROUTES: readonly PageRoute[] = [
   'game',
   'history',
   'codes',
+  'access',
   'logs',
   'social',
   'display',

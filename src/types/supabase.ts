@@ -46,6 +46,33 @@ export interface AdminCodeSummary extends Record<string, unknown> {
   revoked_at: string | null
 }
 
+/**
+ * Browser-safe view of a game access code row. The stored hash is never
+ * selected by the client, so it is intentionally absent from this shape.
+ */
+export interface GameAccessCodeRow extends Record<string, unknown> {
+  id: string
+  duration_minutes: number
+  active: boolean
+  expires_at: string
+  created_at: string
+  created_by: string | null
+  revoked_at: string | null
+  uses_count: number
+  account_id: string | null
+  redeemed_at: string | null
+}
+
+export type GameAccessCodeSummary = GameAccessCodeRow
+
+export interface GameAccessSessionRow extends Record<string, unknown> {
+  id: string
+  code_id: string
+  account_id: string
+  created_at: string
+  expires_at: string
+}
+
 export interface SiteSettingRow extends Record<string, unknown> {
   key: string
   value: Json
@@ -133,6 +160,35 @@ export interface Database {
         Update: Partial<AdminCodeRow>
         Relationships: []
       }
+      game_access_codes: {
+        Row: GameAccessCodeRow
+        Insert: {
+          id?: string
+          duration_minutes: number
+          active?: boolean
+          expires_at: string
+          created_at?: string
+          created_by?: string | null
+          revoked_at?: string | null
+          uses_count?: number
+          account_id?: string | null
+          redeemed_at?: string | null
+        }
+        Update: Partial<GameAccessCodeRow>
+        Relationships: []
+      }
+      game_access_sessions: {
+        Row: GameAccessSessionRow
+        Insert: {
+          id?: string
+          code_id: string
+          account_id: string
+          created_at?: string
+          expires_at: string
+        }
+        Update: Partial<GameAccessSessionRow>
+        Relationships: []
+      }
       site_settings: {
         Row: SiteSettingRow
         Insert: {
@@ -207,6 +263,18 @@ export interface Database {
       consume_admin_code: {
         Args: { p_code_hash: string }
         Returns: Array<{ id: string; role: AdminRole }>
+      }
+      create_game_access_code: {
+        Args: { p_code_hash: string; p_duration_minutes: number; p_created_by: string }
+        Returns: Array<{ id: string; expires_at: string; created_at: string; duration_minutes: number }>
+      }
+      redeem_game_access: {
+        Args: { p_code_hash: string; p_account_id: string }
+        Returns: Array<{ token: string; expires_at: string; server_now: string }>
+      }
+      check_game_access: {
+        Args: { p_token_hash: string }
+        Returns: Array<{ valid: boolean; expires_at: string; server_now: string; account_id: string }>
       }
     }
     Enums: {

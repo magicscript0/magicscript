@@ -10,6 +10,7 @@ import {
   LogOut,
   Settings2,
   SlidersHorizontal,
+  Ticket,
   UserRound,
   X,
 } from 'lucide-react'
@@ -31,6 +32,7 @@ const NAVIGATION: readonly NavigationItem[] = [
   { route: 'game', label: 'Game Console', icon: Gauge, permission: 'game.use' },
   { route: 'history', label: 'Round History', icon: ClipboardList, permission: 'history.view' },
   { route: 'codes', label: 'Admin Codes', icon: FileKey2, permission: 'codes.manage' },
+  { route: 'access', label: 'Game Access', icon: Ticket, permission: 'access.manage' },
   { route: 'logs', label: 'Activity Logs', icon: Activity, permission: 'logs.view' },
 ]
 
