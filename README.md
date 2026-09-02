@@ -78,9 +78,12 @@ The reproducible schema is in:
 supabase/migrations/20260902000000_magic_script_control_plane.sql
 supabase/migrations/20260902000001_magic_script_least_privilege_grants.sql
 supabase/migrations/20260902000002_game_access.sql
+supabase/migrations/20260902000003_game_access_verification_fix.sql
 ```
 
 The third migration adds the Apple of Fortune end-user access system (`game_access_codes`, `game_access_sessions`, and the `create/redeem/check` RPCs) without changing any existing table.
+
+The fourth migration repairs end-user verification on freshly created Supabase projects, where pgcrypto lives in the `extensions` schema: `redeem_game_access` was SECURITY DEFINER with `set search_path = public`, so its `digest()` call could not resolve at runtime and every redemption failed with a hidden error while admin-side creation kept working. It replaces the function with the same signature/return shape using PostgreSQL's built-in `sha256(bytea)` (no pgcrypto dependency) and keeps the identical `anon`/`authenticated` execute grants.
 
 The second migration tightens anonymous read columns, removes browser deletes for singleton public settings, and narrows browser insert columns for append-only records. Apply both with the Supabase CLI after linking the project:
 
