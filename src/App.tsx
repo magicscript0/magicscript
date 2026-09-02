@@ -74,17 +74,23 @@ function AdminArea({ initialPath }: { initialPath: '/admin' | '/login/admin' }) 
   const session = useAdminSession()
   const { navigate, replace } = usePathRoute()
 
-  // Signed-in admins land on the dashboard; anonymous visitors at /admin are
-  // redirected to the admin login route (never to the game experience).
-  // A `#/section` hash survives both hops so deep links keep their target.
+  // Supabase is the single source of truth. An authorized session moves the
+  // browser to /admin; anything else canonicalizes to /login/admin. Both hops
+  // preserve a `#/section` hash so admin deep links keep their target.
   useEffect(() => {
     if (session.loading) return
     if (session.admin && initialPath === '/login/admin') navigate('/admin', { preserveHash: true })
     if (!session.admin && initialPath === '/admin') replace('/login/admin', { preserveHash: true })
   }, [session.loading, session.admin, initialPath, navigate, replace])
 
+  // Never render the dashboard (or the login form) while authorization is
+  // still being verified — that is what prevents an unauthorized flash.
   if (session.loading) return <LoadingScreen />
+
+  // Without an authorized profile only the sign-in screen is ever rendered —
+  // the dashboard tree is never mounted, whichever admin URL was requested.
   if (!session.admin) return <Login onAuthenticate={session.login} statusMessage={session.error} />
+
   return <AdminWorkspace admin={session.admin} onLogout={() => { void session.logout() }} sessionError={session.error} />
 }
 

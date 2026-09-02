@@ -127,6 +127,28 @@ export function requireClient(): SupabaseClient<Database> {
   return client
 }
 
+/**
+ * Roles allowed to open the admin dashboard. A profile row carrying anything
+ * else (e.g. a role added to the enum later, or a downgraded account) is
+ * treated as unauthorized and the Auth session is discarded.
+ */
+export const AUTHORIZED_ADMIN_ROLES: readonly AdminProfile['role'][] = ['super_admin', 'admin', 'operator']
+
+export function isAuthorizedAdminRole(role: unknown): role is AdminProfile['role'] {
+  return typeof role === 'string' && (AUTHORIZED_ADMIN_ROLES as readonly string[]).includes(role)
+}
+
+/**
+ * Single authorization gate shared by sign-in and session restoration:
+ * a profile must exist, be active, and carry an authorized role.
+ */
+function assertAuthorizedProfile(profile: AdminProfile | null): AdminProfile {
+  if (!profile) throw new AdminProfileMissingError()
+  if (!profile.active) throw new InactiveAdminError()
+  if (!isAuthorizedAdminRole(profile.role)) throw new InsufficientRoleError()
+  return profile
+}
+
 function toProfile(row: {
   id: string
   email: string
@@ -258,10 +280,7 @@ export async function signInAdmin(email: string, password: string): Promise<Admi
   }
 
   try {
-    const profile = await getAdminProfile(data.user.id)
-    if (!profile) throw new AdminProfileMissingError()
-    if (!profile.active) throw new InactiveAdminError()
-    return profile
+    return assertAuthorizedProfile(await getAdminProfile(data.user.id))
   } catch (cause) {
     await clearSession(client)
     if (cause instanceof SupabaseIntegrationError) throw cause
@@ -294,16 +313,20 @@ export async function getCurrentAdmin(): Promise<AdminProfile | null> {
   }
   if (!data.session?.user) return null
 
-  const profile = await getAdminProfile(data.session.user.id)
-  if (!profile) {
-    await clearSession(client)
-    throw new AdminProfileMissingError()
+  let profile: AdminProfile | null
+  try {
+    profile = await getAdminProfile(data.session.user.id)
+  } catch (cause) {
+    // A transient read failure must not silently expose the dashboard.
+    throw classifyProfileError(cause)
   }
-  if (!profile.active) {
+
+  try {
+    return assertAuthorizedProfile(profile)
+  } catch (cause) {
     await clearSession(client)
-    throw new InactiveAdminError()
+    throw cause
   }
-  return profile
 }
 
 export function subscribeToAuthChanges(
