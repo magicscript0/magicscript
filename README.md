@@ -1,167 +1,173 @@
-# Apple Console — Operator Demo
+# MAGIC SCRIPT Admin Console
 
-A polished **DEMO web replacement** for the original Android operator app
-("APP 1"). It reproduces the operator workflow — login, 10×5 apple grid,
-multiplier ladder, START / SHOW — as a standalone simulation.
+MAGIC SCRIPT is a dark, mobile-first operations console for the existing game visualization workflow.
 
-> **This is a demo only.** No real money, no wagering, no deposits, no
-> connection to any betting platform. Firebase **publishing is disabled**
-> in this phase: rounds are generated and displayed locally and never
-> written anywhere.
+The application deliberately keeps two backends separate:
+
+```text
+MAGIC SCRIPT UI ── Supabase ── administration, Auth, roles, settings, codes, logs, history
+              └─ Firebase /m11 ── existing realtime round bridge ── APP 2 (unchanged)
+```
+
+Supabase never replaces Firebase. The existing Firebase project, `/m11` path, 50-child payload, and APP 2 consumer contract remain intact.
 
 ## Quick start
 
 ```bash
 npm install
+cp .env.example .env
 npm run dev
 ```
 
-Open the printed URL. Login accepts **any non-empty operator ID** plus the
-demo passcode:
+Set the Supabase values in `.env` using the project credentials supplied for your deployment. Only the publishable key belongs in the browser. Never put a service-role key in `VITE_*` variables or committed files.
 
-- default passcode: `demo-access`
-- override it with `VITE_DEMO_PASSWORD` in your `.env`
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your-key
 
-The original Android app's shared secret is deliberately **not** used and
-must never be added to this codebase.
-
-## Scripts
-
-| Command             | What it does                                  |
-| ------------------- | --------------------------------------------- |
-| `npm run dev`       | Vite dev server                               |
-| `npm run build`     | Type-check (`tsc --noEmit`) + production build |
-| `npm run preview`   | Serve the production build                    |
-| `npm run typecheck` | TypeScript only                               |
-| `npm run lint`      | ESLint (zero warnings allowed)                |
-| `npm test`          | Vitest suite (generator, validation, UI)      |
-
-## Environment
-
-Copy `.env.example` to `.env` (git-ignored) and adjust:
-
-```
-VITE_DEMO_PASSWORD=demo-access
+# Existing Firebase bridge — keep the project and database URL unchanged.
+VITE_FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com
 VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=zaem-a8d30.firebaseapp.com
-VITE_FIREBASE_DATABASE_URL=https://zaem-a8d30-default-rtdb.firebaseio.com
-VITE_FIREBASE_PROJECT_ID=zaem-a8d30
-VITE_FIREBASE_STORAGE_BUCKET=zaem-a8d30.appspot.com
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
 
-Two modes:
+The Supabase control plane must be configured and migrated before production sign-in is available. Create an Auth user in Supabase, then provision the first administrator from a trusted SQL session:
 
-1. **Offline demo mode (when `VITE_FIREBASE_DATABASE_URL` is unset/invalid)**
-   — zero Firebase network activity. Everything (grid, rounds, online-user
-   counter) is simulated locally, and the demo generator works fully.
-   **Only the database URL is required for live mode**: copy
-   `.env.example` to `.env` as-is and the mirror works — no API key, no
-   Firebase console access needed. The RTDB connection authorizes per
-   security rules (the demo database is publicly readable, verified by an
-   unauthenticated REST read in Phase 4); an API key is only used by other
-   Firebase services and is never required here. All other
-   `VITE_FIREBASE_*` values are optional passthroughs.
-2. **Read-only live mode** — with the required values present
-   (`apiKey`, `databaseURL`, `projectId`), the console attaches a
-   **read-only** `onValue` listener to `/m11` (m1–m50). Every snapshot is
-   validated against the `{ mN: "0" | "1" }` contract and the DB status
-   panel shows:
-
-   | State                    | Meaning                                                  |
-   | ------------------------ | -------------------------------------------------------- |
-   | Not configured           | no `.env` → offline demo mode                            |
-   | Connecting               | SDK connecting (`.info/connected` probe)                 |
-   | Connected (read-only)    | attached; observing `/m11`                               |
-   | Disconnected / Error     | connection lost / probe or listener failure              |
-   | /m11 sync: Syncing…      | attached, waiting for the first snapshot                 |
-   | /m11 sync: Empty         | node exists with no children — warning shown, no repair  |
-   | /m11 sync: Incomplete    | some of m1–m50 missing — keys listed, never created      |
-   | /m11 sync: Invalid data  | malformed children listed; nothing repaired or overwritten |
-   | /m11 sync: In sync       | 50/50 keys valid + safe/bomb counts                      |
-
-   Missing, empty, or malformed data is **reported, never repaired** — the
-   app contains no Firebase write call at all (statically audited by a
-   unit test that scans the whole `src/` tree).
-
-### Grid data sources & NEW GAME publishing
-
-The console offers explicit, clearly separated actions. The badge next to
-the status line always names the source of the round on screen:
-
-- **LOAD LIVE ROUND** → **"Firebase — Read Only"** (green badge): enabled
-  when `/m11` is currently valid (50/50). Freezes the observed snapshot —
-  nothing is generated, nothing is written — so the grid mirrors exactly
-  what APP 2 displays. Newer snapshots replace a held (not yet shown)
-  round wholesale; mid-reveal the round stays frozen.
-- **NEW GAME** → **"Firebase — Published"** (blue badge): the ONLY Firebase
-  write in the app. Chain: generate ONCE (APP 1's audited curve
-  1,1,1,1,2,2,2,2,2,4) → validate locally → publish the SAME validated
-  node to `/m11` as ONE atomic multi-path `update()` (single server
-  commit — APP 2's child listener can never observe a partial round) →
-  freeze the SAME node → SHOW reveals exactly what was published. On
-  failure the previous confirmed round is kept, a clear error is shown,
-  and there is no automatic retry. APP 2 receives the new round through
-  its existing listener, unmodified.
-- **NEW DEMO ROUND** → **"Demo / Local Simulation"** (amber badge):
-  offline-only fallback (shown when Firebase is not configured); local
-  generation only, never publishes.
-
-Publishing happens exclusively on an explicit NEW GAME click — never on
-load, login, LOAD LIVE, SHOW, listener updates, re-renders, or refresh
-(enforced by tests and the static write audit).
-
-Never commit `.env`. Only placeholders belong in `.env.example`.
-
-## The /m11 contract (frozen — do not break)
-
-The existing demo Android client ("APP 2") reads `/m11` via child events
-and crashes on a missing child. Any future publishing must satisfy:
-
-- exactly the 50 keys `m1` … `m50`;
-- each child stored as a wrapper object: `{ "m3": "1" }` — the value is
-  the **string** `"0"` (bomb) or `"1"` (safe), never a number;
-- per-child **upserts only** (`update`), never `set`/`remove`;
-- rows 1–10 own `m(5N-4)` … `m(5N)`;
-- never write `/main`, `/xbetmoney`, `/users`, `/bet1`, `/data` — those
-  nodes belong to the demo client.
-
-All writes go through the single guarded service `src/services/m11.ts`
-(the NEW GAME path only), which validates the round and writes only
-`/m11`.
-The generator's safe-cell curve per row is `1, 1, 1, 1, 2, 2, 2, 2, 2, 4`
-(row 1 easiest ×1.23 … row 10 ×349.68). This is **exactly the original
-operator app's algorithm** (Phase-1 audit F4, smali-verified: rows 1–4
-exactly 1 safe cell, rows 5–9 exactly 2, row 10 exactly 4 — uniform
-placement, no odds tuning), so every demo round contains exactly 18 safe
-cells and is deterministic per seed. Note: a live `/m11` round **may** show
-a different distribution if it was created/edited outside that algorithm —
-e.g. the round observed in Phase 4 had rows 8–9 with 3 safe cells (20
-total), which the audited algorithm cannot produce. Demo rounds never copy
-or write Firebase data; they are pure local simulation.
-
-## Project layout
-
+```sql
+insert into public.admin_users (id, email, username, role)
+select id, email, 'primary-admin', 'super_admin'
+from auth.users
+where email = 'admin@example.com';
 ```
+
+`admin_users` is intentionally not self-enrolling: the first privileged account must be provisioned out of band.
+
+## Supabase setup
+
+The reproducible schema is in:
+
+```text
+supabase/migrations/20260902000000_magic_script_control_plane.sql
+```
+
+Apply it with the Supabase CLI after linking the project:
+
+```bash
+supabase link --project-ref <project-ref>
+supabase db push
+```
+
+The optional server-side access-code verification function is in:
+
+```text
+supabase/functions/redeem-admin-code/index.ts
+```
+
+It uses `SUPABASE_SERVICE_ROLE_KEY` only in the Edge Function runtime. That key is never read by the Vite application.
+
+### Schema
+
+- `admin_users` — Supabase Auth-linked profiles, role, active state, and timestamps.
+- `admin_codes` — SHA-256 code hashes, role, expiration, use limits, status, and creator.
+- `site_settings` — typed general/announcement values with an explicit `is_public` flag.
+- `social_links` — singleton Telegram and YouTube destinations.
+- `display_settings` — online display enablement, random/fixed mode, range, fixed value, and refresh interval.
+- `activity_logs` — append-only administrative actions and non-sensitive metadata.
+- `round_history` — non-sensitive operational round records; never a money or wager ledger.
+
+All tables have timestamps, relevant constraints, and indexes. A shared trigger keeps `updated_at` consistent.
+
+### RLS and permissions
+
+Row Level Security is enabled on every table.
+
+- Anonymous users may read only explicitly public settings, social links, and display settings.
+- Active authenticated administrators can read their permitted control data.
+- `super_admin` can manage administrator profiles and all control-plane areas.
+- `admin` can manage normal settings, social/display configuration, codes, logs, and operational controls.
+- `operator` can use the Game Console and review operational history/profile only.
+- Codes cannot be created with `super_admin` role by a normal admin; the policy requires a super administrator for that escalation.
+- Activity logs and round history are append-only from the browser. An actor may append only their own ID; no browser user can edit or delete logs.
+- No policy grants anonymous insert, update, delete, permission changes, code creation, or admin management.
+
+Frontend permission checks improve the interface, but every sensitive operation is also enforced by RLS.
+
+## Admin code handling
+
+The Admin Codes page supports:
+
+- `1 hour`, `6 hours`, `12 hours`, `1 day`, `7 days`, `30 days`, or custom expiration;
+- role selection, maximum uses, activation/deactivation, revoke, and deletion;
+- creation/expiration/usage/status visibility;
+- one-time copy of the newly generated plaintext code.
+
+A code is generated with `crypto.getRandomValues` and hashed with Web Crypto SHA-256 before it is inserted. The raw code is held in React memory only long enough to copy it and is never placed in Supabase, activity metadata, or URL state. The browser inventory also omits the stored hash from its select projection. Verification belongs in the optional Edge Function, not in a client-side secret comparison.
+
+## Settings and public links
+
+General settings, social links, and display settings are loaded from Supabase through typed services and a shared settings hook. The authenticated shell footer automatically renders configured Telegram and YouTube buttons and hides an empty destination. The initial migration seeds Telegram with the requested `https://t.me/fox_script_vip` destination; administrators can replace it from the panel.
+
+The online counter is explicitly a display value, not presence analytics. Administrators can control:
+
+- enabled/hidden;
+- random or fixed mode;
+- minimum and maximum;
+- fixed value;
+- refresh interval.
+
+The UI does not claim that this value represents verified traffic.
+
+## Firebase safety contract
+
+The existing service layer in `src/services/m11.ts` remains the only Firebase write path.
+
+The hard contract is unchanged:
+
+- fixed path `/m11`;
+- exactly `m1` through `m50`;
+- each child remains `{ "mN": "0" }` or `{ "mN": "1" }` with string values;
+- one validated atomic `update()` for the explicit NEW GAME action;
+- no writes to `/main`, `/xbetmoney`, `/users`, `/bet1`, or `/data`;
+- read-only live observation remains in `useM11Mirror`;
+- APP 2 and APK files are not modified.
+
+The Game Console flow is still:
+
+```text
+NEW GAME → generate → validate → single existing Firebase publish → freeze → SHOW
+LOAD LIVE ROUND → freeze the validated read-only snapshot → SHOW
+```
+
+Supabase records management metadata around those actions, but it never publishes `/m11` and React components never call Firebase write APIs directly.
+
+## Project structure
+
+```text
 src/
-  config/       game.ts (grid, rows, curve, timings) · firebase.ts (env names)
-  types/        M11Node, RoundPhase, RowView, …
-  utils/        generator.ts · validation.ts · random.ts
-  services/     firebase.ts (lazy init) · m11.ts (guarded, publishing OFF)
-                demoAuth.ts (env passcode gate — NOT authentication)
-  hooks/        useDemoSession · useSimulatedOnlineUsers
-                useFirebaseConnection · useM11Mirror
-  components/   Header · GameGrid · MultiplierLadder · ActionButtons
-                DemoBanner · ConnectionPill · MirrorPanel · ErrorBoundary
-  pages/        Login.tsx · Console.tsx
-  layouts/      ConsoleLayout.tsx
+  config/        Firebase and Supabase environment contracts
+  types/         game and typed control-plane models
+  services/      existing Firebase/m11 services + Supabase control services
+  hooks/         Auth, route, settings, online display, and Firebase observers
+  layouts/       authenticated shell and game-console shell
+  components/    cyber UI primitives, navigation, grid, status, toast, dialogs
+  pages/         Login, Dashboard, Game Console, History, Codes, Logs, Settings, Profile
+supabase/
+  migrations/    reproducible PostgreSQL schema, functions, indexes, RLS
+  functions/    server-side code verification boundary
 ```
 
-## Accessibility & UX notes
+## Verification commands
 
-- keyboard-navigable, visible focus rings, ≥44px touch targets;
-- `prefers-reduced-motion` respected (reveal steps drop to 80 ms and
-  animations are effectively disabled);
-- the demo banner ("Demo simulation — no real money …") is always visible;
-- errors render friendly messages — never stack traces or env values.
+```bash
+npm run typecheck
+npm run lint
+npm run audit:firebase
+npm test
+npm run build
+```
+
+The Vite server binds to all interfaces and permits the Arena preview host. The responsive grid uses a constrained five-column layout with a narrow multiplier rail on phones; it is designed for 320px, 375px, 390px, 430px, tablet, and desktop widths without horizontal scrolling.

@@ -1,0 +1,6 @@
+# Supabase CLI project configuration for MAGIC SCRIPT.
+# Link this directory to the Supabase project before applying migrations.
+project_id = "your-project-ref"
+
+[functions.redeem-admin-code]
+verify_jwt = false
