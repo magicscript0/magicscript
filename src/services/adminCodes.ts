@@ -1,3 +1,4 @@
+import { sha256Hex } from '../utils/crypto'
 import { classifySupabaseRequestError, requireClient } from './supabase'
 import type { AdminCodeRow, AdminCodeSummary, AdminRole } from '../types/supabase'
 
@@ -59,14 +60,7 @@ export function generateAdminCode(): string {
 }
 
 export async function hashAdminCode(code: string): Promise<string> {
-  if (!globalThis.crypto?.subtle) {
-    throw new Error('Secure code hashing is unavailable in this browser.')
-  }
-  const digest = await globalThis.crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(code),
-  )
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return sha256Hex(code)
 }
 
 export async function listAdminCodes(): Promise<AdminCodeSummary[]> {

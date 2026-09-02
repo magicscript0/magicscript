@@ -6,14 +6,17 @@ describe('role permissions', () => {
     expect(can('operator', 'game.use')).toBe(true)
     expect(can('operator', 'history.view')).toBe(true)
     expect(can('operator', 'codes.manage')).toBe(false)
+    expect(can('operator', 'access.manage')).toBe(false)
     expect(can('operator', 'general.manage')).toBe(false)
   })
 
   it('gives administrators control-plane management without changing the bridge role', () => {
     expect(can('admin', 'codes.manage')).toBe(true)
+    expect(can('admin', 'access.manage')).toBe(true)
     expect(can('admin', 'social.manage')).toBe(true)
     expect(can('admin', 'display.manage')).toBe(true)
     expect(can('admin', 'game.use')).toBe(true)
+    expect(can('super_admin', 'access.manage')).toBe(true)
   })
 
   it('labels each supported role clearly', () => {

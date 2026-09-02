@@ -267,3 +267,148 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Apple of Fortune — mobile-first stage that fits the viewport with  */
+/* NO vertical scrolling. The board derives its cell size from the    */
+/* available stage height/width (container query units when present). */
+/* ------------------------------------------------------------------ */
+
+.fortune-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+.fortune-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fortune-board {
+  --fgap: clamp(3px, 0.8vh, 9px);
+  --chip: clamp(38px, 10vw, 54px);
+  --cell: min(
+    calc((100vh - 230px - 9 * var(--fgap)) / 10),
+    calc((100vw - var(--chip) - 5 * var(--fgap) - 28px) / 5)
+  );
+  display: grid;
+  grid-template-columns: var(--chip) repeat(5, var(--cell));
+  grid-auto-rows: var(--cell);
+  gap: var(--fgap);
+}
+
+/* Exact fit: the stage becomes a size container, so the board can be
+   measured against the space that is actually left on screen. */
+@supports (height: 1cqh) {
+  .fortune-stage {
+    container-type: size;
+  }
+
+  .fortune-board {
+    --fgap: clamp(3px, 1cqh, 9px);
+    --chip: clamp(38px, 12cqw, 54px);
+    --cell: min(
+      calc((100cqh - 9 * var(--fgap)) / 10),
+      calc((100cqw - var(--chip) - 5 * var(--fgap)) / 5)
+    );
+  }
+}
+
+.fortune-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .045);
+  color: #64748b;
+  transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+
+@supports (height: 1cqh) {
+  .fortune-cell {
+    border-radius: clamp(6px, 1.4cqw, 12px);
+  }
+}
+
+.fortune-cell--empty {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, .015);
+  color: #334155;
+}
+
+.fortune-cell--safe {
+  border-color: rgba(70, 227, 161, .65);
+  background: rgba(70, 227, 161, .12);
+  color: #a7f3d0;
+  box-shadow: 0 0 18px rgba(70, 227, 161, .18), inset 0 0 12px rgba(70, 227, 161, .08);
+}
+
+.fortune-cell--bomb {
+  border-color: rgba(251, 113, 133, .55);
+  background: rgba(251, 113, 133, .1);
+  color: #fecdd3;
+  box-shadow: 0 0 18px rgba(251, 113, 133, .14), inset 0 0 12px rgba(251, 113, 133, .07);
+}
+
+.fortune-chip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(8px, 2.4vw, 12px);
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: #7d8f8a;
+  padding-right: 4px;
+}
+
+@supports (height: 1cqh) {
+  .fortune-chip {
+    font-size: clamp(8px, 1.35cqw, 12px);
+    padding-right: clamp(2px, 0.6cqw, 6px);
+  }
+}
+
+.fortune-chip--active {
+  color: #63d8e8;
+}
+
+/* Unusually short viewports (e.g. phones in landscape): tighten the chrome
+   so the prediction board keeps as much space as possible. */
+@media (max-height: 520px) {
+  .fortune-screen > header {
+    padding-top: 2px;
+    padding-bottom: 0;
+  }
+
+  .fortune-screen > footer {
+    padding-top: 0;
+    padding-bottom: 2px;
+  }
+
+  .fortune-note {
+    display: none;
+  }
+
+  .fortune-actions button {
+    min-height: 40px;
+  }
+
+  .fortune-screen footer .min-h-5 {
+    min-height: 1rem;
+  }
+}
