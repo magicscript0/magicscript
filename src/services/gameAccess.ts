@@ -117,6 +117,22 @@ function postgrestMessage(error: unknown): string {
   return ''
 }
 
+/**
+ * Diagnostic record for development/operations. Contains ONLY the raw
+ * PostgREST/Postgres error fields — never credentials, keys, tokens, or
+ * request bodies.
+ */
+function diagnosticOf(error: unknown): { code?: unknown; status?: unknown; message?: unknown; details?: unknown; hint?: unknown } {
+  if (typeof error !== 'object' || error === null) return {}
+  const source = error as Record<string, unknown>
+  const out: { code?: unknown; status?: unknown; message?: unknown; details?: unknown; hint?: unknown } = {}
+  for (const key of ['code', 'status', 'message', 'details', 'hint']) {
+    const value = source[key]
+    if (typeof value === 'string' || typeof value === 'number') out[key as keyof typeof out] = value
+  }
+  return out
+}
+
 /** Map RPC failures to safe, non-technical, end-user-friendly categories. */
 export function classifyGameAccessError(error: unknown): GameAccessError {
   if (error instanceof GameAccessError) return error
@@ -124,6 +140,16 @@ export function classifyGameAccessError(error: unknown): GameAccessError {
     return new GameAccessError('network', 'The access check could not be completed. Check your connection and try again.')
   }
   const message = postgrestMessage(error)
+
+  // The browser must never show database internals, but the real error is
+  // logged so a mismatch between the frontend and the deployed schema can be
+  // identified from the browser console without exposing secrets.
+  if (message.length > 0) {
+    console.warn('[game-access] Supabase call failed:', diagnosticOf(error))
+  }
+  if (message.includes('Supabase is not configured')) {
+    return new GameAccessError('configuration', 'The game service is not configured. Contact the administrator.')
+  }
   if (message.includes('INVALID_ACCOUNT_ID')) {
     return new GameAccessError('invalid_account', 'Enter a valid Account ID (9–11 digits).')
   }

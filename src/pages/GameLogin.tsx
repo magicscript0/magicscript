@@ -63,6 +63,9 @@ export function GameLogin({ onLogin, endReason = null }: GameLoginProps) {
           setError(cause.message)
           return
         }
+        // Unexpected errors stay generic for end users, but the real cause is
+        // logged for diagnosis (never credentials or request bodies).
+        console.warn('[game-access] login failed:', cause)
         setError('Access could not be verified right now. Try again shortly.')
       })
   }

@@ -26,12 +26,14 @@ The repository hosts two completely separate experiences:
 - Access Codes are created in the dashboard under **Game Access**: duration presets (15 min – 24 h or custom), one-time copy, created/expires/status/uses visibility, last Account ID, and revocation. Revoking a code cuts off its active sessions at their next server check (≤ 30 s heartbeat).
 - The game UI exposes no control-plane terminology: no Firebase/Supabase/diagnostics text, only the game itself.
 
-Game access is enforced server-side by the migration `supabase/migrations/20260902000002_game_access.sql`:
+Game access is enforced server-side by the migration `supabase/migrations/20260902000002_game_access.sql` (with runtime fixes in migrations `03` and `04`):
 
 - `game_access_codes` — SHA-256 hashes only, duration, server-computed `expires_at`, revocation, usage, last Account ID.
 - `game_access_sessions` — opaque bearer tokens (SHA-256 hashes only) bound to a code's expiry.
 - `redeem_game_access` / `check_game_access` — SECURITY DEFINER RPCs callable by anonymous clients; every verdict uses the database clock. Expiry timestamps are computed by the server (`create_game_access_code`), never by the client.
 - No anonymous table access; administrators read/write only through RLS with least-privilege column grants (hashes are never selected).
+
+**Account ID semantics:** the Account ID is an identifier, not a registered account. The schema stores no end-user account registry, and an Access Code is not bound to a specific Account ID: `redeem_game_access` validates only the 9–11 digit format and records the redeeming ID on the code for operational visibility. Any numeric 9, 10, or 11 digit Account ID is accepted; no user lookup is performed and none is required.
 
 The end-user game console reuses the existing round engine (`generator` → `validation` → the single guarded `publishDemoRound` write → reveal) and the read-only `/m11` mirror — the Firebase contract and APP 2 are untouched.
 
@@ -79,11 +81,16 @@ supabase/migrations/20260902000000_magic_script_control_plane.sql
 supabase/migrations/20260902000001_magic_script_least_privilege_grants.sql
 supabase/migrations/20260902000002_game_access.sql
 supabase/migrations/20260902000003_game_access_verification_fix.sql
+supabase/migrations/20260902000004_game_access_runtime_fix.sql
 ```
 
 The third migration adds the Apple of Fortune end-user access system (`game_access_codes`, `game_access_sessions`, and the `create/redeem/check` RPCs) without changing any existing table.
 
-The fourth migration repairs end-user verification on freshly created Supabase projects, where pgcrypto lives in the `extensions` schema: `redeem_game_access` was SECURITY DEFINER with `set search_path = public`, so its `digest()` call could not resolve at runtime and every redemption failed with a hidden error while admin-side creation kept working. It replaces the function with the same signature/return shape using PostgreSQL's built-in `sha256(bytea)` (no pgcrypto dependency) and keeps the identical `anon`/`authenticated` execute grants.
+The fourth migration replaces the pgcrypto `digest()` call (unresolvable on fresh Supabase projects, where pgcrypto lives in the `extensions` schema and `redeem_game_access` is SECURITY DEFINER with `search_path = public`) with PostgreSQL's built-in `sha256(bytea)`, keeping the same signature, return shape and grants.
+
+The fifth migration fixes the three remaining runtime failures on modern PostgreSQL (the hidden causes of "Access could not be verified right now."): the `has_admin_role` PL/pgSQL variable `current_role` colliding with the SQL keyword `CURRENT_ROLE` (`42883`), the `SELECT ... INTO` rowtype column ambiguity in `redeem_game_access` (`42702`), and the `timezone('utc', now())` result type mismatch against the declared `timestamptz` return columns (`42804`). It recreates `has_admin_role`, `redeem_game_access` and `check_game_access` with identical signatures/grants and no schema changes.
+
+`npm run verify:game-access-db` applies all migrations inside an embedded real PostgreSQL and exercises the full create → redeem → check → session → invalid/expired/revoked flow.
 
 The second migration tightens anonymous read columns, removes browser deletes for singleton public settings, and narrows browser insert columns for append-only records. Apply both with the Supabase CLI after linking the project:
 

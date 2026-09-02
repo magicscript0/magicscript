@@ -61,6 +61,24 @@ describe('game access RPC contract', () => {
     expect(JSON.stringify(redeemCall[1])).not.toContain(created.plainCode)
   })
 
+  it('accepts any 9/10/11-digit numeric Account ID — identifier only, no account registry', async () => {
+    // The Game Access design stores no end-user accounts: the Account ID is a
+    // format-valid identifier, the code is NOT bound to a specific account,
+    // and the server re-validates only the digit pattern.
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ token: SESSION_TOKEN, expires_at: EXPIRES_AT, server_now: SERVER_NOW }],
+      error: null,
+    })
+    requireClientMock.mockReturnValue(rpcClient(rpc))
+
+    for (const accountId of ['123456789', '1234567890', '12345678901']) {
+      const redeemed = await redeemGameAccess(accountId, 'MS-ABCDE-FGHIJ-KLMNP-QRSTU')
+      expect(redeemed.accountId).toBe(accountId)
+      expect(rpc).toHaveBeenLastCalledWith('redeem_game_access', { p_code_hash: await sha256Hex('MS-ABCDE-FGHIJ-KLMNP-QRSTU'), p_account_id: accountId })
+    }
+    expect(rpc).toHaveBeenCalledTimes(3)
+  })
+
   it('rejects an invalid Account ID before any RPC is sent', async () => {
     const rpc = vi.fn()
     requireClientMock.mockReturnValue(rpcClient(rpc))
