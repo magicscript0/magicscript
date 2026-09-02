@@ -1,19 +1,21 @@
 {
-  "name": "apple-demo-console",
+  "name": "magic-script-admin-console",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Standalone DEMO web replacement for the original Android operator app. Simulation only — no real money, no wagering.",
+  "description": "MAGIC SCRIPT administrative command center with a Supabase control plane and Firebase /m11 bridge.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "audit:firebase": "node scripts/audit-firebase.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.114.0",
     "firebase": "^10.14.1",
     "lucide-react": "^0.451.0",
     "react": "^18.3.1",

@@ -56,7 +56,6 @@ export const SAFE_CELL_CURVE: readonly number[] = ROWS.map((row) => row.safeCell
 export const START_SIMULATION_MS = 1600
 export const REVEAL_ROW_DELAY_MS = 500
 export const REVEAL_ROW_DELAY_REDUCED_MOTION_MS = 80
-export const LOGIN_SIMULATION_MS = 1100
 
 /** Simulated online-users counter — pure UI decoration, no presence system. */
 export const ONLINE_USERS = { min: 20, max: 600, refreshMs: 2000 } as const

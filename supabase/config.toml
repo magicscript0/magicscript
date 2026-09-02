@@ -1,0 +1,6 @@
+# Supabase CLI project configuration for MAGIC SCRIPT.
+# The project ref is derived from the supplied control-plane URL.
+project_id = "eeffakpnyhqoxgbpxelj"
+
+[functions.redeem-admin-code]
+verify_jwt = false
