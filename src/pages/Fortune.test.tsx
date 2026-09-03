@@ -81,9 +81,18 @@ describe('Apple of Fortune game console', () => {
     advanceRevealTicks(GRID_ROWS + 1)
 
     expect(screen.getByRole('button', { name: /prediction shown/i })).toBeDisabled()
-    const safeCells = screen.getAllByRole('img').filter((cell) => cell.getAttribute('aria-label')?.endsWith('— safe'))
-    // Generator curve: rows 1–4 one safe, rows 5–9 two safe, row 10 four safe.
-    expect(safeCells).toHaveLength(18)
+    const revealed = screen.getAllByRole('img')
+    expect(revealed).toHaveLength(50)
+    // The public board swaps only the displayed visuals (backend values and
+    // the generator curve are unchanged): the 18 stored "1" positions render
+    // the trap visual, the 32 stored "0" positions render the apple visual.
+    expect(revealed.filter((cell) => cell.getAttribute('aria-label')?.endsWith('— bomb'))).toHaveLength(18)
+    expect(revealed.filter((cell) => cell.getAttribute('aria-label')?.endsWith('— safe'))).toHaveLength(32)
+  })
+
+  it('shows no demo disclaimer anywhere on the game screen', () => {
+    const { container } = render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
+    expect(container.textContent ?? '').not.toMatch(/demo experience/i)
   })
 
   it('keeps the whole board on screen through the no-scroll stage layout', () => {

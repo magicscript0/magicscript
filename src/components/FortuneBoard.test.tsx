@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
-import { FortuneBoard } from './FortuneBoard'
+import { boardVisualForValue, FortuneBoard } from './FortuneBoard'
 import { M_KEYS, ROWS } from '../config/game'
 import { generateDemoRound } from '../utils/generator'
 
@@ -20,12 +20,19 @@ describe('FortuneBoard — /m11 m1…m50 compatibility', () => {
     }
   })
 
-  it('reveals safe and bomb cells exactly according to the round node', () => {
+  it('maps stored values to visuals without touching the backend values', () => {
+    // Frontend-only mapping for the public board: the stored "0"/"1" values
+    // keep their existing meaning — only the displayed visual is assigned here.
+    expect(boardVisualForValue('1')).toBe('bomb')
+    expect(boardVisualForValue('0')).toBe('safe')
+  })
+
+  it('reveals trap and apple visuals exactly according to the round node', () => {
     const round = generateDemoRound(2026)
     render(<FortuneBoard rows={round.rows} phase="revealed" revealedRows={10} />)
     for (const row of round.rows) {
       for (const cell of row.cells) {
-        const expected = cell.value === '1' ? 'safe' : 'bomb'
+        const expected = cell.value === '1' ? 'bomb' : 'safe'
         expect(screen.getByLabelText(`Position ${cell.key} — ${expected}`)).toBeInTheDocument()
       }
     }

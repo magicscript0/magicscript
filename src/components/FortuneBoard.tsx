@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { Apple, Bomb } from 'lucide-react'
 import { GRID_ROWS, ROWS, formatMultiplier } from '../config/game'
-import type { RoundPhase, RowView } from '../types/game'
+import type { M11Value, RoundPhase, RowView } from '../types/game'
 
 type CellState = 'empty' | 'hidden' | 'safe' | 'bomb'
 
@@ -17,6 +17,21 @@ const STATE_LABELS: Record<CellState, string> = {
   hidden: 'hidden',
   safe: 'safe',
   bomb: 'bomb',
+}
+
+/**
+ * FRONTEND-ONLY visual mapping for the public prediction board.
+ *
+ * Nothing about the backend changes here: values arrive exactly as stored
+ * (/m11 m1…m50), and the generator, validation, live mirror, and safe-cell
+ * counts all keep their existing meaning — no value is rewritten, invented,
+ * or reinterpreted upstream. This function only decides which of the two
+ * existing result visuals each stored value renders as once revealed:
+ *
+ *   stored "1" → trap (spike) visual · stored "0" → apple visual.
+ */
+export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
+  return value === '1' ? 'bomb' : 'safe'
 }
 
 const FortuneCell = memo(function FortuneCell({ state, label, animate }: { state: CellState; label: string | null; animate: boolean }) {
@@ -66,7 +81,7 @@ export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
           <div key={row.row} className="contents">
             <div className={`fortune-chip ${row.row === activeRow ? 'fortune-chip--active' : ''}`}>{formatMultiplier(row.multiplier)}</div>
             {row.cells.map((cell) => {
-              const state: CellState = !hasRound ? 'empty' : revealed ? (cell.value === '1' ? 'safe' : 'bomb') : 'hidden'
+              const state: CellState = !hasRound ? 'empty' : revealed ? boardVisualForValue(cell.value) : 'hidden'
               return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} animate={phase === 'revealing' || phase === 'revealed'} />
             })}
           </div>
