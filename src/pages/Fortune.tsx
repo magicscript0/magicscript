@@ -4,6 +4,7 @@ import { GRID_ROWS, REVEAL_ROW_DELAY_MS, REVEAL_ROW_DELAY_REDUCED_MOTION_MS, STA
 import { useM11Mirror } from '../hooks/useM11Mirror'
 import { publishDemoRound } from '../services/m11'
 import { BrandMark } from '../components/BrandMark'
+import { CyberBackdrop } from '../components/CyberBackdrop'
 import { FortuneBoard } from '../components/FortuneBoard'
 import { generateDemoRound, nodeToRows } from '../utils/generator'
 import { liveValuesToRows } from '../utils/m11Snapshot'
@@ -145,7 +146,8 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
 
   return (
     <div className="fortune-screen">
-      <header className="flex items-center gap-2.5 px-3 pb-1 pt-2 sm:px-5">
+      <CyberBackdrop density="calm" />
+      <header className="relative z-10 flex items-center gap-2.5 px-3 pb-1 pt-2 sm:px-5">
         <BrandMark compact />
         <div className="min-w-0 leading-tight">
           <p className="text-[8px] font-bold uppercase tracking-[.22em] text-emerald-300/75">MAGIC SCRIPT</p>
@@ -172,7 +174,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
         </div>
       </header>
 
-      <div className="fortune-stage px-3 sm:px-5">
+      <div className="fortune-stage relative z-10 px-3 sm:px-5">
         <FortuneBoard rows={round?.rows ?? null} phase={phase} revealedRows={revealedRows} />
         {phase === 'idle' && round === null && (
           <div className="pointer-events-none absolute inset-x-3 inset-y-0 flex items-center justify-center sm:inset-x-5">
@@ -187,7 +189,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
         )}
       </div>
 
-      <footer className="px-3 pb-2 pt-1 sm:px-5">
+      <footer className="relative z-10 px-3 pb-2 pt-1 sm:px-5">
         <div aria-live="polite" className="mb-2 flex min-h-5 items-center justify-center gap-2 text-center text-xs font-medium text-slate-400">
           {phase === 'generating' || phase === 'publishing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" />}
           {statusLine()}
@@ -220,7 +222,6 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
             {phase === 'revealing' ? 'Revealing…' : phase === 'revealed' ? 'Shown' : 'Reveal'}
           </button>
         </div>
-        <p className="fortune-note mt-2 text-center text-[9px] font-semibold uppercase tracking-[.18em] text-slate-700">Demo experience · no real-money play</p>
       </footer>
     </div>
   )

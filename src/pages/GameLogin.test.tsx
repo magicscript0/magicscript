@@ -111,6 +111,25 @@ describe('Apple of Fortune login screen', () => {
     expect(screen.getByRole('status')).toHaveTextContent('no longer active')
   })
 
+  it('shows no helper text, placeholder example, or demo disclaimer', () => {
+    render(<GameLogin onLogin={vi.fn()} />)
+    expect(screen.queryByText(/9–11 digits, numbers only/i)).toBeNull()
+    expect((screen.getByLabelText('Account ID') as HTMLInputElement).placeholder).toBe('')
+    expect(screen.queryByText(/demo experience/i)).toBeNull()
+  })
+
+  it('links to the Telegram and YouTube channels in new tabs', () => {
+    render(<GameLogin onLogin={vi.fn()} />)
+    const telegram = screen.getByRole('link', { name: /telegram/i })
+    expect(telegram).toHaveAttribute('href', 'https://t.me/fox_script_vip')
+    expect(telegram).toHaveAttribute('target', '_blank')
+    expect(telegram.getAttribute('rel') ?? '').toMatch(/noopener/)
+    const youtube = screen.getByRole('link', { name: /youtube/i })
+    expect(youtube).toHaveAttribute('href', 'https://youtube.com/@nano_scriptt?si=b-81mV0awzjsRmbv')
+    expect(youtube).toHaveAttribute('target', '_blank')
+    expect(youtube.getAttribute('rel') ?? '').toMatch(/noopener/)
+  })
+
   it('never stores the access code or account id in web storage', async () => {
     const onLogin = vi.fn().mockResolvedValue(undefined)
     render(<GameLogin onLogin={onLogin} />)
