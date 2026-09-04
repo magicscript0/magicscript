@@ -135,7 +135,7 @@ describe('MirrorPanel — /m11 sync states', () => {
       />,
     )
     expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/In sync — 50\/50 keys valid/i)
-    expect(screen.getByText(/50\/50 keys valid · 18 safe · 32 bomb cells/i)).toBeInTheDocument()
+    expect(screen.getByText(/50\/50 keys valid · 20 safe · 30 bomb cells/i)).toBeInTheDocument()
     expect(screen.getByText(/Observation only/i)).toBeInTheDocument()
   })
 

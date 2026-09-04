@@ -135,7 +135,7 @@ describe('Console screen', () => {
     advanceRevealTicks(GRID_ROWS - 1)
     expect(screen.getByText(/Row 10 of 10 revealed/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /result shown/i })).toBeInTheDocument()
-    expect(screen.getByText(/18 safe cells/i)).toBeInTheDocument() // curve total
+    expect(screen.getByText(/20 safe cells/i)).toBeInTheDocument() // curve total
   })
 
   it('reveals exactly one additional row per reveal tick', () => {
@@ -178,7 +178,7 @@ describe('Console screen', () => {
     expect(safeFinal).toBeGreaterThanOrEqual(safeAtThree)
     expect(bombFinal).toBeGreaterThanOrEqual(bombAtThree)
     expect(safeFinal + bombFinal).toBe(50)
-    expect(safeFinal).toBe(18)
+    expect(safeFinal).toBe(20)
   })
 
   it('a second NEW DEMO ROUND after a completed round builds a fresh round and resets SHOW', () => {
@@ -228,7 +228,7 @@ describe('Console screen', () => {
         expectedCell === '1' ? 'safe' : 'bomb',
       )
     }
-    expect(screen.getByText(/18 safe cells/i)).toBeInTheDocument()
+    expect(screen.getByText(/20 safe cells/i)).toBeInTheDocument()
   })
 
   it('offline mode never publishes and keeps the local demo generator as fallback', () => {
@@ -245,7 +245,7 @@ describe('Console screen', () => {
       })
     }
     expect(publishMock).not.toHaveBeenCalled()
-    expect(screen.getByText(/18 safe cells/i)).toBeInTheDocument()
+    expect(screen.getByText(/20 safe cells/i)).toBeInTheDocument()
   })
 
   it('logout button calls onLogout', () => {
