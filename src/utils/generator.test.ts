@@ -5,7 +5,7 @@ import { evaluateM11Snapshot, liveValuesToRows } from './m11Snapshot'
 import { rowSafeCounts, validateM11Node } from './validation'
 import type { M11Node } from '../types/game'
 
-const EXPECTED_CURVE = [1, 1, 1, 1, 2, 2, 2, 2, 2, 4]
+const EXPECTED_CURVE = [1, 1, 1, 1, 2, 2, 2, 3, 3, 4]
 
 describe('generateDemoRound', () => {
   it('produces exactly 50 positions with every key m1…m50 present exactly once', () => {
@@ -34,7 +34,7 @@ describe('generateDemoRound', () => {
     }
   })
 
-  it('distributes safe cells per row exactly along the curve 1,1,1,1,2,2,2,2,2,4', () => {
+  it('distributes safe cells per row exactly along the curve 1,1,1,1,2,2,2,3,3,4', () => {
     expect(SAFE_CELL_CURVE).toEqual(EXPECTED_CURVE)
     // Across many seeds the per-row safe count must be constant — the curve
     // is structural, not probabilistic.
@@ -101,11 +101,11 @@ describe('generateDemoRound', () => {
 })
 
 describe('rowSafeCounts', () => {
-  it('returns ten counts summing to the curve total (18 safe cells)', () => {
+  it('returns ten counts summing to the curve total (20 safe cells)', () => {
     const node: M11Node = generateDemoRound(5).node
     const counts = rowSafeCounts(node)
     expect(counts).toHaveLength(10)
-    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(18)
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(20)
   })
 })
 
@@ -119,7 +119,7 @@ describe('demo generator ↔ live snapshot structural parity', () => {
       const evaluation = evaluateM11Snapshot(raw)
       expect(evaluation.status).toBe('valid')
       expect(evaluation.present).toHaveLength(50)
-      expect(evaluation.safeCount).toBe(18)
+      expect(evaluation.safeCount).toBe(20)
 
       // The live mapper must reproduce the generator's own row view EXACTLY
       // (same ROWS config, same ordering, same "1"/"0" semantics).

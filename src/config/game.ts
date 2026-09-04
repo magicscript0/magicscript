@@ -44,8 +44,8 @@ export const ROWS: readonly RowSpec[] = [
   { row: 5, multiplier: 4.02, safeCells: 2, keys: ['m21', 'm22', 'm23', 'm24', 'm25'] },
   { row: 6, multiplier: 6.71, safeCells: 2, keys: ['m26', 'm27', 'm28', 'm29', 'm30'] },
   { row: 7, multiplier: 11.18, safeCells: 2, keys: ['m31', 'm32', 'm33', 'm34', 'm35'] },
-  { row: 8, multiplier: 27.97, safeCells: 2, keys: ['m36', 'm37', 'm38', 'm39', 'm40'] },
-  { row: 9, multiplier: 69.93, safeCells: 2, keys: ['m41', 'm42', 'm43', 'm44', 'm45'] },
+  { row: 8, multiplier: 27.97, safeCells: 3, keys: ['m36', 'm37', 'm38', 'm39', 'm40'] },
+  { row: 9, multiplier: 69.93, safeCells: 3, keys: ['m41', 'm42', 'm43', 'm44', 'm45'] },
   { row: 10, multiplier: 349.68, safeCells: 4, keys: ['m46', 'm47', 'm48', 'm49', 'm50'] },
 ]
 

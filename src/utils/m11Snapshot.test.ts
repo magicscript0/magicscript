@@ -30,7 +30,7 @@ describe('evaluateM11Snapshot — valid payloads', () => {
     for (const seed of [1, 2, 3, 4, 5]) {
       const result = evaluateM11Snapshot(toRaw(generateDemoRound(seed).node))
       expect(result.status).toBe('valid')
-      expect(result.safeCount).toBe(18) // curve 1,1,1,1,2,2,2,2,2,4
+      expect(result.safeCount).toBe(20) // curve 1,1,1,1,2,2,2,3,3,4
     }
   })
 

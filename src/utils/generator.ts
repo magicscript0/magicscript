@@ -51,7 +51,7 @@ export function nodeToRows(node: M11Node): RowView[] {
  * Generates one complete DEMO round.
  *
  * Curve parity with the original operator app: rows 1–10 receive exactly
- * 1, 1, 1, 1, 2, 2, 2, 2, 2, 4 safe cells ("1"), uniformly placed.
+ * 1, 1, 1, 1, 2, 2, 2, 3, 3, 4 safe cells ("1"), uniformly placed.
  *
  * The result is validated against the /m11 contract BEFORE it is returned,
  * so a generated round can never be missing positions or malformed.
