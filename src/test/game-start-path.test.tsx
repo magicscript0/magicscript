@@ -6,26 +6,34 @@ import { GRID_ROWS, M_KEYS, REVEAL_ROW_DELAY_MS, ROWS, SAFE_CELL_CURVE } from '.
 import type { M11Node, M11Value } from '../types/game'
 
 /**
- * REAL game-start execution-path tests.
+ * REAL Firebase execution-path tests.
  *
  * Only the Firebase SDK layer (`firebase/database`) is mocked, purely to
- * CAPTURE what the app writes. Everything else is production code:
+ * CAPTURE what the app reads from /m11 and what the app writes. Everything
+ * else is production code:
  *
- *   START button (Fortune "New round" / admin "New Game")
- *     → handleNewRound / handleNewGame            (real page handlers)
- *     → generateDemoRound()                        (real generator)
- *     → validateM11Node()                          (real contract validator)
+ *   PUBLIC WEB DISPLAY
+ *     → subscribeToM11Sync() → onValue(ref(db, 'm11'))
+ *     → evaluateM11Snapshot(raw) → liveValuesToRows → rendered board
+ *
+ *   ADMIN NEW GAME (publish workflow — preserved separately)
+ *     → handleNewGame
+ *     → generateDemoRound()                  (real generator)
+ *     → validateM11Node()                    (real contract validator)
  *     → publishDemoRound() → ref(db,'m11') + update()   (real single write path)
- *     → board state (nodeToRows) → rendered board  (real board components)
+ *     → board state (nodeToRows) → rendered board
  *
- * These tests prove: ONE generation per start, ONE Firebase write per start,
- * the write goes to /m11 only, the payload follows src/config/game.ts, and
- * the PUBLIC BOARD renders exactly the published values (m1…m50, in order).
+ * These tests prove:
+ *   - the public web is a read-only mirror of the existing Firebase /m11 data;
+ *   - it never calls a local prediction generator simply to display the round;
+ *   - the admin NEW GAME path still generates once, writes /m11 once, and
+ *     renders exactly the published values.
  */
 
 const updateMock = vi.hoisted(() => vi.fn((_ref: unknown, _node: unknown) => Promise.resolve()))
 const refMock = vi.hoisted(() => vi.fn((_db: unknown, path: unknown) => ({ path: `${path}` })))
-const onValueMock = vi.hoisted(() => vi.fn(() => () => undefined))
+const onValueMock = vi.hoisted(() => vi.fn())
+const liveValue = vi.hoisted(() => ({ current: null as null | ((snapshot: { val: () => unknown }) => void) }))
 const fakeDb = vi.hoisted(() => ({ fakeDemoDatabase: true }))
 
 vi.mock('firebase/database', () => ({ ref: refMock, update: updateMock, onValue: onValueMock }))
@@ -52,6 +60,11 @@ vi.mock('../utils/generator', async (importOriginal) => {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  liveValue.current = null
+  onValueMock.mockImplementation((_ref: unknown, onData: (snapshot: { val: () => unknown }) => void) => {
+    liveValue.current = onData
+    return () => undefined
+  })
 })
 
 afterEach(() => {
@@ -60,6 +73,7 @@ afterEach(() => {
   refMock.mockClear()
   onValueMock.mockClear()
   generatorSpy.mockClear()
+  liveValue.current = null
   vi.useRealTimers()
 })
 
@@ -95,25 +109,6 @@ function revealedBoard(): Record<string, string> {
   return board
 }
 
-/** Row → [safe visuals, broken visuals] on the PUBLIC board (m1..m50 order). */
-function publicRowGroups(board: Record<string, string>): Map<number, [number, number]> {
-  return new Map(
-    ROWS.map((spec) => {
-      const safe = spec.keys.filter((key) => board[key] === 'safe').length
-      const broken = spec.keys.filter((key) => board[key] === 'bomb').length
-      return [spec.row, [safe, broken]] as const
-    }),
-  )
-}
-
-const REQUIRED_GROUPS: Readonly<Record<number, readonly [number, number]>> = {
-  1: [4, 1], 2: [4, 1], 3: [4, 1], 4: [4, 1], // ×1.23 → ×2.41 : 4 safe + 1 broken
-  5: [3, 2], 6: [3, 2], 7: [3, 2],            // ×4.02 → ×11.18: 3 safe + 2 broken
-  8: [2, 3],                                   // ×27.97        : 2 safe + 3 broken
-  9: [2, 3],                                   // ×69.93        : 2 safe + 3 broken
-  10: [1, 4],                                  // ×349.68       : 1 safe + 4 broken
-}
-
 /** Contract shape of a published node, m1…m50 exactly, strings only. */
 function expectContractShape(node: M11Node): void {
   expect(Object.keys(node)).toEqual([...M_KEYS])
@@ -140,71 +135,69 @@ function advanceReveal() {
   }
 }
 
-describe('PUBLIC WEB START — real execution path (Fortune "New round")', () => {
-  it('generates ONE round, writes /m11 ONCE, and the board shows exactly the published values', async () => {
+/** Raw /m11 fixture: the exact Firebase wire shape { mN: { mN: "0"|"1" } }. */
+function rawSnapshot(safeKeys: readonly string[]): Record<string, unknown> {
+  const raw: Record<string, unknown> = {}
+  for (const key of M_KEYS) {
+    raw[key] = { [key]: safeKeys.includes(key) ? '1' : '0' }
+  }
+  return raw
+}
+
+/** Recognizable deterministic fixture: m1=1, m2=0, m3=1, m4=0, m5=0,
+ * then even mN are safe (m6,m8,…) and odd mN from m7 are broken. */
+function deterministicSafeKeys(): string[] {
+  const safe = ['m1', 'm3']
+  for (let n = 6; n <= 50; n += 1) {
+    if (n % 2 === 0) safe.push(`m${n}`)
+  }
+  return safe
+}
+
+function emitLiveSnapshot(safeKeys: readonly string[]) {
+  act(() => {
+    liveValue.current?.({ val: () => rawSnapshot(safeKeys) })
+  })
+}
+
+describe('PUBLIC WEB DISPLAY — real Firebase /m11 read path', () => {
+  it('subscribes to /m11 and renders every existing cell value 1:1 without generating or writing', async () => {
+    const safe = deterministicSafeKeys()
     render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
 
-    // The read-only /m11 observer attaches exactly once and writes nothing.
-    expect(onValueMock).toBeCalledTimes(1)
-    expect(updateMock).not.toHaveBeenCalled()
+    expect(onValueMock).toHaveBeenCalledTimes(1)
+    emitLiveSnapshot(safe)
 
-    // START.
-    fireEvent.click(screen.getByRole('button', { name: /new round/i }))
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0)
-    })
-
-    // ONE generation, ONE Firebase write — no duplicate path, no second result.
-    expect(generatorSpy).toBeCalledTimes(1)
-    expect(updateMock).toBeCalledTimes(1)
-    expect(refMock.mock.results.map((result) => result.value.path)).toContain('m11')
-
-    const payload = publishedPayload(0)
-    expectContractShape(payload)
-    expectPayloadFollowsConfig(payload)
-
-    // Reveal and compare the PUBLIC BOARD with the FIREBASE payload, m1…m50.
     fireEvent.click(screen.getByRole('button', { name: /reveal prediction/i }))
     advanceReveal()
 
     const board = revealedBoard()
-    const values = payloadValues(payload)
+    const values: Record<string, M11Value> = {}
+    for (const key of M_KEYS) values[key] = safe.includes(key) ? '1' : '0'
     for (const key of M_KEYS) {
-      // Fixed public visual mapping: stored "1" → trap/broken, stored "0" → safe.
-      expect(board[key], `${key}: board (${board[key]}) must equal /m11 (${values[key]})`).toBe(values[key] === '1' ? 'bomb' : 'safe')
+      // Public board contract: stored "1" = SAFE/APPLE, stored "0" = BROKEN/TRAP.
+      expect(board[key], `${key}: board must equal Firebase /m11 ${key}`).toBe(values[key] === '1' ? 'safe' : 'bomb')
     }
 
-    // The five required pattern groups, on the real rendered board.
-    for (const [row, expected] of Object.entries(REQUIRED_GROUPS)) {
-      expect(publicRowGroups(board).get(Number(row))).toEqual(expected)
-    }
+    expect(generatorSpy).not.toHaveBeenCalled()
+    expect(updateMock).not.toHaveBeenCalled()
   })
 
-  it('a SECOND start publishes a fresh single result and the board follows it exactly', async () => {
+  it('updates cell 17 when Firebase m17 changes from "0" to "1" without local generation', async () => {
+    const initial = deterministicSafeKeys() // m17 is "0"
     render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /new round/i }))
-    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    emitLiveSnapshot(initial)
     fireEvent.click(screen.getByRole('button', { name: /reveal prediction/i }))
     advanceReveal()
+    expect(screen.getByLabelText('Position m17 — bomb')).toBeInTheDocument()
 
-    // START again from the finished state.
-    fireEvent.click(screen.getByRole('button', { name: /new round/i }))
-    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    emitLiveSnapshot([...initial, 'm17'])
 
-    expect(generatorSpy).toBeCalledTimes(2) // exactly one generation per start
-    expect(updateMock).toBeCalledTimes(2)   // exactly one /m11 write per start
-
-    const second = payloadValues(publishedPayload(1))
-    expectPayloadFollowsConfig(publishedPayload(1))
-
-    fireEvent.click(screen.getByRole('button', { name: /reveal prediction/i }))
-    advanceReveal()
-
-    const board = revealedBoard()
-    for (const key of M_KEYS) {
-      expect(board[key]).toBe(second[key] === '1' ? 'bomb' : 'safe')
-    }
+    expect(screen.getByLabelText('Position m17 — safe')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Position m17 — bomb')).toBeNull()
+    expect(generatorSpy).not.toHaveBeenCalled()
+    expect(updateMock).not.toHaveBeenCalled()
   })
 })
 

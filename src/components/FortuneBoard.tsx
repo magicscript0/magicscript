@@ -20,18 +20,17 @@ const STATE_LABELS: Record<CellState, string> = {
 }
 
 /**
- * FRONTEND-ONLY visual mapping for the public prediction board.
+ * Visual mapping for the public prediction board.
  *
- * Nothing about the backend changes here: values arrive exactly as stored
- * (/m11 m1…m50), and the generator, validation, live mirror, and safe-cell
- * counts all keep their existing meaning — no value is rewritten, invented,
- * or reinterpreted upstream. This function only decides which of the two
- * existing result visuals each stored value renders as once revealed:
+ * Values arrive exactly as stored in Firebase /m11 (m1…m50) and keep the
+ * existing contract semantics unchanged. This function only assigns the
+ * displayed result visual:
  *
- *   stored "1" → trap (spike) visual · stored "0" → apple visual.
+ *   stored "1" → SAFE / APPLE visual
+ *   stored "0" → BROKEN / TRAP visual
  */
 export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
-  return value === '1' ? 'bomb' : 'safe'
+  return value === '1' ? 'safe' : 'bomb'
 }
 
 const FortuneCell = memo(function FortuneCell({ state, label, animate }: { state: CellState; label: string | null; animate: boolean }) {

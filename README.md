@@ -33,7 +33,7 @@ Game access is enforced server-side by the migration `supabase/migrations/202609
 - `redeem_game_access` / `check_game_access` — SECURITY DEFINER RPCs callable by anonymous clients; every verdict uses the database clock. Expiry timestamps are computed by the server (`create_game_access_code`), never by the client.
 - No anonymous table access; administrators read/write only through RLS with least-privilege column grants (hashes are never selected).
 
-The end-user game console reuses the existing round engine (`generator` → `validation` → the single guarded `publishDemoRound` write → reveal) and the read-only `/m11` mirror — the Firebase contract and APP 2 are untouched.
+The end-user Apple of Fortune display is a read-only mirror of the current Firebase `/m11` state: it subscribes to `/m11`/m1…m50 and renders exactly what the database contains. The separate operator/admin Console still owns the NEW GAME publisher flow (`generator` → `validation` → the single guarded `publishDemoRound` write → reveal) — the Firebase contract and APP 2 are untouched.
 
 ## Quick start
 
@@ -171,14 +171,14 @@ The hard contract is unchanged:
 - read-only live observation remains in `useM11Mirror`;
 - APP 2 and APK files are not modified.
 
-The Game Console flow is still:
+The operator/admin Console flow is still:
 
 ```text
 NEW GAME → generate → validate → single existing Firebase publish → freeze → SHOW
 LOAD LIVE ROUND → freeze the validated read-only snapshot → SHOW
 ```
 
-Supabase records management metadata around those actions, but it never publishes `/m11` and React components never call Firebase write APIs directly.
+The public Apple of Fortune board does not generate or publish; it only observes `/m11` and renders the current game state. Supabase records management metadata around operator actions, but it never publishes `/m11`, and the public display never calls the Firebase publisher.
 
 ## Project structure
 
