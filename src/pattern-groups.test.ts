@@ -6,20 +6,24 @@ import { validateM11Node } from './utils/validation'
 
 /**
  * REQUIRED VERIFICATION — the five pattern groups on the PUBLIC prediction
- * board, using the fixed visual mapping (stored "1" → trap, stored "0" → safe)
- * and the real generator, across many seeds.
+ * board, using the fixed visual mapping (stored "1" → safe/apple, stored "0"
+ * → broken/trap — exactly APP 2's contract) and the real generator, across
+ * many seeds. Per-row groups therefore equal the row's stored "1"/"0"
+ * counts: rows 1–4 (one stored "1") show 1 safe + 4 broken, rows 5–9 (two
+ * stored "1") show 2 safe + 3 broken, row 10 (four stored "1") shows 4 safe
+ * + 1 broken.
  */
 const EXPECTED_VISUALS: Record<number, { multiplier: string; safe: number; broken: number }> = {
-  1: { multiplier: '×1.23', safe: 4, broken: 1 },
-  2: { multiplier: '×1.54', safe: 4, broken: 1 },
-  3: { multiplier: '×1.93', safe: 4, broken: 1 },
-  4: { multiplier: '×2.41', safe: 4, broken: 1 },
-  5: { multiplier: '×4.02', safe: 3, broken: 2 },
-  6: { multiplier: '×6.71', safe: 3, broken: 2 },
-  7: { multiplier: '×11.18', safe: 3, broken: 2 },
+  1: { multiplier: '×1.23', safe: 1, broken: 4 },
+  2: { multiplier: '×1.54', safe: 1, broken: 4 },
+  3: { multiplier: '×1.93', safe: 1, broken: 4 },
+  4: { multiplier: '×2.41', safe: 1, broken: 4 },
+  5: { multiplier: '×4.02', safe: 2, broken: 3 },
+  6: { multiplier: '×6.71', safe: 2, broken: 3 },
+  7: { multiplier: '×11.18', safe: 2, broken: 3 },
   8: { multiplier: '×27.97', safe: 2, broken: 3 },
   9: { multiplier: '×69.93', safe: 2, broken: 3 },
-  10: { multiplier: '×349.68', safe: 1, broken: 4 },
+  10: { multiplier: '×349.68', safe: 4, broken: 1 },
 }
 
 describe('required five-group visual pattern verification', () => {
@@ -46,11 +50,11 @@ describe('required five-group visual pattern verification', () => {
         broken: cells.filter((cell) => boardVisualForValue(cell.value) === 'bomb').length,
       }
     }
-    expect(group([1, 2, 3, 4]), '×1.23 → ×2.41').toEqual({ safe: 16, broken: 4 }) // 4 rows × (4 safe + 1 broken)
-    expect(group([5, 6, 7]), '×4.02 → ×11.18').toEqual({ safe: 9, broken: 6 }) // 3 rows × (3 safe + 2 broken)
+    expect(group([1, 2, 3, 4]), '×1.23 → ×2.41').toEqual({ safe: 4, broken: 16 }) // 4 rows × (1 safe + 4 broken)
+    expect(group([5, 6, 7]), '×4.02 → ×11.18').toEqual({ safe: 6, broken: 9 }) // 3 rows × (2 safe + 3 broken)
     expect(group([8]), '×27.97').toEqual({ safe: 2, broken: 3 })
     expect(group([9]), '×69.93').toEqual({ safe: 2, broken: 3 })
-    expect(group([10]), '×349.68').toEqual({ safe: 1, broken: 4 })
+    expect(group([10]), '×349.68').toEqual({ safe: 4, broken: 1 })
   })
 
   it('/m11 contract shape is untouched: m1…m50, { mN: "0" | "1" }', () => {
