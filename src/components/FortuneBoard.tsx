@@ -19,6 +19,11 @@ const STATE_LABELS: Record<CellState, string> = {
   bomb: 'bomb',
 }
 
+const VALUE_TO_VISUAL: Readonly<Record<M11Value, 'safe' | 'bomb'>> = {
+  '1': 'safe', // Firebase WIN / SAFE apple → good apple visual
+  '0': 'bomb', // Firebase LOSE / BROKEN apple → damaged/broken apple visual
+}
+
 /**
  * Visual mapping for the public prediction board.
  *
@@ -26,11 +31,11 @@ const STATE_LABELS: Record<CellState, string> = {
  * existing contract semantics unchanged. This function only assigns the
  * displayed result visual:
  *
- *   stored "1" → SAFE / APPLE visual
- *   stored "0" → BROKEN / TRAP visual
+ *   stored "1" → SAFE / GOOD apple visual
+ *   stored "0" → BROKEN / DAMAGED apple visual
  */
 export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
-  return value === '1' ? 'safe' : 'bomb'
+  return VALUE_TO_VISUAL[value]
 }
 
 const FortuneCell = memo(function FortuneCell({ state, label, animate }: { state: CellState; label: string | null; animate: boolean }) {
