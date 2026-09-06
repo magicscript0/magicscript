@@ -20,8 +20,8 @@ const STATE_LABELS: Record<CellState, string> = {
 }
 
 const VALUE_TO_VISUAL: Readonly<Record<M11Value, 'safe' | 'bomb'>> = {
-  '1': 'safe', // Firebase WIN / SAFE apple → good apple visual
-  '0': 'bomb', // Firebase LOSE / BROKEN apple → damaged/broken apple visual
+  '1': 'safe', // Firebase WIN / SAFE apple
+  '0': 'bomb', // Firebase LOSE / BROKEN apple
 }
 
 /**
@@ -29,10 +29,15 @@ const VALUE_TO_VISUAL: Readonly<Record<M11Value, 'safe' | 'bomb'>> = {
  *
  * Values arrive exactly as stored in Firebase /m11 (m1…m50) and keep the
  * existing contract semantics unchanged. This function only assigns the
- * displayed result visual:
+ * logical result state:
  *
- *   stored "1" → SAFE / GOOD apple visual
- *   stored "0" → BROKEN / DAMAGED apple visual
+ *   stored "1" → SAFE state
+ *   stored "0" → BROKEN state
+ *
+ * The rendered apple assets are swapped inside FortuneCell so the public
+ * experience shows the SAFE/GOOD apple visual for safe data and the
+ * BROKEN/BOMB-looking apple visual for broken data. This is visual-only;
+ * no stored value or Firebase contract is changed.
  */
 export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
   return VALUE_TO_VISUAL[value]
@@ -48,7 +53,7 @@ const FortuneCell = memo(function FortuneCell({ state, label, animate }: { state
       className={`fortune-cell ${CELL_MODIFIERS[state]} ${animation}`}
     >
       <span className="flex h-[52%] w-[52%] items-center justify-center">
-        {state === 'bomb' ? (
+        {state === 'safe' ? (
           <Bomb aria-hidden="true" className="h-full w-full" strokeWidth={2.2} />
         ) : (
           <Apple aria-hidden="true" className={`h-full w-full ${state === 'hidden' || state === 'empty' ? 'opacity-40' : ''}`} strokeWidth={2.2} />
