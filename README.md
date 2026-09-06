@@ -45,6 +45,8 @@ npm run dev
 
 Set the Supabase values in `.env` using the project configuration supplied for your deployment. Only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are read by the browser. The publishable/anon key is safe for browser use; never put a service-role or secret key in a `VITE_*` variable or committed file. If either value is missing or a privileged key is detected, the sign-in screen reports that control-plane setup is required rather than attempting a login.
 
+The public Apple of Fortune mirror does not depend on Firebase secrets being present in the deployment environment. `src/config/firebase.ts` carries the non-secret public APP 2 identifiers (`zaem-a8d30` database URL, project id, auth domain, storage bucket) as a safe fallback, so the web always targets the same Realtime Database that APP 2 reads. An explicit valid `VITE_FIREBASE_DATABASE_URL` still overrides the fallback; API key / app id / sender id are never bundled as fallbacks.
+
 ```dotenv
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=

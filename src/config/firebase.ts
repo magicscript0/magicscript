@@ -1,7 +1,20 @@
 /**
  * Firebase (demo backend) configuration.
- * Every value comes from environment variables — nothing is hardcoded here.
+ *
+ * Secrets/credentials come from environment variables. The non-secret
+ * public project identifiers below (`zaem-a8d30`) are already embedded in
+ * the public APP 2 client and are required for the public web to consume
+ * the same `/m11` node. They are used only as SAFE fallbacks when the
+ * deployment does not provide the corresponding `VITE_FIREBASE_*` value; an
+ * explicit valid `VITE_FIREBASE_DATABASE_URL` still takes precedence.
+ * No API key / app id / sender id secret is defaulted here.
  */
+export const PUBLIC_FIREBASE_FALLBACK = {
+  databaseURL: 'https://zaem-a8d30-default-rtdb.firebaseio.com',
+  authDomain: 'zaem-a8d30.firebaseapp.com',
+  projectId: 'zaem-a8d30',
+  storageBucket: 'zaem-a8d30.appspot.com',
+} as const
 
 export const FIREBASE_ENV = {
   apiKey: 'VITE_FIREBASE_API_KEY',

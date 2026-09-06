@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
 import { getDatabase, onValue, ref, type Database, type Unsubscribe } from 'firebase/database'
-import { FIREBASE_ENV } from '../config/firebase'
+import { FIREBASE_ENV, PUBLIC_FIREBASE_FALLBACK } from '../config/firebase'
 
 export interface FirebaseEnvConfig {
   apiKey?: string
@@ -23,16 +23,20 @@ export class FirebaseNotConfiguredError extends Error {
   }
 }
 
+function envString(name: string, fallback = ''): string {
+  const value = import.meta.env[name]
+  return typeof value === 'string' && value.trim().length > 0 ? value : fallback
+}
+
 function readEnvConfig(): FirebaseEnvConfig {
-  const env = import.meta.env
   return {
-    apiKey: env[FIREBASE_ENV.apiKey],
-    authDomain: env[FIREBASE_ENV.authDomain],
-    databaseURL: env[FIREBASE_ENV.databaseURL] ?? '',
-    projectId: env[FIREBASE_ENV.projectId],
-    storageBucket: env[FIREBASE_ENV.storageBucket],
-    messagingSenderId: env[FIREBASE_ENV.messagingSenderId],
-    appId: env[FIREBASE_ENV.appId],
+    apiKey: envString(FIREBASE_ENV.apiKey),
+    authDomain: envString(FIREBASE_ENV.authDomain, PUBLIC_FIREBASE_FALLBACK.authDomain),
+    databaseURL: envString(FIREBASE_ENV.databaseURL, PUBLIC_FIREBASE_FALLBACK.databaseURL),
+    projectId: envString(FIREBASE_ENV.projectId, PUBLIC_FIREBASE_FALLBACK.projectId),
+    storageBucket: envString(FIREBASE_ENV.storageBucket, PUBLIC_FIREBASE_FALLBACK.storageBucket),
+    messagingSenderId: envString(FIREBASE_ENV.messagingSenderId),
+    appId: envString(FIREBASE_ENV.appId),
   }
 }
 
@@ -58,10 +62,15 @@ export function isValidDatabaseUrl(url: string): boolean {
  * is missing — in which case the app runs in "offline demo mode"
  * (zero Firebase network activity by design).
  *
- * Required: VITE_FIREBASE_DATABASE_URL only. The RTDB connection does not
- * use an API key (it authorizes per security rules; /m11 is publicly
- * readable — verified by an unauthenticated REST read in Phase 4). All
- * other variables are optional and passed to the SDK when present.
+ * The public APP 2 database (`zaem-a8d30`) is used as a non-secret fallback
+ * for `databaseURL`, `authDomain`, `projectId`, and `storageBucket`. This
+ * guarantees the public web always reads the SAME Firebase project as APP 2
+ * even when a deployment omits the optional `VITE_FIREBASE_*` variables.
+ * An explicit `VITE_FIREBASE_DATABASE_URL` (when valid) takes precedence.
+ * The RTDB connection does not use an API key (it authorizes per security
+ * rules; /m11 is publicly readable — verified by an unauthenticated REST
+ * read in Phase 4). All other variables are optional and passed to the SDK
+ * when present.
  */
 export function readFirebaseConfigFromEnv(): FirebaseEnvConfig | null {
   const raw = readEnvConfig()
