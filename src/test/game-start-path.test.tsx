@@ -201,6 +201,37 @@ describe('PUBLIC WEB DISPLAY — real Firebase /m11 read path', () => {
   })
 })
 
+describe('PUBLIC WEB NEW GAME — real generator/publish path followed by Firebase onValue', () => {
+  it('generates once, validates, publishes /m11 once, and the onValue listener drives the board', async () => {
+    render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /new game/i }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+
+    expect(generatorSpy).toBeCalledTimes(1)
+    expect(updateMock).toBeCalledTimes(1)
+
+    const payload = publishedPayload(0)
+    expectContractShape(payload)
+    expectPayloadFollowsConfig(payload)
+
+    // Firebase emits the exact published node back through onValue.
+    act(() => {
+      liveValue.current?.({ val: () => payload })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /reveal prediction/i }))
+    advanceReveal()
+
+    const values = payloadValues(payload)
+    const board = revealedBoard()
+    for (const key of M_KEYS) {
+      // Public board contract: stored "1" = SAFE/APPLE, stored "0" = BROKEN/TRAP.
+      expect(board[key], `${key}: board must equal Firebase /m11 ${key}`).toBe(values[key] === '1' ? 'safe' : 'bomb')
+    }
+  })
+})
+
 describe('ADMIN NEW GAME — real execution path (Console "New Game")', () => {
   it('uses the same single generation + single /m11 write and shows the same values', async () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)

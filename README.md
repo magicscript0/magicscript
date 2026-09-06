@@ -180,7 +180,7 @@ NEW GAME → generate → validate → single existing Firebase publish → free
 LOAD LIVE ROUND → freeze the validated read-only snapshot → SHOW
 ```
 
-The public Apple of Fortune board does not generate or publish; it only observes `/m11` and renders the current game state. Supabase records management metadata around operator actions, but it never publishes `/m11`, and the public display never calls the Firebase publisher.
+The public Apple of Fortune board renders only the Firebase `/m11` state. Its "New game" action reuses the same generator → validator → single guarded `/m11` publish path as the operator Console, then the existing `/m11` `onValue` listener updates the public board. It never keeps a second local board and never runs the local demo simulation fallback. Supabase records management metadata around operator actions, but it never publishes `/m11` directly.
 
 ## Project structure
 

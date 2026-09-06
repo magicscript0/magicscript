@@ -5,10 +5,13 @@ import { resolve } from 'node:path'
 import { Fortune } from './Fortune'
 import { GRID_ROWS, M_KEYS, REVEAL_ROW_DELAY_MS } from '../config/game'
 import { evaluateM11Snapshot } from '../utils/m11Snapshot'
+import { validateM11Node } from '../utils/validation'
+import type { M11Node } from '../types/game'
 
 const isConfiguredMock = vi.hoisted(() => vi.fn(() => true))
 const subscribeMock = vi.hoisted(() => vi.fn())
-const publishMock = vi.hoisted(() => vi.fn())
+const publishMock = vi.hoisted(() => vi.fn<(node: M11Node) => Promise<void>>())
+const generatorSpy = vi.hoisted(() => vi.fn())
 
 vi.mock('../services/firebase', () => ({
   isFirebaseConfigured: isConfiguredMock,
@@ -20,6 +23,17 @@ vi.mock('../services/m11', () => ({
   subscribeToM11Sync: subscribeMock,
   publishDemoRound: publishMock,
 }))
+
+vi.mock('../utils/generator', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/generator')>()
+  return {
+    ...actual,
+    generateDemoRound: (seed?: number) => {
+      generatorSpy(seed)
+      return actual.generateDemoRound(seed)
+    },
+  }
+})
 
 type SyncHandlers = {
   onUpdate?: (update: {
@@ -58,6 +72,16 @@ function emitSnapshot(safeKeys: readonly string[], receivedAt = 1_000) {
   })
 }
 
+/** Emits the exact node the publisher wrote to Firebase, like the /m11 listener. */
+function emitPublishedNode(node: M11Node, receivedAt = 2_000) {
+  act(() => {
+    listener.current?.onUpdate?.({
+      evaluation: evaluateM11Snapshot(node as unknown),
+      receivedAt,
+    })
+  })
+}
+
 function revealAll() {
   for (let i = 0; i < GRID_ROWS; i += 1) {
     act(() => {
@@ -81,7 +105,8 @@ beforeEach(() => {
   vi.useFakeTimers()
   isConfiguredMock.mockReset().mockReturnValue(true)
   subscribeMock.mockReset()
-  publishMock.mockReset()
+  publishMock.mockReset().mockImplementation(() => Promise.resolve())
+  generatorSpy.mockReset()
   listener.current = null
   subscribeMock.mockImplementation((handlers: SyncHandlers) => {
     listener.current = handlers
@@ -125,7 +150,8 @@ describe('Apple of Fortune public board — Firebase /m11 live mirror', () => {
       const expected = safe.includes(key) ? 'safe' : 'bomb'
       expect(board[key], `${key}: board must equal Firebase /m11 ${key}`).toBe(expected)
     }
-    // The public board is a read-only mirror: it never publishes a prediction.
+    // Displaying a live round never generates or publishes.
+    expect(generatorSpy).not.toHaveBeenCalled()
     expect(publishMock).not.toHaveBeenCalled()
   })
 
@@ -145,18 +171,68 @@ describe('Apple of Fortune public board — Firebase /m11 live mirror', () => {
 
     expect(screen.getByLabelText('Position m17 — safe')).toBeInTheDocument()
     expect(screen.queryByLabelText('Position m17 — bomb')).toBeNull()
+    expect(generatorSpy).not.toHaveBeenCalled()
     expect(publishMock).not.toHaveBeenCalled()
   })
 
-  it('never uses a local prediction generator to display the current Firebase round', () => {
+  it('NEW GAME generates once, publishes /m11 once, and the Firebase listener drives the board', async () => {
+    render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /new game/i }))
+      await Promise.resolve()
+    })
+
+    expect(generatorSpy).toHaveBeenCalledTimes(1)
+    expect(publishMock).toHaveBeenCalledTimes(1)
+
+    const published = publishMock.mock.calls[0][0] as M11Node
+    expect(validateM11Node(published)).toEqual({ valid: true })
+    expect(Object.keys(published)).toHaveLength(50)
+
+    // Firebase emits the exact published node back to the public page.
+    emitPublishedNode(published)
+
+    expect(screen.getByRole('button', { name: /reveal prediction/i })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: /reveal prediction/i }))
+    revealAll()
+
+    const board = revealedCellMap()
+    for (const key of M_KEYS) {
+      const child = published[key] as unknown as Record<string, string>
+      const expected = child[key] === '1' ? 'safe' : 'bomb'
+      expect(board[key], `${key}: board must equal Firebase /m11 ${key}`).toBe(expected)
+    }
+
+    // The published node is the ONLY board source; no second local board.
+    expect(generatorSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a publish error without generating a local board', async () => {
+    publishMock.mockImplementationOnce(() => Promise.reject(new Error('permission denied')))
+    render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /new game/i }))
+      await Promise.resolve()
+    })
+
+    expect(generatorSpy).toHaveBeenCalledTimes(1)
+    expect(publishMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not be started/i)
+    expect(screen.queryAllByRole('img')).toHaveLength(0)
+  })
+
+  it('never derives a second board from the published candidate', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/pages/Fortune.tsx'), 'utf-8')
-    expect(source).not.toMatch(/generateDemoRound|nodeToRows|publishDemoRound|validateM11Node|START_SIMULATION_MS/)
+    expect(source).not.toMatch(/nodeToRows/)
+    expect(source).not.toContain('START_SIMULATION_MS')
   })
 
   it('shows an explicit loading state instead of inventing a local round', () => {
     render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
     expect(screen.getAllByText(/Loading the current game/i).length).toBeGreaterThan(0)
-    expect(screen.queryByRole('button', { name: /new round/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /new game/i })).toBeEnabled()
     expect(subscribeMock).toHaveBeenCalledTimes(1)
   })
 
@@ -165,7 +241,7 @@ describe('Apple of Fortune public board — Firebase /m11 live mirror', () => {
     render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
     expect(screen.getAllByText(/current game is unavailable/i).length).toBeGreaterThan(0)
     expect(subscribeMock).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: /new round/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /new game/i })).toBeDisabled()
   })
 
   it('never exposes control-plane terminology to the end user', () => {

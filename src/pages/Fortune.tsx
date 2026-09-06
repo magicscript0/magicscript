@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, CircleDot, Eye, LogOut, Sparkles, Timer } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, CircleDot, Eye, LogOut, Play, Sparkles, Timer } from 'lucide-react'
 import {
   GRID_ROWS,
   REVEAL_ROW_DELAY_MS,
   REVEAL_ROW_DELAY_REDUCED_MOTION_MS,
 } from '../config/game'
 import { useM11Mirror } from '../hooks/useM11Mirror'
+import { publishDemoRound } from '../services/m11'
 import { BrandMark } from '../components/BrandMark'
 import { CyberBackdrop } from '../components/CyberBackdrop'
 import { FortuneBoard } from '../components/FortuneBoard'
+import { generateDemoRound } from '../utils/generator'
 import { liveValuesToRows } from '../utils/m11Snapshot'
+import { validateM11Node } from '../utils/validation'
 import { prefersReducedMotion } from '../utils/random'
 import type { ConsoleRound, RoundPhase } from '../types/game'
 
@@ -33,15 +36,12 @@ function formatRemaining(ms: number): string {
 /**
  * Apple of Fortune — the public end-user game display.
  *
- * This screen is a READ-ONLY mirror of the current Firebase /m11 game state.
- * It never generates a local prediction, never publishes a round, and never
- * substitutes a local board for the database. The actual /m11 m1…m50 values
- * are the only source for the rendered board; if /m11 is unavailable the
- * screen shows an explicit loading/unavailable state instead of inventing a
- * result.
- *
- * Publish/new-round generation remains part of the separate operator/admin
- * Console workflow, not the public display.
+ * The current board is always a mirror of Firebase `/m11`: the public screen
+ * never keeps a separate prediction or a locally generated board. The
+ * "New game" action reuses the existing validated generator + guarded
+ * publisher from the operator Console, writes the round to `/m11`, and then
+ * lets the existing Firebase `onValue` listener update this display. Nothing
+ * is shown from a second local board.
  */
 export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   const [phase, setPhase] = useState<RoundPhase>('idle')
@@ -50,6 +50,8 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const mirror = useM11Mirror()
   const liveReady = mirror.active && mirror.status === 'valid' && mirror.evaluation !== null
+  const canPublish = mirror.active && mirror.status !== 'error'
+  const busy = phase === 'publishing' || phase === 'revealing'
 
   useEffect(() => {
     document.title = 'Apple of Fortune'
@@ -79,6 +81,26 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveReady, mirror.evaluation, mirror.status])
+
+  const handleNewGame = useCallback(async () => {
+    if (busy || !canPublish) return
+    const wasReady = phase === 'ready' || phase === 'revealed'
+    setNotice(null)
+    setRevealedRows(0)
+    setPhase('publishing')
+    try {
+      const candidate = generateDemoRound()
+      const check = validateM11Node(candidate.node)
+      if (!check.valid) throw new Error('Round validation failed.')
+      await publishDemoRound(candidate.node)
+      // Do NOT build a second local board here. The /m11 onValue listener
+      // receives the published round and updates the mirrored board below.
+      setPhase('ready')
+    } catch {
+      setPhase(wasReady ? 'ready' : 'idle')
+      setNotice('The new game could not be started. Please try again.')
+    }
+  }, [busy, canPublish, phase])
 
   const handleReveal = useCallback(() => {
     if (phase !== 'ready' || !round) return
@@ -117,6 +139,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   }
 
   function statusLine(): string {
+    if (phase === 'publishing') return 'Starting a new game…'
     if (phase === 'revealing') return 'Revealing the current game…'
     if (phase === 'ready') return 'Current game loaded.'
     if (phase === 'revealed') return 'Current game loaded.'
@@ -170,7 +193,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
 
       <footer className="relative z-10 px-3 pb-2 pt-1 sm:px-5">
         <div aria-live="polite" className="mb-2 flex min-h-5 items-center justify-center gap-2 text-center text-xs font-medium text-slate-400">
-          {phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" />}
+          {phase === 'publishing' || phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" />}
           {statusLine()}
         </div>
         {notice && (
@@ -179,11 +202,21 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
             {notice}
           </div>
         )}
-        <div className="fortune-actions mx-auto grid w-full max-w-md grid-cols-1 gap-2.5">
+        <div className="fortune-actions mx-auto grid w-full max-w-md grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={() => { void handleNewGame() }}
+            disabled={busy || !canPublish}
+            aria-label={phase === 'publishing' ? 'Starting new game' : 'New game'}
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-transparent bg-gradient-to-r from-emerald-300 to-teal-400 px-4 text-sm font-bold uppercase tracking-[.08em] text-[#052119] shadow-[0_8px_24px_rgba(70,227,161,.16)] transition duration-200 hover:from-emerald-200 hover:to-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {phase === 'publishing' ? <CircleDot className="h-4 w-4 animate-pulse" /> : <Play className="h-4 w-4" />}
+            {phase === 'publishing' ? 'Starting…' : 'New game'}
+          </button>
           <button
             type="button"
             onClick={handleReveal}
-            disabled={phase !== 'ready'}
+            disabled={phase !== 'ready' || round === null}
             aria-label={phase === 'revealing' ? 'Revealing prediction' : phase === 'revealed' ? 'Prediction shown' : 'Reveal prediction'}
             className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-amber-300/30 bg-amber-300/[.06] px-4 text-sm font-bold uppercase tracking-[.08em] text-amber-200 transition duration-200 hover:border-amber-300/55 hover:bg-amber-300/[.13] disabled:cursor-not-allowed disabled:opacity-40"
           >
