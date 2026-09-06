@@ -33,7 +33,7 @@ Game access is enforced server-side by the migration `supabase/migrations/202609
 - `redeem_game_access` / `check_game_access` — SECURITY DEFINER RPCs callable by anonymous clients; every verdict uses the database clock. Expiry timestamps are computed by the server (`create_game_access_code`), never by the client.
 - No anonymous table access; administrators read/write only through RLS with least-privilege column grants (hashes are never selected).
 
-The end-user game console reuses the existing round engine (`generator` → `validation` → the single guarded `publishDemoRound` write → reveal) and the read-only `/m11` mirror — the Firebase contract and APP 2 are untouched.
+The end-user Apple of Fortune display is a read-only mirror of the current Firebase `/m11` state: it subscribes to `/m11`/m1…m50 and renders exactly what the database contains. The separate operator/admin Console still owns the NEW GAME publisher flow (`generator` → `validation` → the single guarded `publishDemoRound` write → reveal) — the Firebase contract and APP 2 are untouched.
 
 ## Quick start
 
@@ -44,6 +44,8 @@ npm run dev
 ```
 
 Set the Supabase values in `.env` using the project configuration supplied for your deployment. Only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are read by the browser. The publishable/anon key is safe for browser use; never put a service-role or secret key in a `VITE_*` variable or committed file. If either value is missing or a privileged key is detected, the sign-in screen reports that control-plane setup is required rather than attempting a login.
+
+The public Apple of Fortune mirror does not depend on Firebase secrets being present in the deployment environment. `src/config/firebase.ts` carries the non-secret public APP 2 identifiers (`zaem-a8d30` database URL, project id, auth domain, storage bucket) as a safe fallback, so the web always targets the same Realtime Database that APP 2 reads. An explicit valid `VITE_FIREBASE_DATABASE_URL` still overrides the fallback; API key / app id / sender id are never bundled as fallbacks.
 
 ```dotenv
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -171,14 +173,14 @@ The hard contract is unchanged:
 - read-only live observation remains in `useM11Mirror`;
 - APP 2 and APK files are not modified.
 
-The Game Console flow is still:
+The operator/admin Console flow is still:
 
 ```text
 NEW GAME → generate → validate → single existing Firebase publish → freeze → SHOW
 LOAD LIVE ROUND → freeze the validated read-only snapshot → SHOW
 ```
 
-Supabase records management metadata around those actions, but it never publishes `/m11` and React components never call Firebase write APIs directly.
+The public Apple of Fortune board renders only the Firebase `/m11` state. Its "New game" action reuses the same generator → validator → single guarded `/m11` publish path as the operator Console, then the existing `/m11` `onValue` listener updates the public board. It never keeps a second local board and never runs the local demo simulation fallback. Supabase records management metadata around operator actions, but it never publishes `/m11` directly.
 
 ## Project structure
 

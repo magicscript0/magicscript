@@ -349,18 +349,28 @@
   color: #334155;
 }
 
+/*
+ * Public board color mapping for the corrected shape assignment.
+ *
+ * The board keeps the corrected shape mapping from FortuneBoard: the logical
+ * `safe` state renders the SAFE/GOOD apple visual and `bomb` renders the
+ * BROKEN/BOMB visual. The original visual colors are attached to those two
+ * visual assets, so the color definitions below are aligned with that
+ * corrected shape mapping. No Firebase values, board data, or new-game/Show
+ * logic are involved; this is visual styling only.
+ */
 .fortune-cell--safe {
-  border-color: rgba(70, 227, 161, .65);
-  background: rgba(70, 227, 161, .12);
-  color: #a7f3d0;
-  box-shadow: 0 0 18px rgba(70, 227, 161, .18), inset 0 0 12px rgba(70, 227, 161, .08);
-}
-
-.fortune-cell--bomb {
   border-color: rgba(251, 113, 133, .55);
   background: rgba(251, 113, 133, .1);
   color: #fecdd3;
   box-shadow: 0 0 18px rgba(251, 113, 133, .14), inset 0 0 12px rgba(251, 113, 133, .07);
+}
+
+.fortune-cell--bomb {
+  border-color: rgba(70, 227, 161, .65);
+  background: rgba(70, 227, 161, .12);
+  color: #a7f3d0;
+  box-shadow: 0 0 18px rgba(70, 227, 161, .18), inset 0 0 12px rgba(70, 227, 161, .08);
 }
 
 .fortune-chip {

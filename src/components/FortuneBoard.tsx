@@ -19,19 +19,28 @@ const STATE_LABELS: Record<CellState, string> = {
   bomb: 'bomb',
 }
 
+const VALUE_TO_VISUAL: Readonly<Record<M11Value, 'safe' | 'bomb'>> = {
+  '1': 'safe', // Firebase WIN / SAFE apple
+  '0': 'bomb', // Firebase LOSE / BROKEN apple
+}
+
 /**
- * FRONTEND-ONLY visual mapping for the public prediction board.
+ * Visual mapping for the public prediction board.
  *
- * Nothing about the backend changes here: values arrive exactly as stored
- * (/m11 m1…m50), and the generator, validation, live mirror, and safe-cell
- * counts all keep their existing meaning — no value is rewritten, invented,
- * or reinterpreted upstream. This function only decides which of the two
- * existing result visuals each stored value renders as once revealed:
+ * Values arrive exactly as stored in Firebase /m11 (m1…m50) and keep the
+ * existing contract semantics unchanged. This function only assigns the
+ * logical result state:
  *
- *   stored "1" → trap (spike) visual · stored "0" → apple visual.
+ *   stored "1" → SAFE state
+ *   stored "0" → BROKEN state
+ *
+ * The rendered apple assets are swapped inside FortuneCell so the public
+ * experience shows the SAFE/GOOD apple visual for safe data and the
+ * BROKEN/BOMB-looking apple visual for broken data. This is visual-only;
+ * no stored value or Firebase contract is changed.
  */
 export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
-  return value === '1' ? 'bomb' : 'safe'
+  return VALUE_TO_VISUAL[value]
 }
 
 const FortuneCell = memo(function FortuneCell({ state, label, animate }: { state: CellState; label: string | null; animate: boolean }) {
@@ -44,7 +53,7 @@ const FortuneCell = memo(function FortuneCell({ state, label, animate }: { state
       className={`fortune-cell ${CELL_MODIFIERS[state]} ${animation}`}
     >
       <span className="flex h-[52%] w-[52%] items-center justify-center">
-        {state === 'bomb' ? (
+        {state === 'safe' ? (
           <Bomb aria-hidden="true" className="h-full w-full" strokeWidth={2.2} />
         ) : (
           <Apple aria-hidden="true" className={`h-full w-full ${state === 'hidden' || state === 'empty' ? 'opacity-40' : ''}`} strokeWidth={2.2} />

@@ -50,7 +50,22 @@ for (const { path } of publisherReferences) {
 }
 if (!publisherReferences.some(({ path }) => path === approvedWriter)) fail('approved Firebase publisher export is missing')
 if (!publisherReferences.some(({ path }) => path === join(sourceRoot, 'pages', 'Console.tsx'))) fail('Game Console is no longer the explicit publisher caller')
-if (!publisherReferences.some(({ path }) => path === join(sourceRoot, 'pages', 'Fortune.tsx'))) fail('Apple of Fortune is no longer an explicit publisher caller')
+if (!publisherReferences.some(({ path }) => path === join(sourceRoot, 'pages', 'Fortune.tsx'))) fail('Apple of Fortune is no longer the explicit publisher caller')
+
+const fortunePath = join(sourceRoot, 'pages', 'Fortune.tsx')
+const fortuneSource = contents.get(fortunePath) ?? ''
+if (/nodeToRows/.test(fortuneSource)) {
+  fail('Apple of Fortune must not derive a second local board from a published candidate')
+}
+if (!/publishDemoRound/.test(fortuneSource) || !/generateDemoRound/.test(fortuneSource) || !/validateM11Node/.test(fortuneSource)) {
+  fail('Apple of Fortune NEW GAME must reuse the existing generator, validator, and publisher')
+}
+if (!/liveValuesToRows/.test(fortuneSource)) {
+  fail('Apple of Fortune must keep rendering the board from the Firebase /m11 listener')
+}
+if (/START_SIMULATION_MS/.test(fortuneSource)) {
+  fail('Apple of Fortune must not run the local demo-round simulation fallback')
+}
 
 const config = contents.get(join(sourceRoot, 'config', 'game.ts')) ?? ''
 const keys = [...config.matchAll(/'m(\d+)'/g)].map((match) => Number(match[1]))
@@ -77,6 +92,7 @@ if (failures.length) {
 
 console.log('Firebase static audit passed.')
 console.log('- One Firebase SDK mutation: update() in src/services/m11.ts')
-console.log('- Publisher callers: the explicit NEW GAME flow in src/pages/Console.tsx and Apple of Fortune in src/pages/Fortune.tsx')
+console.log('- Publisher callers: the explicit NEW GAME flow in src/pages/Console.tsx and src/pages/Fortune.tsx')
+console.log('- Public Apple of Fortune board renders only Firebase /m11 (no second local board)')
 console.log('- Fixed path: /m11; fixed children: m1 through m50')
 console.log('- No Firebase mutation primitives or legacy Android write APIs elsewhere in src')

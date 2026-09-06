@@ -20,19 +20,19 @@ describe('FortuneBoard — /m11 m1…m50 compatibility', () => {
     }
   })
 
-  it('maps stored values to visuals without touching the backend values', () => {
-    // Frontend-only mapping for the public board: the stored "0"/"1" values
-    // keep their existing meaning — only the displayed visual is assigned here.
-    expect(boardVisualForValue('1')).toBe('bomb')
-    expect(boardVisualForValue('0')).toBe('safe')
+  it('maps stored "1" to SAFE/APPLE and stored "0" to BROKEN/TRAP without touching the backend values', () => {
+    // The public board keeps the /m11 semantics: "1" is the safe/apple visual
+    // and "0" is the broken/trap visual.
+    expect(boardVisualForValue('1')).toBe('safe')
+    expect(boardVisualForValue('0')).toBe('bomb')
   })
 
-  it('reveals trap and apple visuals exactly according to the round node', () => {
+  it('reveals safe and broken visuals exactly according to the round node', () => {
     const round = generateDemoRound(2026)
     render(<FortuneBoard rows={round.rows} phase="revealed" revealedRows={10} />)
     for (const row of round.rows) {
       for (const cell of row.cells) {
-        const expected = cell.value === '1' ? 'bomb' : 'safe'
+        const expected = cell.value === '1' ? 'safe' : 'bomb'
         expect(screen.getByLabelText(`Position ${cell.key} — ${expected}`)).toBeInTheDocument()
       }
     }
