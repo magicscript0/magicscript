@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, CircleDot, Eye, LogOut, Play, Sparkles, Timer } from 'lucide-react'
-import { GRID_ROWS, REVEAL_ROW_DELAY_MS, REVEAL_ROW_DELAY_REDUCED_MOTION_MS, START_SIMULATION_MS } from '../config/game'
+import { GRID_ROWS, REVEAL_ROW_DELAY_MS, REVEAL_ROW_DELAY_REDUCED_MOTION_MS } from '../config/game'
 import { useM11Mirror } from '../hooks/useM11Mirror'
 import { publishDemoRound } from '../services/m11'
 import { BrandMark } from '../components/BrandMark'
@@ -41,11 +41,11 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   const [round, setRound] = useState<ConsoleRound | null>(null)
   const [revealedRows, setRevealedRows] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
-  const generationTimer = useRef<number | null>(null)
   const mirror = useM11Mirror()
   const bridgeConfigured = mirror.active
   const liveReady = mirror.active && mirror.status === 'valid' && mirror.evaluation !== null
   const busy = phase === 'generating' || phase === 'revealing' || phase === 'publishing'
+  const freshRoundWaiting = phase === 'revealed' && liveReady && mirror.lastUpdated !== null && round !== null && mirror.lastUpdated > round.createdAt
 
   useEffect(() => {
     document.title = 'Apple of Fortune'
@@ -63,9 +63,16 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveReady, mirror.evaluation])
 
-  /* Keep a held (not yet revealed) live round current with the bridge. */
+  /*
+   * Keep a held (not yet revealed) round current with the bridge.
+   *
+   * Firebase /m11 is the authoritative current-game state: any valid change
+   * replaces the held round wholesale — whether it was first held from the
+   * bridge ('live') or just published by this device ('published'). The held
+   * round is never mixed old+new and the generator is never called here.
+   */
   useEffect(() => {
-    if (!liveReady || !mirror.evaluation || phase !== 'ready' || round?.source !== 'live') return
+    if (!liveReady || !mirror.evaluation || phase !== 'ready' || round === null) return
     try {
       setRound((current) => (current ? { source: current.source, seed: current.seed, createdAt: mirror.lastUpdated ?? Date.now(), rows: liveValuesToRows(mirror.evaluation!.values) } : current))
     } catch {
@@ -76,44 +83,42 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
 
   const handleNewRound = useCallback(async () => {
     if (busy) return
-    const previousRound = round
-    setNotice(null)
-    if (bridgeConfigured) {
-      setPhase('publishing')
+    /*
+     * A newer Firebase round arrived after the held round finished: adopt it
+     * directly. Displaying the current Firebase state needs no generation
+     * and no publish — the board becomes the Firebase round, cell for cell.
+     */
+    if (freshRoundWaiting && mirror.evaluation) {
+      setNotice(null)
       try {
-        const candidate = generateDemoRound()
-        const check = validateM11Node(candidate.node)
-        if (!check.valid) throw new Error('Round validation failed.')
-        await publishDemoRound(candidate.node)
-        setRound({ source: 'published', seed: candidate.seed, createdAt: Date.now(), rows: nodeToRows(candidate.node) })
+        setRound({ source: 'live', createdAt: mirror.lastUpdated ?? Date.now(), rows: liveValuesToRows(mirror.evaluation.values) })
         setRevealedRows(0)
         setPhase('ready')
       } catch {
-        setRound(previousRound)
-        setPhase(previousRound ? 'ready' : 'idle')
-        setNotice('The round could not be started. Please try again.')
+        setNotice('The current round could not be loaded. Please try again.')
       }
       return
     }
-    setRound(null)
-    setRevealedRows(0)
-    setPhase('generating')
-    generationTimer.current = window.setTimeout(() => {
-      generationTimer.current = null
-      try {
-        const next = generateDemoRound()
-        setRound({ source: 'demo', seed: next.seed, createdAt: next.createdAt, rows: next.rows })
-        setPhase('ready')
-      } catch {
-        setPhase('idle')
-        setNotice('The round could not be prepared. Please try again.')
-      }
-    }, START_SIMULATION_MS)
-  }, [bridgeConfigured, busy, round])
-
-  useEffect(() => () => {
-    if (generationTimer.current !== null) window.clearTimeout(generationTimer.current)
-  }, [])
+    /* Without the bridge there is nothing to publish to — never invent a
+       local prediction as a substitute for the Firebase round. */
+    if (!bridgeConfigured) return
+    const previousRound = round
+    setNotice(null)
+    setPhase('publishing')
+    try {
+      const candidate = generateDemoRound()
+      const check = validateM11Node(candidate.node)
+      if (!check.valid) throw new Error('Round validation failed.')
+      await publishDemoRound(candidate.node)
+      setRound({ source: 'published', seed: candidate.seed, createdAt: Date.now(), rows: nodeToRows(candidate.node) })
+      setRevealedRows(0)
+      setPhase('ready')
+    } catch {
+      setRound(previousRound)
+      setPhase(previousRound ? 'ready' : 'idle')
+      setNotice('The round could not be started. Please try again.')
+    }
+  }, [bridgeConfigured, busy, freshRoundWaiting, mirror.evaluation, mirror.lastUpdated, round])
 
   const handleReveal = useCallback(() => {
     if (phase !== 'ready' || !round) return
@@ -139,10 +144,8 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
     if (phase === 'ready') return 'Reveal the prediction when you are ready.'
     if (phase === 'revealing') return 'Revealing the prediction…'
     if (phase === 'revealed') return 'Round complete — start another whenever you like.'
-    return liveReady ? 'The current round is ready for you.' : bridgeConfigured ? 'Waiting for the current round…' : 'Start a round to see the prediction.'
+    return liveReady ? 'The current round is ready for you.' : bridgeConfigured ? 'Waiting for the current round…' : 'The current round is unavailable right now.'
   }
-
-  const freshRoundWaiting = phase === 'revealed' && liveReady && mirror.lastUpdated !== null && round !== null && mirror.lastUpdated > round.createdAt
 
   return (
     <div className="fortune-screen">
@@ -182,8 +185,8 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
               <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/[.08] text-emerald-300">
                 <Sparkles className="h-5 w-5" />
               </span>
-              <p className="text-sm font-semibold text-slate-200">{bridgeConfigured ? 'Waiting for the current round…' : 'Ready when you are.'}</p>
-              <p className="text-xs leading-5 text-slate-500">{bridgeConfigured ? 'You can also start a fresh round below.' : 'Tap “New round” below to begin.'}</p>
+              <p className="text-sm font-semibold text-slate-200">{bridgeConfigured ? 'Waiting for the current round…' : 'The current round is unavailable.'}</p>
+              <p className="text-xs leading-5 text-slate-500">{bridgeConfigured ? 'You can also start a fresh round below.' : 'Please check back soon.'}</p>
             </div>
           </div>
         )}
@@ -204,7 +207,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
           <button
             type="button"
             onClick={() => { void handleNewRound() }}
-            disabled={busy}
+            disabled={busy || !bridgeConfigured}
             aria-label={phase === 'publishing' ? 'Starting new round' : phase === 'generating' ? 'Preparing round' : 'New round'}
             className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-transparent bg-gradient-to-r from-emerald-300 to-teal-400 px-4 text-sm font-bold uppercase tracking-[.08em] text-[#052119] shadow-[0_8px_24px_rgba(70,227,161,.16)] transition duration-200 hover:from-emerald-200 hover:to-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
           >

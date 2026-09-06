@@ -1,14 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Fortune } from './Fortune'
-import { GRID_ROWS, REVEAL_ROW_DELAY_MS, START_SIMULATION_MS } from '../config/game'
 
-beforeEach(() => {
-  vi.useFakeTimers()
-})
-
-// Deterministic offline mode: the game console must work without Firebase
-// configured, exactly like the admin console does.
+// Bridge unavailable: Firebase is not configured, so the public board has no
+// /m11 state to display. It must show an explicit unavailable state and NEVER
+// invent a local prediction as a substitute.
 vi.mock('../services/firebase', () => ({
   isFirebaseConfigured: () => false,
   subscribeToConnectionState: () => () => undefined,
@@ -23,26 +19,21 @@ vi.mock('../services/m11', () => ({
   publishDemoRound: publishMock,
 }))
 
+const generateMock = vi.hoisted(() =>
+  vi.fn(() => {
+    throw new Error('generator must NOT be called while the bridge is unavailable')
+  }),
+)
+vi.mock('../utils/generator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/generator')>()),
+  generateDemoRound: generateMock,
+}))
+
 afterEach(() => {
   cleanup()
   publishMock.mockClear()
-  vi.useRealTimers()
+  generateMock.mockClear()
 })
-
-function startRound() {
-  fireEvent.click(screen.getByRole('button', { name: /new round/i }))
-  act(() => {
-    vi.advanceTimersByTime(START_SIMULATION_MS)
-  })
-}
-
-function advanceRevealTicks(ticks: number) {
-  for (let i = 0; i < ticks; i += 1) {
-    act(() => {
-      vi.advanceTimersByTime(REVEAL_ROW_DELAY_MS)
-    })
-  }
-}
 
 describe('Apple of Fortune game console', () => {
   it('brands the experience as Apple of Fortune under MAGIC SCRIPT', () => {
@@ -60,34 +51,26 @@ describe('Apple of Fortune game console', () => {
 
   it('never exposes control-plane terminology to the end user', () => {
     const { container } = render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
-    startRound()
+    fireEvent.click(screen.getByRole('button', { name: /new round/i }))
     const text = container.textContent ?? ''
     expect(text).not.toMatch(/firebase|supabase|control plane|round sync|write policy|read only|read-only|super admin|primary-admin|\brls\b|database|\/m11|diagnostic|mirror|payload/i)
   })
 
-  it('NEW ROUND creates a validated 50-position round, then REVEAL shows it', () => {
+  it('never generates a local prediction when the bridge is unavailable', () => {
     render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
+
+    // Explicit unavailable state — no board cells, no actions available.
+    expect(screen.getByText('The current round is unavailable.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /new round/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /reveal/i })).toBeDisabled()
-    // Offline demo mode never publishes to the bridge.
+    expect(screen.queryAllByRole('img')).toHaveLength(0)
+
+    // Even a forced click invents nothing: no generation, no publish.
+    fireEvent.click(screen.getByRole('button', { name: /new round/i }))
+    expect(generateMock).not.toHaveBeenCalled()
     expect(publishMock).not.toHaveBeenCalled()
-
-    startRound()
-
-    const hiddenCells = screen.getAllByRole('img')
-    expect(hiddenCells).toHaveLength(50)
-    expect(screen.getByRole('button', { name: /reveal/i })).toBeEnabled()
-
-    fireEvent.click(screen.getByRole('button', { name: /reveal/i }))
-    advanceRevealTicks(GRID_ROWS + 1)
-
-    expect(screen.getByRole('button', { name: /prediction shown/i })).toBeDisabled()
-    const revealed = screen.getAllByRole('img')
-    expect(revealed).toHaveLength(50)
-    // The public board swaps only the displayed visuals (backend values and
-    // the generator curve are unchanged): the 20 stored "1" positions render
-    // the trap visual, the 30 stored "0" positions render the apple visual.
-    expect(revealed.filter((cell) => cell.getAttribute('aria-label')?.endsWith('— bomb'))).toHaveLength(20)
-    expect(revealed.filter((cell) => cell.getAttribute('aria-label')?.endsWith('— safe'))).toHaveLength(30)
+    expect(screen.queryAllByRole('img')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: /reveal/i })).toBeDisabled()
   })
 
   it('shows no demo disclaimer anywhere on the game screen', () => {

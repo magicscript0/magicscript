@@ -107,11 +107,11 @@ function publicRowGroups(board: Record<string, string>): Map<number, [number, nu
 }
 
 const REQUIRED_GROUPS: Readonly<Record<number, readonly [number, number]>> = {
-  1: [4, 1], 2: [4, 1], 3: [4, 1], 4: [4, 1], // ×1.23 → ×2.41 : 4 safe + 1 broken
-  5: [3, 2], 6: [3, 2], 7: [3, 2],            // ×4.02 → ×11.18: 3 safe + 2 broken
-  8: [2, 3],                                   // ×27.97        : 2 safe + 3 broken
-  9: [2, 3],                                   // ×69.93        : 2 safe + 3 broken
-  10: [1, 4],                                  // ×349.68       : 1 safe + 4 broken
+  1: [1, 4], 2: [1, 4], 3: [1, 4], 4: [1, 4], // ×1.23 → ×2.41 : 1 safe + 4 broken
+  5: [2, 3], 6: [2, 3], 7: [2, 3],            // ×4.02 → ×11.18: 2 safe + 3 broken
+  8: [3, 2],                                   // ×27.97        : 3 safe + 2 broken
+  9: [3, 2],                                   // ×69.93        : 3 safe + 2 broken
+  10: [4, 1],                                  // ×349.68       : 4 safe + 1 broken
 }
 
 /** Contract shape of a published node, m1…m50 exactly, strings only. */
@@ -170,8 +170,9 @@ describe('PUBLIC WEB START — real execution path (Fortune "New round")', () =>
     const board = revealedBoard()
     const values = payloadValues(payload)
     for (const key of M_KEYS) {
-      // Fixed public visual mapping: stored "1" → trap/broken, stored "0" → safe.
-      expect(board[key], `${key}: board (${board[key]}) must equal /m11 (${values[key]})`).toBe(values[key] === '1' ? 'bomb' : 'safe')
+      // Fixed public visual mapping (audited contract, APP 2 parity):
+      // stored "1" → safe/apple, stored "0" → broken/trap.
+      expect(board[key], `${key}: board (${board[key]}) must equal /m11 (${values[key]})`).toBe(values[key] === '1' ? 'safe' : 'bomb')
     }
 
     // The five required pattern groups, on the real rendered board.
@@ -203,7 +204,7 @@ describe('PUBLIC WEB START — real execution path (Fortune "New round")', () =>
 
     const board = revealedBoard()
     for (const key of M_KEYS) {
-      expect(board[key]).toBe(second[key] === '1' ? 'bomb' : 'safe')
+      expect(board[key]).toBe(second[key] === '1' ? 'safe' : 'bomb')
     }
   })
 })
