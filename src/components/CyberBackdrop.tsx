@@ -21,6 +21,12 @@ interface Particle {
   alpha: number
   /** 0 = emerald, 1 = ice white, 2 = signal red (rare accent). */
   tone: 0 | 1 | 2
+  /**
+   * Distance from the viewer, 0 (far) → 1 (near). Drives size, brightness and
+   * speed, so the field reads as three depth planes instead of one flat
+   * sprinkling — and only the near plane pays for its halo.
+   */
+  depth: number
 }
 
 const TONE_COLORS = ['70,227,161', '190,242,255', '251,113,133'] as const
@@ -29,17 +35,21 @@ function createParticles(count: number, width: number, height: number): Particle
   const particles: Particle[] = []
   for (let i = 0; i < count; i += 1) {
     const roll = Math.random()
+    // Depth is deliberately skewed towards the far plane: lots of faint dust
+    // behind a few bright motes is what gives the field its sense of space.
+    const depth = Math.pow(Math.random(), 1.7)
     particles.push({
       x: Math.random() * width,
       y: Math.random() * height,
-      radius: 0.6 + Math.random() * 1.6,
-      drift: 0.08 + Math.random() * 0.28,
+      radius: 0.35 + depth * 1.75,
+      drift: 0.035 + depth * 0.3,
       sway: Math.random() * Math.PI * 2,
       swaySpeed: 0.002 + Math.random() * 0.008,
       phase: Math.random() * Math.PI * 2,
       twinkleSpeed: 0.008 + Math.random() * 0.03,
-      alpha: 0.25 + Math.random() * 0.55,
+      alpha: 0.1 + depth * 0.5,
       tone: roll < 0.72 ? 0 : roll < 0.93 ? 1 : 2,
+      depth,
     })
   }
   return particles
@@ -52,14 +62,17 @@ function paintFrame(ctx: CanvasRenderingContext2D, particles: Particle[], width:
     const twinkle = 0.55 + 0.45 * Math.sin(particle.phase)
     const color = TONE_COLORS[particle.tone]
     const alpha = particle.alpha * twinkle
-    // Soft halo (cheap radial feel without shadowBlur).
-    const halo = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, particle.radius * 4)
-    halo.addColorStop(0, `rgba(${color},${(alpha * 0.5).toFixed(3)})`)
-    halo.addColorStop(1, `rgba(${color},0)`)
-    ctx.fillStyle = halo
-    ctx.beginPath()
-    ctx.arc(particle.x, particle.y, particle.radius * 4, 0, Math.PI * 2)
-    ctx.fill()
+    // Soft halo — reserved for the near plane, where it is actually visible.
+    // Far dust is a single cheap arc.
+    if (particle.depth > 0.55) {
+      const halo = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, particle.radius * 4)
+      halo.addColorStop(0, `rgba(${color},${(alpha * 0.5).toFixed(3)})`)
+      halo.addColorStop(1, `rgba(${color},0)`)
+      ctx.fillStyle = halo
+      ctx.beginPath()
+      ctx.arc(particle.x, particle.y, particle.radius * 4, 0, Math.PI * 2)
+      ctx.fill()
+    }
     // Bright core.
     ctx.fillStyle = `rgba(${color},${alpha.toFixed(3)})`
     ctx.beginPath()
@@ -74,9 +87,14 @@ function paintFrame(ctx: CanvasRenderingContext2D, particles: Particle[], width:
  * (login + play). Fixed, non-interactive, and strictly decorative.
  *
  * Layers (back to front): deep gradient → ambient neon glows → faint
- * geometric rings → drifting particle field (canvas) → perspective grid
- * floor → scanlines → vignette. The center stays dark and calm so forms
- * and the prediction board keep full contrast.
+ * geometric rings → volumetric light shafts → drifting particle field with
+ * three depth planes (canvas) → perspective grid floor → horizon light →
+ * restrained scanlines → depth scrim → vignette. The center stays dark and
+ * calm so the forms and the prediction board keep full contrast.
+ *
+ * Shared by the boot screen, the login and the game — which is what makes the
+ * three screens read as one place. Everything here is `aria-hidden`,
+ * non-interactive, and animated with transform/opacity only.
  *
  * Performance + accessibility: capped DPR, width-based particle counts,
  * the loop pauses when the tab is hidden, and `prefers-reduced-motion`
@@ -110,10 +128,10 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
       canvas.height = Math.round(cssHeight * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       const area = cssWidth * cssHeight
-      const base = density === 'full' ? Math.floor(area / 16000) : Math.floor(area / 26000)
-      const cap = density === 'full' ? 90 : 45
+      const base = density === 'full' ? Math.floor(area / 13000) : Math.floor(area / 21000)
+      const cap = density === 'full' ? 120 : 60
       const smallScreen = cssWidth < 640
-      const count = Math.max(12, Math.min(cap, smallScreen ? Math.floor(base / 2) : base))
+      const count = Math.max(14, Math.min(cap, smallScreen ? Math.floor(base / 2) : base))
       particles = createParticles(count, width, height)
       paintFrame(ctx, particles, width, height)
     }
@@ -173,9 +191,14 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
       <div className="cyber-glow cyber-glow--red" />
       <div className="cyber-ring cyber-ring--a" />
       <div className="cyber-ring cyber-ring--b" />
+      <div className="cyber-shafts" />
       <canvas ref={canvasRef} className="cyber-particles" />
-      <div className="cyber-grid-floor" />
+      <div className="cyber-grid-floor">
+        <span className="cyber-grid-plane" />
+      </div>
+      <div className="cyber-horizon" />
       <div className="cyber-scanlines" />
+      <div className="cyber-depth" />
       <div className="cyber-vignette" />
     </div>
   )

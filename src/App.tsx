@@ -1,6 +1,7 @@
-import { useCallback, useEffect } from 'react'
-import { BrandMark } from './components/BrandMark'
+import { useCallback, useEffect, useState } from 'react'
+import { CyberBackdrop } from './components/CyberBackdrop'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { GameIntro, hasGameIntroCompleted } from './components/GameIntro'
 import { LoadingScreen } from './components/LoadingScreen'
 import { useAdminSession } from './hooks/useAdminSession'
 import { useGameAccess } from './hooks/useGameAccess'
@@ -103,22 +104,30 @@ function AdminWorkspace({ admin, onLogout, sessionError }: { admin: NonNullable<
 /* Game area — Apple of Fortune for end users.                        */
 /* ------------------------------------------------------------------ */
 
-function GameLoading() {
-  return <main className="flex min-h-screen items-center justify-center px-5">
-    <div className="flex flex-col items-center gap-4 text-center">
-      <BrandMark />
-      <div>
-        <p className="text-sm font-semibold tracking-[.18em] text-slate-100">Apple of Fortune</p>
-        <p className="mt-1 text-xs text-slate-500">Checking your access…</p>
-      </div>
-    </div>
-  </main>
-}
+/** Boot-curtain lifecycle for the public flow (presentation only). */
+type GameBootPhase = 'playing' | 'dissolving' | 'done'
 
 function GameArea({ path }: { path: '/' | '/play' }) {
   const access = useGameAccess()
   const { replace, navigate } = usePathRoute()
   const authorized = access.status === 'active'
+  /**
+   * The premium loading screen curtains the login until its sequence has
+   * played. It runs once per page load (never again after a sign-out), stays
+   * above the login rather than replacing it, and hands over while the login
+   * fades in underneath — no access, session, or routing behaviour is
+   * involved, so every check below still runs exactly as before.
+   */
+  const [boot, setBoot] = useState<GameBootPhase>(() => (hasGameIntroCompleted() ? 'done' : 'playing'))
+
+  // The curtain is cosmetic, so it must never be able to trap the login
+  // behind it: if the boot sequence is interrupted for any reason, the login
+  // is revealed regardless.
+  useEffect(() => {
+    if (boot === 'done') return
+    const id = window.setTimeout(() => { setBoot('done') }, 6_000)
+    return () => window.clearTimeout(id)
+  }, [boot])
 
   // The console route is unreachable without a server-validated session:
   // missing, expired, revoked, or still-checking sessions all land on the
@@ -137,13 +146,30 @@ function GameArea({ path }: { path: '/' | '/play' }) {
   )
 
   if (path === '/play') {
-    if (access.status === 'checking') return <GameLoading />
+    // Same gate as before, now wearing the boot screen's identity and the same
+    // ambient shell, so reloading /play never shows an unstyled frame.
+    if (access.status === 'checking') {
+      return (
+        <div className="pg-flow">
+          <CyberBackdrop />
+          <GameIntro mode="checking" />
+        </div>
+      )
+    }
     if (authorized && access.accountId !== null) {
       return <Fortune accountId={access.accountId} remainingMs={access.remainingMs} onExit={access.exit} />
     }
     // Brief fall-through while the URL redirect above settles.
   }
-  return <GameLogin onLogin={handleLogin} endReason={access.reason} />
+  return (
+    <div className="pg-flow">
+      <CyberBackdrop />
+      {boot !== 'done' ? <GameIntro onReveal={() => setBoot('dissolving')} onFinish={() => setBoot('done')} /> : null}
+      <div className={`pg-veil${boot === 'playing' ? '' : ' pg-veil--open'}`}>
+        <GameLogin onLogin={handleLogin} endReason={access.reason} ambient={false} />
+      </div>
+    </div>
+  )
 }
 
 /* ------------------------------------------------------------------ */
