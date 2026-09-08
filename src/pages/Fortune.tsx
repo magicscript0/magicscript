@@ -7,8 +7,8 @@ import {
 } from '../config/game'
 import { useM11Mirror } from '../hooks/useM11Mirror'
 import { publishDemoRound } from '../services/m11'
-import { BrandMark } from '../components/BrandMark'
 import { CyberBackdrop } from '../components/CyberBackdrop'
+import { GameBrandLockup } from '../components/GameBrand'
 import { FortuneBoard } from '../components/FortuneBoard'
 import { generateDemoRound } from '../utils/generator'
 import { liveValuesToRows } from '../utils/m11Snapshot'
@@ -42,6 +42,10 @@ function formatRemaining(ms: number): string {
  * publisher from the operator Console, writes the round to `/m11`, and then
  * lets the existing Firebase `onValue` listener update this display. Nothing
  * is shown from a second local board.
+ *
+ * The presentation is a public-only layer (`.pg-*` classes): the state
+ * machine, the reveal timing, the countdown and every data path below are the
+ * ones that were already in place.
  */
 export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   const [phase, setPhase] = useState<RoundPhase>('idle')
@@ -52,6 +56,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   const liveReady = mirror.active && mirror.status === 'valid' && mirror.evaluation !== null
   const canPublish = mirror.active && mirror.status !== 'error'
   const busy = phase === 'publishing' || phase === 'revealing'
+  const lowTime = remainingMs < 120_000
 
   useEffect(() => {
     document.title = 'Apple of Fortune'
@@ -147,70 +152,94 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   }
 
   return (
-    <div className="fortune-screen">
+    <div className="fortune-screen pg-game">
       <CyberBackdrop density="calm" />
-      <header className="relative z-10 flex items-center gap-2.5 px-3 pb-1 pt-2 sm:px-5">
-        <BrandMark compact />
-        <div className="min-w-0 leading-tight">
-          <p className="text-[8px] font-bold uppercase tracking-[.22em] text-emerald-300/75">MAGIC SCRIPT</p>
-          <h1 className="truncate text-base font-semibold tracking-[-.02em] text-slate-100">Apple of Fortune</h1>
-        </div>
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <span className="hidden max-w-[110px] truncate rounded-full border border-white/[.1] bg-white/[.03] px-2.5 py-1 text-[10px] font-semibold text-slate-500 sm:inline" title="Account ID">#{accountId}</span>
+
+      <header className="pg-bar">
+        <GameBrandLockup variant="compact" />
+        <div className="pg-bar__side">
+          <span className="pg-chip pg-chip--account" title="Account ID">
+            <span className="pg-chip__key">Account</span>
+            <span className="pg-chip__value mono">#{accountId}</span>
+          </span>
           <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold tabular-nums ${remainingMs < 120_000 ? 'border-amber-300/30 bg-amber-300/[.08] text-amber-200' : 'border-emerald-300/20 bg-emerald-300/[.06] text-emerald-200'}`}
+            className={`pg-chip pg-chip--timer${lowTime ? ' is-low' : ''}`}
             aria-label={`Access time remaining ${formatRemaining(remainingMs)}`}
           >
-            <Timer className="h-3.5 w-3.5" />
-            {formatRemaining(remainingMs)}
+            <Timer className="pg-chip__icon" aria-hidden="true" />
+            <span className="pg-chip__value">{formatRemaining(remainingMs)}</span>
           </span>
           <button
             type="button"
             onClick={onExit}
             aria-label="Exit game"
             title="Exit game"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/[.1] bg-white/[.025] text-slate-500 transition hover:border-rose-300/35 hover:text-rose-200"
+            className="pg-iconbtn"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       </header>
 
-      <div className="fortune-stage relative z-10 px-3 sm:px-5">
-        <FortuneBoard rows={round?.rows ?? null} phase={phase} revealedRows={revealedRows} />
-        {phase === 'idle' && round === null && (
-          <div className="pointer-events-none absolute inset-x-3 inset-y-0 flex items-center justify-center sm:inset-x-5">
-            <div className="pointer-events-auto flex max-w-xs flex-col items-center gap-2 rounded-2xl border border-emerald-300/15 bg-[#080d0f]/85 p-5 text-center backdrop-blur-[3px]">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/[.08] text-emerald-300">
-                {mirror.status === 'syncing' ? <CircleDot className="h-5 w-5 animate-pulse" /> : <Sparkles className="h-5 w-5" />}
+      <div className="fortune-stage">
+        <div className={`pg-board${phase === 'revealing' ? ' is-revealing' : ''}${phase === 'revealed' ? ' is-revealed' : ''}`}>
+          <span className="pg-board__corner pg-board__corner--tl" aria-hidden="true" />
+          <span className="pg-board__corner pg-board__corner--tr" aria-hidden="true" />
+          <span className="pg-board__corner pg-board__corner--bl" aria-hidden="true" />
+          <span className="pg-board__corner pg-board__corner--br" aria-hidden="true" />
+
+          <div className="pg-board__head">
+            <span className="pg-eyebrow">Multiplier</span>
+            <span className="pg-board__rule" aria-hidden="true" />
+            <span className="pg-legend">
+              <span className="pg-legend__item">
+                <span className="pg-dot pg-dot--safe" aria-hidden="true" />
+                Safe
               </span>
-              <p className="text-sm font-semibold text-slate-200">{syncLabel()}</p>
-              <p className="text-xs leading-5 text-slate-500">The live current game will appear here when it is available.</p>
+              <span className="pg-legend__item">
+                <span className="pg-dot pg-dot--broken" aria-hidden="true" />
+                Broken
+              </span>
+            </span>
+          </div>
+
+          <FortuneBoard rows={round?.rows ?? null} phase={phase} revealedRows={revealedRows} />
+          <span className="pg-board__scan" aria-hidden="true" />
+        </div>
+
+        {phase === 'idle' && round === null && (
+          <div className="pg-idle">
+            <div className="pg-idle__card">
+              <span className="pg-idle__crest">
+                {mirror.status === 'syncing' ? <CircleDot className="h-5 w-5 animate-pulse" aria-hidden="true" /> : <Sparkles className="h-5 w-5" aria-hidden="true" />}
+              </span>
+              <p className="pg-idle__title">{syncLabel()}</p>
+              <p className="pg-idle__copy">The live current game will appear here when it is available.</p>
             </div>
           </div>
         )}
       </div>
 
-      <footer className="relative z-10 px-3 pb-2 pt-1 sm:px-5">
-        <div aria-live="polite" className="mb-2 flex min-h-5 items-center justify-center gap-2 text-center text-xs font-medium text-slate-400">
-          {phase === 'publishing' || phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" />}
-          {statusLine()}
+      <footer className="pg-dock">
+        <div aria-live="polite" className="pg-dock__status">
+          {phase === 'publishing' || phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" aria-hidden="true" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" aria-hidden="true" />}
+          <span>{statusLine()}</span>
         </div>
         {notice && (
-          <div role="alert" className="mx-auto mb-2 flex max-w-md items-start gap-2 rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-3.5 py-2.5 text-xs text-rose-100">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-300" />
-            {notice}
+          <div role="alert" className="pg-note pg-note--error pg-dock__alert">
+            <AlertTriangle className="pg-note__icon" aria-hidden="true" />
+            <p>{notice}</p>
           </div>
         )}
-        <div className="fortune-actions mx-auto grid w-full max-w-md grid-cols-2 gap-2.5">
+        <div className="pg-dock__actions">
           <button
             type="button"
             onClick={() => { void handleNewGame() }}
             disabled={busy || !canPublish}
             aria-label={phase === 'publishing' ? 'Starting new game' : 'New game'}
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-transparent bg-gradient-to-r from-emerald-300 to-teal-400 px-4 text-sm font-bold uppercase tracking-[.08em] text-[#052119] shadow-[0_8px_24px_rgba(70,227,161,.16)] transition duration-200 hover:from-emerald-200 hover:to-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+            className="pg-btn pg-btn--primary"
           >
-            {phase === 'publishing' ? <CircleDot className="h-4 w-4 animate-pulse" /> : <Play className="h-4 w-4" />}
+            {phase === 'publishing' ? <CircleDot className="h-4 w-4 animate-pulse" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
             {phase === 'publishing' ? 'Starting…' : 'New game'}
           </button>
           <button
@@ -218,9 +247,9 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
             onClick={handleReveal}
             disabled={phase !== 'ready' || round === null}
             aria-label={phase === 'revealing' ? 'Revealing prediction' : phase === 'revealed' ? 'Prediction shown' : 'Reveal prediction'}
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-amber-300/30 bg-amber-300/[.06] px-4 text-sm font-bold uppercase tracking-[.08em] text-amber-200 transition duration-200 hover:border-amber-300/55 hover:bg-amber-300/[.13] disabled:cursor-not-allowed disabled:opacity-40"
+            className="pg-btn pg-btn--amber"
           >
-            {phase === 'revealing' ? <CircleDot className="h-4 w-4 animate-pulse" /> : phase === 'revealed' ? <CheckCircle2 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {phase === 'revealing' ? <CircleDot className="h-4 w-4 animate-pulse" aria-hidden="true" /> : phase === 'revealed' ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
             {phase === 'revealing' ? 'Revealing…' : phase === 'revealed' ? 'Shown' : 'Reveal'}
           </button>
         </div>

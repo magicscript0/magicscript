@@ -7,7 +7,7 @@ type CellState = 'empty' | 'hidden' | 'safe' | 'bomb'
 
 const CELL_MODIFIERS: Record<CellState, string> = {
   empty: 'fortune-cell--empty',
-  hidden: '',
+  hidden: 'fortune-cell--hidden',
   safe: 'fortune-cell--safe',
   bomb: 'fortune-cell--bomb',
 }
@@ -43,22 +43,30 @@ export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
   return VALUE_TO_VISUAL[value]
 }
 
-const FortuneCell = memo(function FortuneCell({ state, label, animate }: { state: CellState; label: string | null; animate: boolean }) {
+/**
+ * One board position. The accessible contract is unchanged — the cell itself
+ * is the labelled `img` node, every decoration inside it is aria-hidden — so
+ * the redesign touches lighting, depth and motion only.
+ */
+const FortuneCell = memo(function FortuneCell({ state, label, animate, armed = false }: { state: CellState; label: string | null; animate: boolean; armed?: boolean }) {
   const animation = animate && (state === 'safe' || state === 'bomb') ? 'animate-pop-in' : ''
   return (
     <div
       role={label === null ? undefined : 'img'}
       aria-label={label === null ? undefined : `${label} — ${STATE_LABELS[state]}`}
       aria-hidden={label === null ? true : undefined}
-      className={`fortune-cell ${CELL_MODIFIERS[state]} ${animation}`}
+      className={`fortune-cell ${CELL_MODIFIERS[state]} ${animation}${armed ? ' fortune-cell--armed' : ''}`}
     >
-      <span className="flex h-[52%] w-[52%] items-center justify-center">
+      <span className="fortune-cell__well" aria-hidden="true" />
+      <span className="fortune-cell__ring" aria-hidden="true" />
+      <span className="fortune-cell__glyph" aria-hidden="true">
         {state === 'safe' ? (
-          <Bomb aria-hidden="true" className="h-full w-full" strokeWidth={2.2} />
+          <Bomb className="h-full w-full" strokeWidth={2.2} />
         ) : (
-          <Apple aria-hidden="true" className={`h-full w-full ${state === 'hidden' || state === 'empty' ? 'opacity-40' : ''}`} strokeWidth={2.2} />
+          <Apple className={`h-full w-full${state === 'hidden' || state === 'empty' ? ' is-dim' : ''}`} strokeWidth={2.2} />
         )}
       </span>
+      <span className="fortune-cell__flare" aria-hidden="true" />
     </div>
   )
 })
@@ -86,12 +94,15 @@ export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
     <section aria-label="Prediction board" className="fortune-board">
       {displayRows.map((row) => {
         const revealed = hasRound && row.row <= revealedRows
+        const armed = row.row === activeRow
         return (
           <div key={row.row} className="contents">
-            <div className={`fortune-chip ${row.row === activeRow ? 'fortune-chip--active' : ''}`}>{formatMultiplier(row.multiplier)}</div>
+            <div className={`fortune-chip${revealed ? ' fortune-chip--revealed' : ''}${armed ? ' fortune-chip--active' : ''}`}>
+              {formatMultiplier(row.multiplier)}
+            </div>
             {row.cells.map((cell) => {
               const state: CellState = !hasRound ? 'empty' : revealed ? boardVisualForValue(cell.value) : 'hidden'
-              return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} animate={phase === 'revealing' || phase === 'revealed'} />
+              return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} animate={phase === 'revealing' || phase === 'revealed'} armed={armed} />
             })}
           </div>
         )
