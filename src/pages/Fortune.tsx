@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, CircleDot, Eye, LogOut, Play, Sparkles, Timer } from 'lucide-react'
 import {
   GRID_ROWS,
@@ -35,6 +35,84 @@ function formatRemaining(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
+/** The countdown turns amber for the last two minutes of a session. */
+const LOW_TIME_MS = 120_000
+
+/**
+ * The only part of the screen that is allowed to change once per second.
+ *
+ * Isolating it is what keeps the access countdown off the board: the tick is a
+ * single text node inside one pill, and neither the fifty cells, the header's
+ * other pills, the ambient field nor the control deck are re-rendered for it.
+ */
+const AccessCountdown = memo(function AccessCountdown({ remainingMs }: { remainingMs: number }) {
+  const label = formatRemaining(remainingMs)
+  return (
+    <span
+      className={`pg-pill pg-pill--timer${remainingMs < LOW_TIME_MS ? ' is-low' : ''}`}
+      aria-label={`Access time remaining ${label}`}
+    >
+      <Timer className="pg-pill__icon" aria-hidden="true" />
+      <span className="pg-pill__value">{label}</span>
+    </span>
+  )
+})
+
+export interface FortuneDockProps {
+  statusText: string
+  phase: RoundPhase
+  notice: string | null
+  busy: boolean
+  canPublish: boolean
+  roundAvailable: boolean
+  onNewGame: () => Promise<void>
+  onReveal: () => void
+}
+
+/**
+ * The control deck. Memoized so the per-second countdown never re-renders the
+ * action buttons — they only change when the phase, the notice or the live
+ * round actually does.
+ */
+const FortuneDock = memo(function FortuneDock({ statusText, phase, notice, busy, canPublish, roundAvailable, onNewGame, onReveal }: FortuneDockProps) {
+  return (
+    <footer className="pg-dock">
+      <div aria-live="polite" className="pg-dock__status">
+        {phase === 'publishing' || phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" aria-hidden="true" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" aria-hidden="true" />}
+        <span>{statusText}</span>
+      </div>
+      {notice && (
+        <div role="alert" className="pg-note pg-note--error pg-dock__alert">
+          <AlertTriangle className="pg-note__icon" aria-hidden="true" />
+          <p>{notice}</p>
+        </div>
+      )}
+      <div className="pg-dock__actions">
+        <button
+          type="button"
+          onClick={() => { void onNewGame() }}
+          disabled={busy || !canPublish}
+          aria-label={phase === 'publishing' ? 'Starting new game' : 'New game'}
+          className={`pg-btn pg-btn--primary pg-dock__primary${phase === 'publishing' ? ' is-busy' : ''}`}
+        >
+          {phase === 'publishing' ? <span className="pg-btn__spinner pg-btn__spinner--dark" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+          <span>{phase === 'publishing' ? 'Starting…' : 'New game'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onReveal}
+          disabled={phase !== 'ready' || !roundAvailable}
+          aria-label={phase === 'revealing' ? 'Revealing prediction' : phase === 'revealed' ? 'Prediction shown' : 'Reveal prediction'}
+          className={`pg-btn pg-btn--amber pg-dock__secondary${phase === 'revealing' ? ' is-busy' : ''}`}
+        >
+          {phase === 'revealing' ? <CircleDot className="h-4 w-4 animate-pulse" aria-hidden="true" /> : phase === 'revealed' ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+          <span>{phase === 'revealing' ? 'Revealing…' : phase === 'revealed' ? 'Shown' : 'Reveal'}</span>
+        </button>
+      </div>
+    </footer>
+  )
+})
+
 /** The multiplier ladder the board walks, e.g. ×1.23 → ×349.68. */
 const LADDER_RANGE = `${formatMultiplier(ROWS[0].multiplier)} → ${formatMultiplier(ROWS[ROWS.length - 1].multiplier)}`
 
@@ -61,7 +139,6 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   const liveReady = mirror.active && mirror.status === 'valid' && mirror.evaluation !== null
   const canPublish = mirror.active && mirror.status !== 'error'
   const busy = phase === 'publishing' || phase === 'revealing'
-  const lowTime = remainingMs < 120_000
   const tableState = !mirror.active ? 'OFFLINE' : liveReady ? 'LIVE' : 'STANDBY'
 
   useEffect(() => {
@@ -172,13 +249,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
             <span className="pg-pill__key">Account</span>
             <span className="pg-pill__value mono">#{accountId}</span>
           </span>
-          <span
-            className={`pg-pill pg-pill--timer${lowTime ? ' is-low' : ''}`}
-            aria-label={`Access time remaining ${formatRemaining(remainingMs)}`}
-          >
-            <Timer className="pg-pill__icon" aria-hidden="true" />
-            <span className="pg-pill__value">{formatRemaining(remainingMs)}</span>
-          </span>
+          <AccessCountdown remainingMs={remainingMs} />
           <button
             type="button"
             onClick={onExit}
@@ -234,40 +305,16 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
         )}
       </div>
 
-      <footer className="pg-dock">
-        <div aria-live="polite" className="pg-dock__status">
-          {phase === 'publishing' || phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" aria-hidden="true" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" aria-hidden="true" />}
-          <span>{statusLine()}</span>
-        </div>
-        {notice && (
-          <div role="alert" className="pg-note pg-note--error pg-dock__alert">
-            <AlertTriangle className="pg-note__icon" aria-hidden="true" />
-            <p>{notice}</p>
-          </div>
-        )}
-        <div className="pg-dock__actions">
-          <button
-            type="button"
-            onClick={() => { void handleNewGame() }}
-            disabled={busy || !canPublish}
-            aria-label={phase === 'publishing' ? 'Starting new game' : 'New game'}
-            className={`pg-btn pg-btn--primary pg-dock__primary${phase === 'publishing' ? ' is-busy' : ''}`}
-          >
-            {phase === 'publishing' ? <span className="pg-btn__spinner pg-btn__spinner--dark" /> : <Play className="h-4 w-4" aria-hidden="true" />}
-            <span>{phase === 'publishing' ? 'Starting…' : 'New game'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleReveal}
-            disabled={phase !== 'ready' || round === null}
-            aria-label={phase === 'revealing' ? 'Revealing prediction' : phase === 'revealed' ? 'Prediction shown' : 'Reveal prediction'}
-            className={`pg-btn pg-btn--amber pg-dock__secondary${phase === 'revealing' ? ' is-busy' : ''}`}
-          >
-            {phase === 'revealing' ? <CircleDot className="h-4 w-4 animate-pulse" aria-hidden="true" /> : phase === 'revealed' ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
-            <span>{phase === 'revealing' ? 'Revealing…' : phase === 'revealed' ? 'Shown' : 'Reveal'}</span>
-          </button>
-        </div>
-      </footer>
+      <FortuneDock
+        statusText={statusLine()}
+        phase={phase}
+        notice={notice}
+        busy={busy}
+        canPublish={canPublish}
+        roundAvailable={round !== null}
+        onNewGame={handleNewGame}
+        onReveal={handleReveal}
+      />
     </div>
   )
 }

@@ -7,18 +7,24 @@ function fakeContext(): CanvasRenderingContext2D {
   const gradient = { addColorStop: vi.fn() }
   return {
     clearRect: vi.fn(),
+    fillRect: vi.fn(),
     beginPath: vi.fn(),
     arc: vi.fn(),
     fill: vi.fn(),
+    drawImage: vi.fn(),
     setTransform: vi.fn(),
     createRadialGradient: vi.fn(() => gradient),
     fillStyle: '',
+    globalAlpha: 1,
     globalCompositeOperation: 'source-over',
   } as unknown as CanvasRenderingContext2D
 }
 
+let sharedContext: CanvasRenderingContext2D
+
 beforeEach(() => {
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext())
+  sharedContext = fakeContext()
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(sharedContext)
 })
 
 afterEach(() => {
@@ -39,5 +45,19 @@ describe('CyberBackdrop', () => {
   it('renders the calm density variant without crashing', () => {
     const { container } = render(<CyberBackdrop density="calm" />)
     expect(container.querySelector('.cyber-backdrop')).not.toBeNull()
+  })
+
+  /**
+   * Performance contract. The field is the only continuously repainted surface
+   * in the app, so it must stamp pre-baked sprites: three tones × two stamps
+   * (halo + core) is exactly six gradients for the lifetime of the mount, and
+   * every particle on every frame is a single drawImage. The previous
+   * implementation built a fresh radial gradient per near particle per frame.
+   */
+  it('bakes its particle stamps once and paints frames with drawImage', () => {
+    const { unmount } = render(<CyberBackdrop />)
+    expect(vi.mocked(sharedContext.createRadialGradient)).toHaveBeenCalledTimes(6)
+    expect(vi.mocked(sharedContext.drawImage)).toHaveBeenCalled()
+    unmount()
   })
 })

@@ -1,6 +1,6 @@
-import { memo, type CSSProperties } from 'react'
+import { memo, useMemo, type CSSProperties } from 'react'
 import { Apple, Bomb } from 'lucide-react'
-import { GRID_ROWS, ROWS, formatMultiplier } from '../config/game'
+import { GRID_COLS, GRID_ROWS, ROWS, formatMultiplier } from '../config/game'
 import type { M11Value, RoundPhase, RowView } from '../types/game'
 
 type CellState = 'empty' | 'hidden' | 'safe' | 'bomb'
@@ -51,8 +51,13 @@ export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
  * only so lighting can be layered — a recessed well, the glyph on its own
  * contact shadow, and a state rim that flashes once as the row is revealed.
  */
-const FortuneCell = memo(function FortuneCell({ state, label, animate, armed = false }: { state: CellState; label: string | null; animate: boolean; armed?: boolean }) {
-  const animation = animate && (state === 'safe' || state === 'bomb') ? 'animate-pop-in' : ''
+const FortuneCell = memo(function FortuneCell({ state, label, armed = false }: { state: CellState; label: string | null; armed?: boolean }) {
+  /* The pop belongs to *being resolved*: a tile animates when it turns into an
+   * apple/broken glyph, and only then. Deriving it from the tile's own state
+   * instead of a phase-driven `animate` prop means pressing Reveal changes no
+   * cell prop at all — the 50 hidden tiles do not re-render for that click, and
+   * each step re-renders only the row it resolves plus the row it arms. */
+  const animation = state === 'safe' || state === 'bomb' ? 'animate-pop-in' : ''
   return (
     <div
       role={label === null ? undefined : 'img'}
@@ -79,6 +84,20 @@ export interface FortuneBoardProps {
 }
 
 /**
+ * Placeholder ladder shown before a round exists. Built once: it is rendered on
+ * every pre-round frame, and allocating 50 cell objects per render only to
+ * throw them away is exactly the kind of noise the board should not have.
+ */
+const PLACEHOLDER_ROWS: readonly RowView[] = ROWS.map((spec) => ({
+  row: spec.row,
+  multiplier: spec.multiplier,
+  cells: Array.from({ length: GRID_COLS }, (_, index) => ({ key: spec.keys[index], value: '0' as const })),
+})).slice(0, GRID_ROWS)
+
+/** The ladder is displayed top-down (row 10 first), so the order is fixed too. */
+const PLACEHOLDER_DISPLAY_ROWS: readonly RowView[] = [...PLACEHOLDER_ROWS].reverse()
+
+/**
  * The Apple of Fortune prediction board — the hero component of the product.
  *
  * Renders the exact same m1…m50 → row/column mapping as the admin console
@@ -88,13 +107,24 @@ export interface FortuneBoardProps {
  * inside each row. Cell size is derived from the stage it is given, so all
  * ten rows stay on screen without scrolling (see the .fortune-* rules in
  * index.css).
+ *
+ * Memoized on purpose: the board sits next to an access countdown that ticks
+ * once per second and a Firebase mirror that can update at any moment. With
+ * `rows` / `phase` / `revealedRows` unchanged, none of that may reach the fifty
+ * cells — and because every cell is itself memoized on primitive props, one
+ * revealed row re-renders five tiles instead of the whole ladder.
  */
-export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
+export const FortuneBoard = memo(function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
   const hasRound = rows !== null
-  const displayRows = [...(rows ?? placeholderRows())].reverse()
+  const displayRows = useMemo(
+    () => (rows === null ? PLACEHOLDER_DISPLAY_ROWS : [...rows].reverse()),
+    [rows],
+  )
   const activeRow = phase === 'revealing' ? revealedRows : -1
   const revealed = hasRound ? Math.min(GRID_ROWS, Math.max(0, revealedRows)) : 0
-  const railStyle = { '--pg-rail': `${(revealed / GRID_ROWS) * 100}%` } as CSSProperties
+  /* Unitless 0–1 fraction: the rail fills with a composited scaleY, so an
+     animated height never runs a layout pass mid-reveal. */
+  const railStyle = { '--pg-rail': (revealed / GRID_ROWS).toFixed(3) } as CSSProperties
 
   return (
     <section aria-label="Prediction board" className="fortune-board" style={railStyle}>
@@ -108,7 +138,7 @@ export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
             </div>
             {row.cells.map((cell) => {
               const state: CellState = !hasRound ? 'empty' : isRevealed ? boardVisualForValue(cell.value) : 'hidden'
-              return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} animate={phase === 'revealing' || phase === 'revealed'} armed={armed} />
+              return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} armed={armed} />
             })}
           </div>
         )
@@ -119,12 +149,4 @@ export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
       <span className="fortune-axis" aria-hidden="true" />
     </section>
   )
-}
-
-function placeholderRows(): RowView[] {
-  return ROWS.map((spec) => ({
-    row: spec.row,
-    multiplier: spec.multiplier,
-    cells: Array.from({ length: 5 }, (_, index) => ({ key: spec.keys[index], value: '0' as const })),
-  })).slice(0, GRID_ROWS)
-}
+})

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { prefersReducedMotion } from '../utils/random'
 import { GameBrandMark } from './GameBrand'
 
@@ -43,7 +43,12 @@ const BOOT_STAGES: readonly BootStage[] = [
   { label: 'Calibrating interface', target: 100 },
 ]
 
-const BOOT_TICK_MS = 30
+/**
+ * Readout cadence. The meter is smoothed by a 110ms CSS transition, so 20
+ * updates a second are indistinguishable from 33 — and every one of them is a
+ * React commit competing with the ambient field on the way into the login.
+ */
+const BOOT_TICK_MS = 50
 const BOOT_DURATION_MS = 1_500
 /** A beat on the finished frame before the curtain lifts. */
 const BOOT_HOLD_MS = 180
@@ -125,8 +130,15 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
     // Wall-clock based so a throttled background tab still resolves promptly
     // — the login is never left waiting behind the curtain.
     const startedAt = Date.now()
+    let lastProgress = -1
+    let lastStage = -1
     const interval = window.setInterval(() => {
       const next = bootFrame(Date.now() - startedAt, BOOT_DURATION_MS)
+      /* Nothing painted changes unless the rounded percentage or the stage
+         label moved, so identical frames are never committed at all. */
+      if (next.progress === lastProgress && next.stage === lastStage && !next.complete) return
+      lastProgress = next.progress
+      lastStage = next.stage
       setFrame(next)
       if (!next.complete) return
       window.clearInterval(interval)
@@ -144,6 +156,14 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
 
   const status = checking ? 'Checking your access…' : BOOT_STAGES[frame.stage].label
   const percent = checking ? null : Math.min(100, frame.progress)
+  /*
+   * The meter is published as one 0–1 custom property and consumed by two
+   * composited transforms (scaleX for the fill, translateX for the head). It
+   * used to animate `width` and `left`, which ran a layout pass on every tick
+   * of the boot sequence — the visible stutter on the way into the login.
+   * The 1.2 % floor is the old `min-width: 3px` nub, expressed as a scale.
+   */
+  const meterStyle = { '--pg-meter-p': Math.max(0.012, (percent ?? 0) / 100) } as CSSProperties
 
   return (
     <div className={`pg-intro${leaving ? ' pg-intro--leaving' : ''}`} aria-busy="true">
@@ -173,6 +193,7 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
           <div className="pg-intro__instrument">
             <div
               className={`pg-meter${checking ? ' pg-meter--indeterminate' : ''}`}
+              style={meterStyle}
               role="progressbar"
               aria-label="Loading MAGIC SCRIPT"
               aria-valuemin={0}
@@ -181,8 +202,8 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
               aria-valuetext={percent === null ? 'Verifying access' : `${percent}%`}
             >
               <span className="pg-meter__track" />
-              <span className="pg-meter__fill" style={{ width: `${percent ?? 0}%` }} />
-              {percent === null ? null : <span className="pg-meter__head" style={{ left: `${percent}%` }} />}
+              <span className="pg-meter__fill" />
+              {percent === null ? null : <span className="pg-meter__head" />}
               <span className="pg-meter__ticks" />
             </div>
 

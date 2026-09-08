@@ -26,10 +26,21 @@
 @layer base {
   html {
     @apply min-h-full bg-[#070a0d];
+    /* Android "font boosting" silently re-flows text blocks after paint, which
+       reads as a late layout shift. The type scale here is authored, so the
+       metric is locked. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
-    @apply min-h-screen overflow-x-hidden bg-[#070a0d] text-slate-100 antialiased;
+    @apply overflow-x-hidden bg-[#070a0d] text-slate-100 antialiased;
+    /* The *dynamic* viewport height: exactly what is visible, address bar
+       included. With 100vh the document stays taller than the screen on iOS
+       and Android while the bar is shown, which is what produced the few
+       pixels of unwanted page scroll behind the game. */
+    min-height: 100vh;
+    min-height: 100dvh;
     background-image:
       radial-gradient(900px 520px at 8% -10%, rgba(35, 170, 125, 0.13), transparent 65%),
       radial-gradient(900px 580px at 100% 0%, rgba(36, 118, 142, 0.11), transparent 63%),
@@ -48,8 +59,59 @@
     background: radial-gradient(circle at 50% 100%, rgba(29, 103, 82, .07), transparent 42%);
   }
 
+  /*
+   * The public game paints its own opaque ambient field (.cyber-backdrop is a
+   * fixed, fully covering layer), so the document decoration above — two large
+   * radial gradients plus a 42px grid — is rasterized and composited for
+   * nothing underneath it. `background-attachment: fixed` is the expensive part
+   * on mobile: it forces the whole document background to be re-rastered on
+   * every scroll frame. The admin workspace does not render a backdrop, so it
+   * keeps every pixel of this treatment.
+   */
+  body:has(.cyber-backdrop) {
+    background-image: none;
+    /* Nothing to attach once the decoration is gone, and no fixed-attachment
+       paint layer under the game. */
+    background-attachment: scroll;
+  }
+
+  body:has(.cyber-backdrop)::before {
+    content: none;
+  }
+
+  /*
+   * The public flow is an app surface: no rubber-band, no scroll chaining, no
+   * accidental pull-to-refresh. Content that genuinely overflows (the Login
+   * screen with a soft keyboard open) still scrolls normally. Scoped with
+   * :has() so the admin workspace keeps the browser's own behaviour.
+   */
+  html:has(.pg-flow),
+  html:has(.fortune-screen) {
+    overscroll-behavior: none;
+  }
+
+  /*
+   * The Apple of Fortune stage is a fixed-height app surface that already
+   * clips itself; the document is locked to match so no animation, dock alert
+   * or address-bar transition can ever add a scrollable remainder behind it.
+   * `:has()` is a progressive enhancement — where it is unsupported the dvh
+   * sizing above already produces a document that is exactly viewport tall.
+   */
+  html:has(.fortune-screen) {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  html:has(.fortune-screen) body {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   #root {
-    @apply min-h-screen;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 
   button,
@@ -766,6 +828,7 @@
 }
 
 .pg-pill--timer {
+  position: relative;
   border-color: rgb(var(--pg-accent) / .22);
   background: rgb(var(--pg-accent) / .06);
   letter-spacing: .05em;
@@ -776,14 +839,31 @@
 .pg-pill--timer.is-low {
   border-color: rgb(var(--pg-warn) / .38);
   background: rgb(var(--pg-warn) / .09);
+}
+
+/*
+ * The low-time warning ring. It used to animate `box-shadow` on the pill
+ * itself — an infinitely repeating paint of a spreading shadow, running for
+ * the last two minutes of a session. The identical ring now sits on a
+ * pseudo-element and breathes with `opacity`, which the compositor handles
+ * without touching the pill's pixels.
+ */
+.pg-pill--timer.is-low::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px rgb(var(--pg-warn) / .09);
+  opacity: 0;
+  pointer-events: none;
   animation: pg-warn-ring 2s ease-in-out infinite;
 }
 
 .pg-pill--timer.is-low .pg-pill__value { color: #f9e0af; }
 
 @keyframes pg-warn-ring {
-  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 0 0 0 rgb(var(--pg-warn) / 0); }
-  50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 0 0 4px rgb(var(--pg-warn) / .09); }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 .pg-pill--account { display: none; }
@@ -1306,40 +1386,62 @@
   position: relative;
   width: 100%;
   height: 18px;
+  /*
+   * Progress is published once, as a 0–1 custom property, and both moving
+   * parts read it through a composited transform. The boot screen ticks this
+   * twenty times a second while the ambient field is still animating, so the
+   * old `width` / `left` transitions (a layout pass per tick) were the reason
+   * the curtain never felt as smooth as it looked.
+   */
+  --pg-meter-p: 0;
 }
 
 .pg-meter__track,
 .pg-meter__fill {
   position: absolute;
   top: 8px;
+  right: 0;
+  left: 0;
   height: 2px;
   border-radius: 9999px;
 }
 
 .pg-meter__track {
-  left: 0;
-  right: 0;
   background-image: linear-gradient(90deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .11), rgba(255, 255, 255, .04));
 }
 
 .pg-meter__fill {
-  left: 0;
-  min-width: 3px;
   background-image: linear-gradient(90deg, rgb(var(--pg-accent) / .25), #93f6cb);
   box-shadow: 0 0 14px rgb(var(--pg-accent) / .5);
-  transition: width 110ms linear;
+  transform: scaleX(var(--pg-meter-p));
+  transform-origin: 0 50%;
+  transition: transform 110ms linear;
 }
 
 .pg-meter__head {
   position: absolute;
   top: 4px;
+  right: 0;
+  left: 0;
+  height: 10px;
+  /* A full-track box moved by a percentage of itself is a percentage of the
+     track — the head rides the same composited axis as the fill. */
+  transform: translate3d(calc(var(--pg-meter-p) * 100%), 0, 0);
+  transition: transform 110ms linear;
+  pointer-events: none;
+}
+
+.pg-meter__head::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 10px;
   height: 10px;
   margin-left: -5px;
   border-radius: 9999px;
   background: #e6fff5;
   box-shadow: 0 0 16px rgb(var(--pg-accent) / .85), 0 0 4px rgb(var(--pg-accent) / .9);
-  transition: left 110ms linear;
 }
 
 /* Segment overlay so the bar reads as measured, not filled. */
@@ -1350,8 +1452,10 @@
 }
 
 .pg-meter--indeterminate .pg-meter__fill {
+  right: auto;
   left: -26%;
-  width: 26% !important;
+  width: 26%;
+  transform: none;
   animation: pg-meter-sweep 1.4s ease-in-out infinite;
 }
 
@@ -1865,6 +1969,21 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), inset 0 0 34px rgba(0, 0, 0, .4);
 }
 
+@supports (height: 1dvh) {
+  /*
+   * Fallback path for browsers without container-query units: the ladder is
+   * measured against the *dynamic* viewport — the height actually visible —
+   * instead of the large viewport sitting behind the mobile address bar, which
+   * is how the tenth row could end up clipped on iOS 15.
+   * Written as @supports rather than a second declaration because custom
+   * properties are not validated at parse time: a bare `100dvh` fallback would
+   * poison --rh entirely on browsers that do not know the unit.
+   */
+  .fortune-board {
+    --rh: calc((100dvh - 46px - var(--pg-frame-y) - 9 * var(--fgap)) / 10);
+  }
+}
+
 @supports (height: 1cqh) {
   .fortune-stage { container-type: size; }
 
@@ -2105,11 +2224,19 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   left: -1px;
   right: -1px;
   bottom: 0;
-  height: var(--pg-rail, 0%);
+  height: 100%;
   border-radius: 9999px;
   background-image: linear-gradient(180deg, rgb(var(--pg-accent) / .9), rgb(var(--pg-accent) / .12));
   box-shadow: 0 0 14px rgb(var(--pg-accent) / .4);
-  transition: height 460ms var(--pg-ease);
+  /*
+   * The ladder meter grows from the base of the board with a composited
+   * `scaleY` instead of an animated `height`, so a revealed row no longer
+   * costs a layout + paint pass on the rail. The gradient spans exactly the
+   * filled portion either way, so the read is identical.
+   */
+  transform: scaleY(var(--pg-rail, 0));
+  transform-origin: 50% 100%;
+  transition: transform 460ms var(--pg-ease);
 }
 
 .fortune-chip {
@@ -2125,15 +2252,21 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   font-variant-numeric: tabular-nums;
   letter-spacing: .01em;
   color: rgb(var(--pg-ink-dim) / .4);
-  transition: color var(--pg-t-3) ease, text-shadow var(--pg-t-3) ease;
+  /* text-shadow is paint-only, so it resolves with the colour instead of being
+     re-rastered on every frame of the cascade. */
+  transition: color var(--pg-t-3) ease;
 }
 
 .fortune-chip::after {
   content: "";
+  flex: 0 0 auto;
   width: 4px;
   height: 1px;
   background: rgba(255, 255, 255, .15);
-  transition: background-color var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease, width var(--pg-t-3) ease;
+  /* The tick grows with a composited scaleX rather than an animated width, so
+     neither the tick nor the multiplier beside it re-lays-out mid-reveal. */
+  transform-origin: 100% 50%;
+  transition: transform var(--pg-t-3) var(--pg-ease), background-color var(--pg-t-3) ease;
 }
 
 @supports (height: 1cqh) {
@@ -2146,7 +2279,9 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 }
 
 .fortune-chip--revealed::after {
-  width: 6px;
+  /* 4px → 6px on the compositor: the layout box never changes, so the
+     multiplier beside the tick stays perfectly still. */
+  transform: scaleX(1.5);
   background: rgb(var(--pg-accent) / .55);
   box-shadow: 0 0 8px rgb(var(--pg-accent) / .4);
 }
@@ -2188,7 +2323,19 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
     linear-gradient(180deg, rgba(255, 255, 255, .075) 0%, rgba(255, 255, 255, .02) 38%, rgba(0, 0, 0, .16) 100%);
   box-shadow: var(--pg-shadow-tile);
   color: #6b807a;
-  transition: border-color var(--pg-t-2) ease, box-shadow var(--pg-t-2) ease, background-color var(--pg-t-2) ease, color var(--pg-t-2) ease;
+  /* Layout/paint containment for the tile's own subtree: a state change here
+     can never invalidate anything outside the tile. `paint` is deliberately
+     NOT used — it would clip the tile's outer glow. */
+  contain: layout style;
+  /*
+   * box-shadow is intentionally absent from this list. A revealed tile carries
+   * a four-layer shadow including a 22px neon bloom; transitioning it repaints
+   * that blur on every frame for five tiles per row, ten rows in a row — the
+   * single largest cost of the reveal cascade. The shadow now resolves in one
+   * paint, under the tile's existing 320ms scale/opacity pop, which reads as a
+   * flash of light rather than a fade.
+   */
+  transition: border-color var(--pg-t-2) ease, background-color var(--pg-t-2) ease, color var(--pg-t-2) ease;
 }
 
 /* Inner edge — reserved for interaction states (hover, armed) so the resting
@@ -2224,7 +2371,14 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   background: radial-gradient(74% 62% at 50% 4%, rgba(255, 255, 255, .05), transparent 70%);
   box-shadow: inset 0 1px 5px rgba(0, 0, 0, .45);
   pointer-events: none;
-  transition: background var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease;
+  /*
+   * No transition here, on purpose. Both the background (a gradient) and the
+   * inset shadow are paint-only properties, and browsers interpolate matching
+   * gradients frame by frame — so a 420ms transition on this element meant
+   * re-rasterizing up to 50 gradient wells simultaneously the instant the
+   * reveal started. The well now resolves in a single paint, which the tile's
+   * own pop-in already covers.
+   */
 }
 
 /* The glyph stays square and scales with the row, so a wide tile never
@@ -2237,7 +2391,35 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   justify-content: center;
   width: clamp(16px, calc(var(--cell, 48px) * .6), 44px);
   height: clamp(16px, calc(var(--cell, 48px) * .6), 44px);
-  transition: filter var(--pg-t-3) ease;
+  /* No `transition: filter`. Animating a drop-shadow filter re-rasters the
+     filtered glyph every frame; the neon bloom below is an opacity-faded
+     gradient instead, which the compositor handles without any repaint. */
+}
+
+/*
+ * Revealed-glyph bloom. This replaces the second, coloured
+ * `drop-shadow(0 0 8px …)` the glyph used to carry: same read (a soft halo of
+ * the state colour around the asset), but it is a static gradient whose opacity
+ * rides along with the glyph's existing pg-glyph-in animation — so it costs one
+ * composited fade instead of a filtered re-raster per frame.
+ */
+.fortune-cell__glyph::before {
+  content: "";
+  position: absolute;
+  inset: -34%;
+  border-radius: 9999px;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgb(251 113 133 / .34), transparent 74%);
+}
+
+.fortune-cell--bomb .fortune-cell__glyph::before {
+  background: radial-gradient(closest-side, rgb(70 227 161 / .34), transparent 74%);
+}
+
+.fortune-cell--safe .fortune-cell__glyph::before,
+.fortune-cell--bomb .fortune-cell__glyph::before {
+  opacity: 1;
 }
 
 .fortune-cell__glyph svg.is-dim { opacity: .3; }
@@ -2326,8 +2508,12 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   box-shadow: 0 0 10px rgb(70 227 161 / .6);
 }
 
-.fortune-cell--safe .fortune-cell__glyph { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45)) drop-shadow(0 0 8px rgb(251 113 133 / .45)); }
-.fortune-cell--bomb .fortune-cell__glyph { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45)) drop-shadow(0 0 8px rgb(70 227 161 / .45)); }
+/* Contact shadow only. The coloured half of the old two-function filter now
+   lives in the bloom above: one static filter function is rasterized once when
+   the tile resolves, instead of two chained blurs being re-rastered on every
+   frame of a transition. */
+.fortune-cell--safe .fortune-cell__glyph,
+.fortune-cell--bomb .fortune-cell__glyph { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
 
 /* Reveal cascade: tile pops (existing utility) while its glyph settles. */
 .fortune-cell--safe .fortune-cell__glyph,
@@ -2549,6 +2735,124 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-intro__foot { display: none; }
 }
 
+/* ------------------------------ touch response -------------------------- */
+
+/*
+ * The game is an app surface, not a document: taps land immediately, nothing
+ * is accidentally selected or magnified, and no browser highlight flashes over
+ * the authored lighting. Scrolling and text selection are untouched on the
+ * Login screen (its inputs keep every default) and in the admin workspace.
+ */
+.fortune-screen {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The one piece of data a player may legitimately want to copy stays copyable
+   even though the stage itself is not selectable. */
+.pg-pill--account {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.pg-btn,
+.pg-iconbtn,
+.pg-social__link,
+.fortune-cell {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pg-btn,
+.pg-iconbtn,
+.pg-social__link {
+  /* Drops the double-tap-to-zoom wait from every control, so the deck answers
+     on the first touch. Pinch-zoom on the page itself is left alone. */
+  touch-action: manipulation;
+}
+
+/* ------------------------- compact rendering tier ----------------------- */
+
+/*
+ * MOBILE / LOW-FILL-RATE RENDERING PATH.
+ *
+ * The atmosphere keeps its exact composition — same five planes, same palette,
+ * same depths, same geometry. What changes is only how much of it has to be
+ * re-rastered per frame, because on a phone every one of these layers is
+ * multiplied by a device pixel ratio of 3:
+ *
+ *   • blur radii come down (blur cost grows with roughly the square of the
+ *     radius, and both glows are already soft radial gradients);
+ *   • the two slowest large-area motions are held at their resting frame — the
+ *     light shafts drift 1.4 % over 26 s, and the floor plane scrolls 44px
+ *     over 8 s *inside a masked, perspective surface*, which means the mask is
+ *     re-applied over ~0.7 of the viewport on every single frame. Neither is
+ *     perceptible as motion at that speed; both are expensive as paint;
+ *   • scanlines and the boot-screen CRT lines go: at .014 alpha × .4 opacity
+ *     they are a full-screen raster for a pattern no phone panel can resolve;
+ *   • backdrop-filter is dropped from the two glass surfaces. Both sit directly
+ *     above the animated particle canvas, so their blur had to be recomputed
+ *     every frame — and at 84–96 % opaque backgrounds there is nothing left to
+ *     see through them. The glass read comes from the gradient, the hairline
+ *     and the corners, all of which stay;
+ *   • the elevation token set loses its redundant layers, roughly halving the
+ *     per-tile raster work across the 50-cell board.
+ *
+ * Nothing here changes a size, a colour, a spacing or a type value, so the
+ * compact layout is identical to the design — it just costs far less to draw.
+ */
+@media (max-width: 1023px), (pointer: coarse) {
+  .pg-flow,
+  .pg-intro,
+  .pg-login,
+  .pg-game {
+    --pg-shadow-card: 0 18px 44px rgba(0, 0, 0, .5), inset 0 1px 0 var(--pg-line-inner);
+    --pg-shadow-tile: inset 0 1px 0 rgba(255, 255, 255, .05), inset 0 -1px 0 rgba(0, 0, 0, .24);
+  }
+
+  .cyber-glow { filter: blur(34px); }
+
+  .cyber-shafts {
+    transform: none;
+    opacity: .78;
+    animation: none;
+  }
+
+  .cyber-grid-plane,
+  .pg-intro__floor-grid { animation: none; }
+
+  .cyber-scanlines,
+  .pg-intro__lines { display: none; }
+
+  .pg-panel,
+  .pg-idle__card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* Tiles: the neon identity is the coloured border, the wash, the LED and the
+     glyph bloom, so the redundant black drop and the second inset tint go. */
+  .fortune-cell--safe {
+    box-shadow: 0 0 18px rgb(251 113 133 / .16), inset 0 1px 0 rgba(255, 255, 255, .07);
+  }
+
+  .fortune-cell--bomb {
+    box-shadow: 0 0 18px rgb(70 227 161 / .16), inset 0 1px 0 rgba(255, 255, 255, .07);
+  }
+
+  .fortune-cell__well { box-shadow: inset 0 1px 4px rgba(0, 0, 0, .42); }
+
+  .fortune-cell--safe .fortune-cell__well,
+  .fortune-cell--bomb .fortune-cell__well { box-shadow: inset 0 2px 7px rgba(0, 0, 0, .3); }
+
+  /* The bloom pseudo-element already carries the glyph glow, so a phone GPU
+     does not need a filter pass over 50 SVGs at all. */
+  .fortune-cell--safe .fortune-cell__glyph,
+  .fortune-cell--bomb .fortune-cell__glyph { filter: none; }
+
+  .pg-brand__title { filter: drop-shadow(0 0 12px rgb(var(--pg-accent) / .12)); }
+}
+
 /* --------------------------- accessibility polish ----------------------- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -2584,5 +2888,8 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-intro__pulse,
   .pg-intro__corner,
   .pg-intro__shutter { animation: none; }
-  .pg-pill--timer.is-low { animation: none; }
+  .pg-pill--timer.is-low::after { animation: none; opacity: .55; }
+  .pg-meter__fill,
+  .pg-meter__head { transition: none; }
+  .fortune-chip::after { transition: none; }
 }
