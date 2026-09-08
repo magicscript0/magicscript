@@ -416,7 +416,7 @@
 /*                                                                     */
 /* DESIGN SYSTEM                                                       */
 /*   • one radius scale     11 / 12 / 14 / 18 / 22 / pill             */
-/*   • one spacing scale    6 · 10 · 14 · 18 · 22 · 28 · 34           */
+/*   • one spacing scale    6 · 10 · 14 · 18 · 22 · 28                 */
 /*   • one elevation set    card / plate / tile (soft, dark, 1 layer)  */
 /*   • one glow intensity   accent at 6–18 % — never a halo per box    */
 /*   • one type voice       uppercase micro-labels + tabular mono data */
@@ -426,8 +426,15 @@
 /* on full-screen layers) and the global prefers-reduced-motion rule    */
 /* above flattens every animation and transition in this section.      */
 /*                                                                     */
-/* DATA CONTRACT — the board geometry and the /m11 mapping are NOT      */
-/* redefined here. Row order, cell order, the m1…m50 grid and the       */
+/* COMPOSITION                                                           */
+/*   The game is the screen: the arena runs from under the header to the  */
+/*   bottom safe area, and every reserve (--pg-frame-*) is derived from   */
+/*   the chrome it describes, so the ladder is measured against what is   */
+/*   actually left. Tiles size to whichever axis binds, opening wider on  */
+/*   wide viewports (--pg-aspect) instead of staying a small square.      */
+/*                                                                     */
+/* DATA CONTRACT — the board mapping and /m11 semantics are NOT          */
+/* redefined here. Row order, cell order, the m1…m50 grid and the      */
 /* "1" → SAFE / "0" → BROKEN assignment all come from the existing     */
 /* code; only lighting, depth and motion were authored.                */
 /* ================================================================== */
@@ -437,7 +444,6 @@
 .pg-login,
 .pg-game {
   /* palette */
-  --pg-canvas: #04070a;
   --pg-accent: 70 227 161;
   --pg-ice: 99 216 232;
   --pg-signal: 251 113 133;
@@ -467,15 +473,18 @@
   --pg-s-4: 18px;
   --pg-s-5: 22px;
   --pg-s-6: 28px;
-  --pg-s-7: 34px;
 
   /* elevation */
   --pg-shadow-card: 0 30px 72px rgba(0, 0, 0, .55), 0 2px 10px rgba(0, 0, 0, .38), inset 0 1px 0 var(--pg-line-inner);
   --pg-shadow-plate: 0 10px 26px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .07);
-  --pg-shadow-tile: 0 5px 14px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .05), inset 0 -1px 0 rgba(0, 0, 0, .3);
+  --pg-shadow-tile: 0 3px 8px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .05), inset 0 -1px 0 rgba(0, 0, 0, .24);
 
   /* typography */
   --pg-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* composition */
+  --pg-aspect: 1.5;          /* how far a tile may open wider than it is tall */
+  --pg-dock-h: 100px;        /* what the control deck reserves inside the arena */
 
   /* motion */
   --pg-ease: cubic-bezier(.2, .7, .24, 1);
@@ -531,6 +540,109 @@
 @keyframes pg-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: .38; }
+}
+
+/* ---------------------------- environment ------------------------------- */
+
+/*
+ * The single ambient field behind the boot screen, the login and the game,
+ * deepened inside the public layer. Five separated planes — atmosphere, floor,
+ * light, particles, scrim — so the board always sits *in front of* the
+ * background instead of inside it. Everything here is decorative, composited
+ * (transform/opacity), and switched off under prefers-reduced-motion below.
+ */
+.cyber-base {
+  background-image:
+    radial-gradient(1300px 760px at 50% -14%, rgba(23, 191, 127, .13), transparent 62%),
+    radial-gradient(1000px 700px at 92% 116%, rgba(244, 63, 94, .055), transparent 64%),
+    radial-gradient(820px 560px at 4% 112%, rgba(36, 118, 142, .09), transparent 62%),
+    radial-gradient(62% 42% at 50% 64%, rgba(7, 22, 20, .9), transparent 72%),
+    linear-gradient(180deg, #04070a 0%, #061015 46%, #030608 100%);
+}
+
+/* Volumetric light. Soft gradient falloff, never a blur filter. */
+.cyber-shafts {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: -10%;
+  height: 118%;
+  background-image:
+    linear-gradient(102deg, transparent 17%, rgba(99, 216, 232, .05) 25%, transparent 33%),
+    linear-gradient(88deg, transparent 51%, rgba(70, 227, 161, .065) 59%, transparent 67%),
+    linear-gradient(96deg, transparent 73%, rgba(190, 242, 255, .04) 79%, transparent 87%);
+  transform-origin: 50% 0;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .9) 4%, rgba(0, 0, 0, .34) 48%, transparent 80%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .9) 4%, rgba(0, 0, 0, .34) 48%, transparent 80%);
+  animation: pg-shafts 26s ease-in-out infinite alternate;
+}
+
+@keyframes pg-shafts {
+  from { transform: translate3d(-1.4%, 0, 0) scaleY(1); opacity: .5; }
+  to { transform: translate3d(1.4%, 0, 0) scaleY(1.05); opacity: 1; }
+}
+
+/* The floor keeps the parent's perspective; only a child moves (composited). */
+.cyber-grid-floor {
+  background-image: none;
+  animation: none;
+  overflow: hidden;
+}
+
+.cyber-grid-plane {
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  top: -46%;
+  bottom: -12%;
+  background-image:
+    linear-gradient(rgba(70, 227, 161, .1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(70, 227, 161, .065) 1px, transparent 1px),
+    linear-gradient(rgba(99, 216, 232, .04) 1px, transparent 1px);
+  background-size:
+    44px 44px,
+    44px 44px,
+    220px 220px;
+  animation: cyber-plane 8s linear infinite;
+}
+
+@keyframes cyber-plane {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 44px, 0); }
+}
+
+/* Distant light where the floor meets the dark. */
+.cyber-horizon {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  bottom: 31%;
+  height: 1px;
+  background-image: linear-gradient(90deg, transparent 5%, rgba(70, 227, 161, .2) 32%, rgba(190, 242, 255, .26) 50%, rgba(70, 227, 161, .18) 68%, transparent 95%);
+  box-shadow: 0 0 60px 16px rgba(70, 227, 161, .05);
+  animation: cyber-horizon 12s ease-in-out infinite;
+}
+
+@keyframes cyber-horizon {
+  0%, 100% { opacity: .4; }
+  50% { opacity: .8; }
+}
+
+/* Foreground/background separation: darken the frame edges, keep the centre. */
+.cyber-depth {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(180deg, rgba(2, 4, 6, .74) 0%, rgba(2, 4, 6, 0) 24%, rgba(2, 4, 6, 0) 60%, rgba(2, 4, 6, .82) 100%);
+}
+
+.cyber-scanlines {
+  background-image: repeating-linear-gradient(to bottom, rgba(255, 255, 255, .014) 0 1px, transparent 1px 4px);
+  opacity: .4;
+}
+
+@media (max-width: 639px) {
+  .cyber-horizon { bottom: 26%; }
+  .cyber-depth { background-image: linear-gradient(180deg, rgba(2, 4, 6, .62) 0%, rgba(2, 4, 6, 0) 22%, rgba(2, 4, 6, 0) 58%, rgba(2, 4, 6, .74) 100%); }
 }
 
 /* ------------------------------ shared atoms ---------------------------- */
@@ -606,7 +718,7 @@
 /* Pills — the header's only data container, refined rather than boxed. */
 .pg-pill {
   display: inline-flex;
-  height: 28px;
+  height: 26px;
   align-items: center;
   gap: var(--pg-s-1);
   padding: 0 10px;
@@ -764,7 +876,7 @@
 /* Optical centring: uppercase text reads high, so nudge it down. */
 .pg-btn > span { transform: translate3d(0, .5px, 0); }
 
-.pg-btn:disabled { cursor: not-allowed; opacity: .45; }
+.pg-btn:disabled { cursor: not-allowed; opacity: .45; filter: saturate(.55); }
 .pg-btn:not(:disabled):active { transform: translate3d(0, 1px, 0) scale(.988); }
 
 .pg-btn::before {
@@ -1041,7 +1153,9 @@
   perspective-origin: 50% 100%;
   -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, .9) 8%, transparent 70%);
   mask-image: linear-gradient(to top, rgba(0, 0, 0, .9) 8%, transparent 70%);
-  opacity: .8;
+  /* The shared field already has a floor and a horizon; the curtain adds only
+     a nearer plane of it, so the two screens never show two grids at once. */
+  opacity: .5;
 }
 
 .pg-intro__floor-grid {
@@ -1065,15 +1179,17 @@
 }
 
 /* Horizon light where the floor meets the dark. */
+/* The horizon belongs to the shared environment (see .cyber-horizon), so the
+   curtain only lifts it a touch with a matching rhythm. */
 .pg-intro__sweep {
   position: absolute;
-  left: 8%;
-  right: 8%;
-  bottom: calc(52% - 1px);
+  left: 4%;
+  right: 4%;
+  bottom: 31%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(var(--pg-accent) / .4), rgb(var(--pg-ice) / .3), transparent);
-  box-shadow: 0 0 24px rgb(var(--pg-accent) / .3);
-  animation: pg-horizon 5.6s ease-in-out infinite;
+  background-image: linear-gradient(90deg, transparent, rgb(var(--pg-accent) / .3) 34%, rgb(var(--pg-ice) / .32) 50%, rgb(var(--pg-accent) / .28) 66%, transparent);
+  box-shadow: 0 0 26px rgb(var(--pg-accent) / .22);
+  animation: pg-horizon 12s ease-in-out infinite;
 }
 
 @keyframes pg-horizon {
@@ -1129,10 +1245,10 @@
 .pg-intro__body {
   position: relative;
   display: flex;
-  width: min(372px, 100%);
+  width: min(392px, 100%);
   flex-direction: column;
   align-items: center;
-  gap: var(--pg-s-5);
+  gap: var(--pg-s-6);
   text-align: center;
   animation: pg-intro-in 900ms var(--pg-ease) both;
 }
@@ -1164,7 +1280,7 @@
 }
 
 .pg-intro__sub {
-  font-size: clamp(20px, 6vw, 26px);
+  font-size: clamp(21px, 6vw, 28px);
   font-weight: 600;
   letter-spacing: -.032em;
   line-height: 1.1;
@@ -1330,8 +1446,23 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(58% 40% at 50% 46%, rgb(var(--pg-accent) / .07), transparent 70%);
+  background: radial-gradient(56% 38% at 50% 44%, rgb(var(--pg-accent) / .075), transparent 70%);
   pointer-events: none;
+}
+
+/* The same floor the game stands on, so the gateway and the product are one
+   place. A band of light on the horizon, no extra chrome. */
+.pg-login::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  left: 0;
+  bottom: 12%;
+  height: 1px;
+  background-image: linear-gradient(90deg, transparent 8%, rgb(var(--pg-accent) / .22) 40%, rgb(var(--pg-ice) / .26) 50%, rgb(var(--pg-accent) / .2) 60%, transparent 92%);
+  box-shadow: 0 26px 70px 10px rgb(var(--pg-accent) / .05);
+  pointer-events: none;
+  animation: cyber-horizon 12s ease-in-out infinite;
 }
 
 @media (min-width: 640px) {
@@ -1382,7 +1513,7 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 .pg-panel__body {
   position: relative;
   z-index: 1;
-  padding: clamp(18px, 5.2vw, 26px);
+  padding: clamp(20px, 5.4vw, 30px);
 }
 
 .pg-panel__corner {
@@ -1628,8 +1759,18 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 .pg-social__out { flex: 0 0 auto; width: 15px; height: 15px; color: rgb(var(--pg-ink-mute) / .6); transition: transform 220ms var(--pg-ease), color var(--pg-t-2) ease; }
 .pg-social__link:hover .pg-social__out { color: #dfeeea; transform: translate3d(2px, -2px, 0); }
 
-/* --------------------------- the game stage ----------------------------- */
+/* ------------------------------ game arena ------------------------------ */
 
+/*
+ * The game owns the screen. Below the header there is no card sitting in a
+ * void: the arena is a full-bleed environment surface that runs edge to edge
+ * and down to the bottom safe area, with the control deck as its base. Only
+ * the *tiles* are inset, and they are sized from the arena's own box, so the
+ * grid opens up with the viewport instead of staying a fixed square.
+ *
+ * The reserves (--pg-frame-*) are derived from the chrome they describe, so
+ * the board can never be measured against the wrong number.
+ */
 .fortune-screen {
   position: relative;
   display: flex;
@@ -1645,24 +1786,25 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 
 .pg-bar {
   position: relative;
-  z-index: 10;
+  z-index: 12;
   display: flex;
   align-items: center;
   gap: var(--pg-s-2);
-  min-height: 54px;
-  padding: var(--pg-s-1) clamp(12px, 3vw, 24px) var(--pg-s-2);
-  background-image: linear-gradient(180deg, rgba(4, 7, 10, .58), rgba(4, 7, 10, 0));
+  min-height: 46px;
+  padding: 4px clamp(10px, 2.4vw, 22px) 8px;
+  background-image: linear-gradient(180deg, rgba(3, 6, 8, .74), rgba(3, 6, 8, 0));
   animation: pg-rise var(--pg-t-4) var(--pg-ease) both;
 }
 
+/* Full-bleed hairline: the header's edge *is* the arena's top edge. */
 .pg-bar::after {
   content: "";
   position: absolute;
-  left: clamp(12px, 3vw, 24px);
-  right: clamp(12px, 3vw, 24px);
+  left: 0;
+  right: 0;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, rgb(var(--pg-accent) / .22), rgba(255, 255, 255, .09) 22%, rgba(255, 255, 255, .09) 78%, transparent);
+  background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, .09) 12%, rgb(var(--pg-accent) / .2) 50%, rgba(255, 255, 255, .09) 88%, transparent);
 }
 
 .pg-bar__side {
@@ -1672,88 +1814,98 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   margin-left: auto;
 }
 
-@media (min-width: 640px) {
-  .pg-bar__side { gap: var(--pg-s-2); }
-}
-
 .fortune-stage {
   position: relative;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  align-items: center;
-  justify-content: center;
-  padding-inline: clamp(10px, 3vw, 24px);
-  --pg-frame-pad: 12px;
-  --pg-frame-head: 24px;
-  --pg-frame-x: 28px;
-  /* 2×pad + head + gap + 2×border — what the frame eats from the stage. */
-  --pg-frame-y: 72px;
+  align-items: stretch;
+  padding-inline: clamp(6px, 1.4vw, 16px);
+  --pg-frame-pad: 10px;
+  --pg-grid-pad: 7px;
+  --pg-frame-head: 26px;
+  --pg-frame-gap: 14px;
+  --pg-dock-h: 100px;
+  --pg-frame-x: calc(var(--pg-frame-pad) * 2 + var(--pg-grid-pad) * 2 + 2px);
+  /* chrome only — the row gaps are subtracted where --fgap actually lives */
+  --pg-frame-y: calc(var(--pg-frame-pad) * 2 + var(--pg-frame-head) + var(--pg-frame-gap) + var(--pg-grid-pad) * 2 + 2px + var(--pg-dock-h));
 }
 
-@media (min-width: 640px) {
-  .fortune-stage {
-    --pg-frame-pad: 18px;
-    --pg-frame-head: 26px;
-    --pg-frame-x: 40px;
-    --pg-frame-y: 84px;
-  }
-}
-
-/* The board is measured against the stage it is given, so the whole 10-row
-   prediction grid always fits without scrolling. Frame internals are
-   subtracted through the --pg-frame-* tokens above. */
+/*
+ * Cell sizing. --cw is the width one column gets if the board opens fully,
+ * --rh the height ten rows get if the arena is filled top to bottom. A tile
+ * takes the smaller of the two, then may open wider than it is tall by
+ * --pg-aspect — which is what lets a 10×5 ladder occupy a wide screen without
+ * turning into flat bars. Mobile lands on --cw (square-ish, full width);
+ * desktop lands on --rh and opens sideways.
+ */
 .fortune-board {
-  --fgap: clamp(3px, .8vh, 9px);
-  --chip: clamp(38px, 10vw, 54px);
-  --cell: min(
-    calc((100vh - 280px - 9 * var(--fgap)) / 10),
-    calc((100vw - var(--chip) - 5 * var(--fgap) - 28px) / 5)
-  );
+  --fgap: clamp(4px, .9vw, 10px);
+  --chip: clamp(34px, 9vw, 64px);
+  --cw: calc((100vw - var(--pg-frame-x) - var(--chip) - 5 * var(--fgap)) / 5);
+  --rh: calc((100vh - 46px - var(--pg-frame-y) - 9 * var(--fgap)) / 10);
+  --cell: min(var(--rh), calc(var(--cw) * var(--pg-aspect)));
+  --col: min(var(--cw), calc(var(--cell) * var(--pg-aspect)));
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: var(--chip) repeat(5, var(--cell));
+  grid-template-columns: var(--chip) repeat(5, minmax(0, var(--col)));
   grid-auto-rows: var(--cell);
   gap: var(--fgap);
+  align-content: center;
+  /* Hugs the ladder rather than filling the arena, so the surface, the axis
+     and the tiles always share one origin at every viewport size. */
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: var(--pg-grid-pad);
+  border-radius: var(--pg-r-lg);
+  /* One shared surface the tiles are cut into — not 50 separate cards. */
+  background-image: linear-gradient(180deg, rgba(0, 0, 0, .3), rgba(0, 0, 0, .14));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), inset 0 0 34px rgba(0, 0, 0, .4);
 }
 
 @supports (height: 1cqh) {
   .fortune-stage { container-type: size; }
 
   .fortune-board {
-    --fgap: clamp(3px, 1cqh, 9px);
-    --chip: clamp(38px, 12cqw, 54px);
-    --cell: min(
-      calc((100cqh - 9 * var(--fgap) - var(--pg-frame-y)) / 10),
-      calc((100cqw - var(--chip) - 5 * var(--fgap) - var(--pg-frame-x)) / 5)
-    );
+    --fgap: clamp(4px, 1cqh, 10px);
+    --chip: clamp(34px, 9cqw, 64px);
+    --cw: calc((100cqw - var(--pg-frame-x) - var(--chip) - 5 * var(--fgap)) / 5);
+    --rh: calc((100cqh - var(--pg-frame-y) - 9 * var(--fgap)) / 10);
   }
 }
 
+/*
+ * The arena surface. Deliberately translucent with no perimeter highlight:
+ * the ambient field and the floor grid read through it, so it registers as
+ * the room the game happens in rather than a panel on top of a page.
+ */
 .pg-board {
-  border-radius: var(--pg-r-xl);
+  border-radius: clamp(18px, 2.2vw, 26px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--pg-s-3);
+  gap: var(--pg-frame-gap);
   padding: var(--pg-frame-pad);
   overflow: hidden;
+  border-color: rgba(255, 255, 255, .05);
+  background-image:
+    radial-gradient(120% 62% at 50% -6%, rgb(var(--pg-accent) / .07), transparent 58%),
+    linear-gradient(180deg, rgba(9, 15, 17, .6) 0%, rgba(5, 9, 11, .5) 58%, rgba(3, 6, 8, .72) 100%);
   box-shadow:
-    0 40px 88px rgba(0, 0, 0, .5),
-    0 0 0 1px rgba(0, 0, 0, .45),
-    0 0 64px rgb(var(--pg-accent) / .07),
-    inset 0 1px 0 rgba(255, 255, 255, .06);
+    inset 0 1px 0 rgba(255, 255, 255, .045),
+    inset 0 0 90px rgba(0, 0, 0, .45),
+    0 -18px 60px rgba(0, 0, 0, .3);
   animation: pg-board-in var(--pg-t-4) var(--pg-ease) 60ms both;
 }
 
 @keyframes pg-board-in {
-  from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.986); }
+  from { opacity: 0; transform: translate3d(0, 12px, 0) scale(.994); }
   to { opacity: 1; transform: none; }
 }
 
 /*
- * The arrival beat: one soft wash across the stage the moment the session is
+ * The arrival beat: one soft wash across the arena the moment the session is
  * granted and the console mounts. It rests at opacity 0, so with
  * prefers-reduced-motion (animations off) it is simply never seen.
  */
@@ -1762,7 +1914,7 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   position: absolute;
   inset: 0;
   z-index: 9;
-  background: radial-gradient(66% 44% at 50% 46%, rgb(var(--pg-accent) / .15), transparent 70%);
+  background: radial-gradient(72% 46% at 50% 44%, rgb(var(--pg-accent) / .16), transparent 70%);
   opacity: 0;
   pointer-events: none;
   animation: pg-granted 760ms var(--pg-ease-out) both;
@@ -1774,18 +1926,34 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   100% { opacity: 0; }
 }
 
-/* Interior lighting: cool wash at the top of the ladder, warm at the base. */
+/* The stage floor the ladder stands on. */
+.pg-board::after {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: calc(var(--pg-dock-h) - 42px);
+  height: 84px;
+  background: radial-gradient(62% 100% at 50% 100%, rgb(var(--pg-accent) / .075), transparent 72%);
+  opacity: .8;
+  pointer-events: none;
+}
+
+/* The arena's side walls. On phones the gutters are almost nil, so this only
+   reads on wide screens — where it keeps the empty space composed instead of
+   empty, without ever competing with the ladder. */
 .pg-board::before {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(112% 58% at 50% -8%, rgb(var(--pg-accent) / .1), transparent 60%),
-    radial-gradient(92% 46% at 50% 108%, rgb(var(--pg-ice) / .05), transparent 64%);
+  background-image:
+    radial-gradient(26% 56% at 5% 44%, rgb(var(--pg-accent) / .055), transparent 72%),
+    radial-gradient(26% 56% at 95% 44%, rgb(var(--pg-ice) / .045), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, .028), transparent 16%);
   pointer-events: none;
 }
 
-.pg-board.is-busy { border-color: rgb(var(--pg-ice) / .2); }
+.pg-board.is-busy { border-color: rgb(var(--pg-ice) / .16); }
 
 .pg-board__head {
   position: relative;
@@ -1795,21 +1963,22 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   align-items: center;
   gap: var(--pg-s-2);
   min-height: var(--pg-frame-head);
+  padding-inline: 2px;
 }
 
 .pg-board__rule {
   flex: 1 1 auto;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .02));
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .01));
 }
 
 .pg-board__ladder {
   font-family: var(--pg-mono);
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: .04em;
-  color: rgb(var(--pg-ink-mute) / .6);
+  color: rgb(var(--pg-ink-mute) / .62);
   white-space: nowrap;
 }
 
@@ -1821,34 +1990,38 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 
 .pg-board__corner {
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   z-index: 3;
-  border: 1px solid rgb(var(--pg-accent) / .26);
+  border: 1px solid rgb(var(--pg-accent) / .2);
   pointer-events: none;
   transition: border-color var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease;
 }
 
-.pg-board__corner--tl { top: 8px; left: 8px; border-right: 0; border-bottom: 0; border-top-left-radius: 6px; }
-.pg-board__corner--tr { top: 8px; right: 8px; border-left: 0; border-bottom: 0; border-top-right-radius: 6px; }
-.pg-board__corner--bl { bottom: 8px; left: 8px; border-right: 0; border-top: 0; border-bottom-left-radius: 6px; }
-.pg-board__corner--br { bottom: 8px; right: 8px; border-left: 0; border-top: 0; border-bottom-right-radius: 6px; }
+.pg-board__corner--tl { top: 8px; left: 8px; border-right: 0; border-bottom: 0; border-top-left-radius: 8px; }
+.pg-board__corner--tr { top: 8px; right: 8px; border-left: 0; border-bottom: 0; border-top-right-radius: 8px; }
+.pg-board__corner--bl { bottom: calc(var(--pg-dock-h) - 16px); left: 8px; border-right: 0; border-top: 0; border-bottom-left-radius: 8px; }
+.pg-board__corner--br { bottom: calc(var(--pg-dock-h) - 16px); right: 8px; border-left: 0; border-top: 0; border-bottom-right-radius: 8px; }
 
-/* The light pass that walks the board while rows are being revealed. */
+/* The light pass that walks the ladder while rows resolve. */
 .pg-board__scan {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  height: 64px;
+  height: 76px;
   z-index: 2;
-  background: linear-gradient(180deg, transparent, rgb(var(--pg-ice) / .05) 62%, rgb(var(--pg-accent) / .13) 94%, transparent);
+  background-image: linear-gradient(180deg, transparent, rgb(var(--pg-ice) / .045) 60%, rgb(var(--pg-accent) / .11) 92%, transparent);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--pg-t-3) ease;
 }
 
 /* Travels upward to match the ladder: rows resolve from the base of the board. */
+.pg-board.is-revealing .fortune-cell--hidden .fortune-cell__well {
+  background-image: linear-gradient(122deg, transparent 42%, rgba(255, 255, 255, .1) 50%, transparent 58%);
+}
+
 .pg-board.is-revealing .pg-board__scan {
   opacity: 1;
   animation: pg-scan 1.5s linear infinite;
@@ -1856,7 +2029,7 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 
 @keyframes pg-scan {
   from { transform: translate3d(0, 100cqh, 0); }
-  to { transform: translate3d(0, -64px, 0); }
+  to { transform: translate3d(0, -76px, 0); }
 }
 
 /* One specular pass when the board completes, then it settles. */
@@ -1864,27 +2037,19 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   position: absolute;
   inset: -1px;
   z-index: 2;
-  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, .07) 46%, transparent 60%);
+  background-image: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .06) 46%, transparent 62%);
   opacity: 0;
   pointer-events: none;
 }
 
-.pg-board.is-revealed {
-  border-color: rgb(var(--pg-accent) / .18);
-  box-shadow:
-    0 40px 88px rgba(0, 0, 0, .5),
-    0 0 0 1px rgba(0, 0, 0, .45),
-    0 0 56px rgb(var(--pg-accent) / .1),
-    inset 0 1px 0 rgba(255, 255, 255, .07);
-}
-
 .pg-board.is-revealed .pg-board__shine { animation: pg-shine 950ms var(--pg-ease-out) both; }
-.pg-board.is-revealed .pg-board__corner { border-color: rgb(var(--pg-accent) / .5); box-shadow: 0 0 12px rgb(var(--pg-accent) / .25); }
+.pg-board.is-revealed .pg-board__corner { border-color: rgb(var(--pg-accent) / .45); box-shadow: 0 0 14px rgb(var(--pg-accent) / .22); }
+.pg-board.is-revealed::after { opacity: .8; }
 
 @keyframes pg-shine {
-  from { opacity: 0; transform: translate3d(-24%, 0, 0); }
+  from { opacity: 0; transform: translate3d(-26%, 0, 0); }
   30% { opacity: 1; }
-  to { opacity: 0; transform: translate3d(24%, 0, 0); }
+  to { opacity: 0; transform: translate3d(26%, 0, 0); }
 }
 
 .pg-legend {
@@ -1904,17 +2069,36 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 
 /* -------------------- multiplier rail + ladder chips -------------------- */
 
-.fortune-rail {
+/*
+ * The ladder axis. It doubles as the reveal meter: the fill grows from the base
+ * of the board using the existing revealed-row count, and on wide screens the
+ * mirrored axis on the right keeps the composition balanced.
+ */
+.fortune-rail,
+.fortune-axis {
   position: absolute;
-  left: calc(var(--chip) - 2px);
-  top: calc(var(--cell) / 2);
-  bottom: calc(var(--cell) / 2);
+  top: calc(var(--pg-grid-pad) + 2px);
+  bottom: calc(var(--pg-grid-pad) + 2px);
   width: 1px;
-  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, .07) 6%, rgba(255, 255, 255, .07) 94%, transparent);
+  background-image: linear-gradient(180deg, transparent, rgba(255, 255, 255, .07) 5%, rgba(255, 255, 255, .07) 95%, transparent);
+  pointer-events: none;
 }
 
-/* Fills from the bottom of the ladder as rows resolve — derived only from the
-   existing revealedRows counter. */
+.fortune-rail {
+  left: calc(var(--pg-grid-pad) + var(--chip) + var(--fgap) / 2);
+}
+
+.fortune-axis {
+  /* Sits in the arena's right padding (a wall detail, not a column), spanning
+     exactly the ladder's height because its containing block is the panel. */
+  right: calc(4px - var(--pg-frame-pad));
+  width: 7px;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, .07), transparent 60%),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, .13) 0 1px, transparent 1px calc(var(--cell) + var(--fgap)));
+  display: none;
+}
+
 .fortune-rail::after {
   content: "";
   position: absolute;
@@ -1924,7 +2108,7 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   height: var(--pg-rail, 0%);
   border-radius: 9999px;
   background-image: linear-gradient(180deg, rgb(var(--pg-accent) / .9), rgb(var(--pg-accent) / .12));
-  box-shadow: 0 0 12px rgb(var(--pg-accent) / .38);
+  box-shadow: 0 0 14px rgb(var(--pg-accent) / .4);
   transition: height 460ms var(--pg-ease);
 }
 
@@ -1934,13 +2118,13 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  padding-right: 5px;
+  padding-right: 4px;
   font-family: var(--pg-mono);
-  font-size: clamp(8px, 2.4vw, 11px);
+  font-size: clamp(8.5px, 2.4vw, 12px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: .01em;
-  color: rgb(var(--pg-ink-dim) / .42);
+  color: rgb(var(--pg-ink-dim) / .4);
   transition: color var(--pg-t-3) ease, text-shadow var(--pg-t-3) ease;
 }
 
@@ -1948,27 +2132,40 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   content: "";
   width: 4px;
   height: 1px;
-  background: rgba(255, 255, 255, .16);
-  transition: background-color var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease;
+  background: rgba(255, 255, 255, .15);
+  transition: background-color var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease, width var(--pg-t-3) ease;
 }
 
 @supports (height: 1cqh) {
-  .fortune-chip { font-size: clamp(8px, 1.3cqw, 11.5px); }
+  .fortune-chip { font-size: clamp(8.5px, 1.35cqw, 13px); }
 }
 
 .fortune-chip--revealed {
-  color: rgb(var(--pg-ink) / .9);
-  text-shadow: 0 0 14px rgb(var(--pg-accent) / .24);
+  color: rgb(var(--pg-ink) / .92);
+  text-shadow: 0 0 14px rgb(var(--pg-accent) / .26);
 }
 
 .fortune-chip--revealed::after {
+  width: 6px;
   background: rgb(var(--pg-accent) / .55);
   box-shadow: 0 0 8px rgb(var(--pg-accent) / .4);
 }
 
 .fortune-chip--active {
-  color: #a4eefa;
+  color: #a8effb;
   text-shadow: 0 0 16px rgb(var(--pg-ice) / .5);
+}
+
+/* The row currently being revealed gets a marker on its own axis. */
+.fortune-chip--active::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  width: 3px;
+  height: 60%;
+  border-radius: 9999px;
+  background: rgb(var(--pg-ice) / .5);
+  box-shadow: 0 0 10px rgb(var(--pg-ice) / .4);
 }
 
 /* --------------------------------- tiles -------------------------------- */
@@ -1984,9 +2181,9 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .05);
   border-radius: var(--pg-r-tile);
-  background-color: rgba(255, 255, 255, .028);
+  background-color: rgba(255, 255, 255, .024);
   background-image:
     linear-gradient(180deg, rgba(255, 255, 255, .075) 0%, rgba(255, 255, 255, .02) 38%, rgba(0, 0, 0, .16) 100%);
   box-shadow: var(--pg-shadow-tile);
@@ -2030,14 +2227,16 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   transition: background var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease;
 }
 
+/* The glyph stays square and scales with the row, so a wide tile never
+   stretches the asset — it just gains margin around the same object. */
 .fortune-cell__glyph {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 50%;
-  height: 50%;
+  width: clamp(16px, calc(var(--cell, 48px) * .6), 44px);
+  height: clamp(16px, calc(var(--cell, 48px) * .6), 44px);
   transition: filter var(--pg-t-3) ease;
 }
 
@@ -2057,8 +2256,8 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 .fortune-cell:nth-child(6) { --pg-col: 4; }
 
 .fortune-cell--hidden {
-  border-color: rgba(255, 255, 255, .085);
-  background-color: rgba(255, 255, 255, .022);
+  border-color: rgba(255, 255, 255, .06);
+  background-color: rgba(255, 255, 255, .018);
 }
 
 .fortune-cell--hidden .fortune-cell__well {
@@ -2165,7 +2364,10 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 
 .pg-idle {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: var(--pg-dock-h);
+  left: 0;
   z-index: 5;
   display: flex;
   align-items: center;
@@ -2225,11 +2427,29 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 /* ------------------------------- action dock ---------------------------- */
 
 .pg-dock {
-  position: relative;
-  z-index: 10;
-  padding: var(--pg-s-2) clamp(12px, 3vw, 24px) var(--pg-s-3);
-  background-image: linear-gradient(180deg, rgba(4, 7, 10, 0), rgba(4, 7, 10, .62));
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pg-s-1);
+  padding: var(--pg-s-2) clamp(10px, 2.4vw, 22px) var(--pg-s-2);
+  background-image: linear-gradient(180deg, rgba(3, 6, 8, .4), rgba(3, 6, 8, .84));
   animation: pg-rise var(--pg-t-4) var(--pg-ease) 130ms both;
+}
+
+/* The deck's top edge is the arena floor line — one hairline, not two boxes. */
+.pg-dock::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, .08) 16%, rgb(var(--pg-accent) / .22) 50%, rgba(255, 255, 255, .08) 84%, transparent);
 }
 
 .pg-dock__status {
@@ -2258,21 +2478,37 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   max-width: 452px;
   grid-template-columns: 1.5fr 1fr;
   gap: var(--pg-s-2);
-  margin: var(--pg-s-2) auto 0;
 }
 
 /* ---------------------------- responsive tiers -------------------------- */
 
-/* Desktop / large tablets: a wider mount so the frame does not hug the tiles. */
-@media (min-width: 1024px) {
-  .pg-bar { min-height: 58px; }
-  .fortune-stage { --pg-frame-pad: 22px; --pg-frame-head: 28px; --pg-frame-x: 48px; --pg-frame-y: 114px; }
-  .pg-board { gap: var(--pg-s-4); }
+/*
+ * Every tier only re-states the chrome numbers; --pg-frame-x/y and the tile
+ * sizing derive from them, so the board re-flows instead of being re-tuned.
+ * --pg-dock-h carries ~8px of slack so a transient alert line in the deck can
+ * never slide underneath the ladder.
+ */
+@media (min-width: 640px) {
+  .pg-bar { min-height: 50px; padding-top: 6px; padding-bottom: 10px; }
+  .pg-bar__side { gap: var(--pg-s-2); }
+  .fortune-stage { --pg-frame-pad: 16px; --pg-grid-pad: 10px; --pg-frame-head: 28px; --pg-frame-gap: 18px; --pg-dock-h: 104px; }
+  .pg-board { gap: var(--pg-frame-gap); }
+  .pg-dock__actions { max-width: 520px; }
+  .pg-btn { min-height: 48px; }
+}
+
+/* Desktop: the ladder opens sideways and the right axis mirrors the left. */
+@media (min-width: 1100px) {
+  .pg-bar { min-height: 54px; }
+  .fortune-stage { --pg-frame-pad: 22px; --pg-grid-pad: 14px; --pg-frame-head: 30px; --pg-frame-gap: 20px; --pg-dock-h: 112px; --pg-aspect: 1.75; }
+  .fortune-board { --chip: clamp(56px, 6.5cqw, 104px); }
+  .fortune-axis { display: block; }
+  .pg-dock__actions { max-width: 560px; }
 }
 
 /* Small phones: shed decoration before the board sheds size. */
 @media (max-width: 379px) {
-  .pg-bar { gap: var(--pg-s-1); }
+  .pg-bar { gap: var(--pg-s-1); padding-inline: 8px; }
   .pg-bar__side { gap: 5px; }
   .pg-pill { padding: 0 var(--pg-s-1); }
   .pg-pill__text { display: none; }
@@ -2281,28 +2517,34 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-legend__item { letter-spacing: .14em; }
   .pg-btn { letter-spacing: .12em; padding-inline: var(--pg-s-2); }
   .pg-iconbtn { width: 34px; height: 34px; }
+  .fortune-stage { --pg-frame-pad: 8px; --pg-grid-pad: 5px; --pg-frame-gap: 10px; --pg-dock-h: 96px; }
 }
 
-/* Short-height viewports (landscape phones): the board keeps every pixel. */
+/* Short viewports (landscape phones, small tablets): the board wins. */
 @media (max-height: 560px) and (min-width: 380px) {
-  .fortune-stage { --pg-frame-pad: 10px; --pg-frame-x: 24px; --pg-frame-y: 22px; }
+  .fortune-stage { --pg-frame-pad: 8px; --pg-grid-pad: 5px; --pg-frame-head: 0px; --pg-frame-gap: 6px; --pg-dock-h: 84px; --pg-aspect: 2.15; }
+  .pg-board__corner--bl,
+  .pg-board__corner--br { bottom: 6px; }
+  .fortune-board { --chip: clamp(34px, 5cqw, 56px); }
   .pg-board__head { display: none; }
-  .pg-board { gap: 0; }
+  .pg-dock { padding-block: 6px; gap: 4px; }
+  .pg-dock__status { min-height: 16px; font-size: 10.5px; }
+  .pg-btn { min-height: 40px; }
 }
 
 @media (max-height: 520px) {
-  .pg-bar { min-height: 0; padding-top: 2px; padding-bottom: 2px; }
+  .pg-bar { min-height: 0; padding-top: 2px; padding-bottom: 4px; }
   .pg-bar::after { display: none; }
-  .pg-dock { padding-top: 3px; padding-bottom: 2px; }
+  .pg-dock { padding-top: 5px; padding-bottom: 5px; }
   .pg-board { border-radius: var(--pg-r-lg); }
   .pg-idle__card { padding: var(--pg-s-3); gap: 5px; }
   .pg-idle__copy { display: none; }
   .pg-iconbtn { width: 32px; height: 32px; }
   .pg-dock__status { min-height: 15px; font-size: 10px; }
-  .pg-dock__actions { gap: 7px; margin-top: 5px; }
-  .pg-btn { min-height: 42px; }
-  /* Head row is gone above, so the frame only eats padding + borders. */
-  .fortune-stage { --pg-frame-pad: 8px; --pg-frame-head: 0px; --pg-frame-x: 20px; --pg-frame-y: 20px; }
+  .pg-dock__actions { gap: 7px; }
+  .pg-btn { min-height: 40px; }
+  .fortune-stage { --pg-frame-pad: 6px; --pg-grid-pad: 4px; --pg-frame-head: 0px; --pg-frame-gap: 4px; --pg-dock-h: 78px; }
+  .pg-board__head { display: none; }
   .pg-intro__body { gap: var(--pg-s-3); }
   .pg-intro__foot { display: none; }
 }
@@ -2310,6 +2552,16 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 /* --------------------------- accessibility polish ----------------------- */
 
 @media (prefers-reduced-motion: reduce) {
+  /* The ambient field settles: no drifting planes, no breathing light. */
+  .cyber-shafts,
+  .cyber-grid-plane,
+  .cyber-horizon,
+  .cyber-glow--green,
+  .cyber-ring--a,
+  .cyber-ring--b {
+    animation: none;
+  }
+
   .pg-intro--leaving { transform: none; }
   .pg-board.is-revealed .pg-board__shine { animation: none; }
   .pg-idle__loader { animation: none; opacity: .6; }

@@ -85,7 +85,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
     <main className={`pg-login relative flex items-center justify-center overflow-x-hidden${ambient ? ' pg-login--solo' : ''}`}>
       {ambient ? <CyberBackdrop /> : null}
 
-      <div className="pg-login__stack relative z-10 w-full max-w-[428px]">
+      <div className="pg-login__stack relative z-10 w-full max-w-[452px]">
         <GameBrandLockup caption="Enter your details to open the game." />
 
         <div className="pg-panel">
@@ -168,11 +168,11 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
                 {checking ? (
                   <>
                     <span className="pg-btn__spinner" />
-                    Checking access…
+                    <span>Checking access…</span>
                   </>
                 ) : (
                   <>
-                    Enter game
+                    <span>Enter game</span>
                     <ArrowRight className="pg-btn__arrow" aria-hidden="true" />
                   </>
                 )}

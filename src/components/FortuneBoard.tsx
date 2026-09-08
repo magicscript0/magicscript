@@ -114,6 +114,9 @@ export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
         )
       })}
       <span className="fortune-rail" aria-hidden="true" />
+      {/* Mirrors the axis on the right at desktop widths so the ladder reads as
+          an instrument, not a left-aligned table. Decorative only. */}
+      <span className="fortune-axis" aria-hidden="true" />
     </section>
   )
 }
