@@ -88,7 +88,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
       <div className="pg-login__stack relative z-10 w-full max-w-[428px]">
         <GameBrandLockup caption="Enter your details to open the game." />
 
-        <div className="pg-panel mt-7">
+        <div className="pg-panel">
           <span className="pg-panel__corner pg-panel__corner--tl" aria-hidden="true" />
           <span className="pg-panel__corner pg-panel__corner--tr" aria-hidden="true" />
           <span className="pg-panel__corner pg-panel__corner--bl" aria-hidden="true" />
@@ -106,17 +106,15 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
 
             <form onSubmit={handleSubmit} noValidate>
               {notice && (
-                <div role="status" className="pg-note pg-note--warn mb-5">
+                <div role="status" className="pg-note pg-note--warn">
                   <notice.icon className="pg-note__icon" aria-hidden="true" />
                   <p>{notice.message}</p>
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div className="pg-fields">
                 <div className="pg-field">
-                  <label htmlFor="account-id" className="pg-label">
-                    Account ID
-                  </label>
+                  <label htmlFor="account-id" className="pg-label">Account ID</label>
                   <div className="pg-slot">
                     <Hash className="pg-slot__icon" aria-hidden="true" />
                     <input
@@ -130,14 +128,11 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
                       disabled={checking}
                       className="pg-input mono"
                     />
-                    <span className="pg-slot__rail" aria-hidden="true" />
                   </div>
                 </div>
 
                 <div className="pg-field">
-                  <label htmlFor="access-code" className="pg-label">
-                    Access Code
-                  </label>
+                  <label htmlFor="access-code" className="pg-label">Access Code</label>
                   <div className="pg-slot">
                     <KeyRound className="pg-slot__icon" aria-hidden="true" />
                     <input
@@ -153,13 +148,12 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
                       disabled={checking}
                       className="pg-input mono uppercase"
                     />
-                    <span className="pg-slot__rail" aria-hidden="true" />
                   </div>
                 </div>
               </div>
 
               {error && (
-                <div role="alert" className="pg-note pg-note--error mt-4">
+                <div role="alert" className="pg-note pg-note--error">
                   <AlertCircle className="pg-note__icon" aria-hidden="true" />
                   <p>{error}</p>
                 </div>
@@ -169,7 +163,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
                 type="submit"
                 disabled={checking}
                 aria-label={checking ? 'Checking access' : 'Enter game'}
-                className={`pg-btn pg-btn--primary mt-5${checking ? ' is-busy' : ''}`}
+                className={`pg-btn pg-btn--primary${checking ? ' is-busy' : ''}`}
               >
                 {checking ? (
                   <>
@@ -191,9 +185,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
               )}
             </form>
 
-            <div className="mt-6">
-              <GameSocialLinks />
-            </div>
+            <GameSocialLinks />
           </div>
         </div>
       </div>

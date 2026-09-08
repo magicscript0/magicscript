@@ -148,9 +148,12 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
   return (
     <div className={`pg-intro${leaving ? ' pg-intro--leaving' : ''}`} aria-busy="true">
       <div className="pg-intro__scrim" aria-hidden="true" />
-      <div className="pg-intro__floor" aria-hidden="true" />
+      <div className="pg-intro__floor" aria-hidden="true">
+        <span className="pg-intro__floor-grid" />
+      </div>
       <div className="pg-intro__sweep" aria-hidden="true" />
       <div className="pg-intro__lines" aria-hidden="true" />
+      <div className="pg-intro__shutter" aria-hidden="true" />
       <span className="pg-intro__corner pg-intro__corner--tl" aria-hidden="true" />
       <span className="pg-intro__corner pg-intro__corner--tr" aria-hidden="true" />
       <span className="pg-intro__corner pg-intro__corner--bl" aria-hidden="true" />
@@ -167,32 +170,39 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
           <p className="pg-intro__sub">Apple of Fortune</p>
         </div>
 
-        <div
-          className={`pg-meter${checking ? ' pg-meter--indeterminate' : ''}`}
-          role="progressbar"
-          aria-label="Loading MAGIC SCRIPT"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percent === null ? undefined : percent}
-          aria-valuetext={percent === null ? 'Verifying access' : `${percent}%`}
-        >
-          <span className="pg-meter__track" />
-          <span className="pg-meter__fill" style={{ width: `${percent ?? 0}%` }} />
-          {percent === null ? null : <span className="pg-meter__head" style={{ left: `${percent}%` }} />}
-          <span className="pg-meter__ticks" />
-        </div>
+          <div className="pg-intro__instrument">
+            <div
+              className={`pg-meter${checking ? ' pg-meter--indeterminate' : ''}`}
+              role="progressbar"
+              aria-label="Loading MAGIC SCRIPT"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent === null ? undefined : percent}
+              aria-valuetext={percent === null ? 'Verifying access' : `${percent}%`}
+            >
+              <span className="pg-meter__track" />
+              <span className="pg-meter__fill" style={{ width: `${percent ?? 0}%` }} />
+              {percent === null ? null : <span className="pg-meter__head" style={{ left: `${percent}%` }} />}
+              <span className="pg-meter__ticks" />
+            </div>
 
-        <div className="pg-intro__readout">
-          <p className="pg-intro__status">{status}</p>
-          <div className="pg-intro__gauges">
-            <span className="pg-intro__pips" aria-hidden="true">
-              {BOOT_STAGES.map((stage, index) => (
-                <span key={stage.label} className={`pg-pip${!checking && index <= frame.stage ? ' is-on' : ''}`} />
-              ))}
-            </span>
-            {percent === null ? null : <span className="pg-intro__percent">{percent}%</span>}
+            <div className="pg-intro__readout">
+              <p className="pg-intro__status">
+                <span className="pg-intro__pulse" aria-hidden="true" />
+                {status}
+              </p>
+              {percent === null ? null : <span className="pg-intro__percent">{percent}%</span>}
+            </div>
+
+            <div className="pg-intro__gauges">
+              <span className="pg-eyebrow">{checking ? 'Verifying session' : `Stage ${frame.stage + 1} / ${BOOT_STAGES.length}`}</span>
+              <span className="pg-intro__pips" aria-hidden="true">
+                {BOOT_STAGES.map((stage, index) => (
+                  <span key={stage.label} className={`pg-pip${!checking && index <= frame.stage ? ' is-on' : ''}`} />
+                ))}
+              </span>
+            </div>
           </div>
-        </div>
       </div>
 
       <p className="pg-intro__foot">Time-limited access · verified on the server</p>

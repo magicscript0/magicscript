@@ -146,8 +146,16 @@ function GameArea({ path }: { path: '/' | '/play' }) {
   )
 
   if (path === '/play') {
-    // Same gate as before, now wearing the boot screen's identity.
-    if (access.status === 'checking') return <GameIntro mode="checking" />
+    // Same gate as before, now wearing the boot screen's identity and the same
+    // ambient shell, so reloading /play never shows an unstyled frame.
+    if (access.status === 'checking') {
+      return (
+        <div className="pg-flow">
+          <CyberBackdrop />
+          <GameIntro mode="checking" />
+        </div>
+      )
+    }
     if (authorized && access.accountId !== null) {
       return <Fortune accountId={access.accountId} remainingMs={access.remainingMs} onExit={access.exit} />
     }

@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, type CSSProperties } from 'react'
 import { Apple, Bomb } from 'lucide-react'
 import { GRID_ROWS, ROWS, formatMultiplier } from '../config/game'
 import type { M11Value, RoundPhase, RowView } from '../types/game'
@@ -44,9 +44,12 @@ export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
 }
 
 /**
- * One board position. The accessible contract is unchanged — the cell itself
- * is the labelled `img` node, every decoration inside it is aria-hidden — so
- * the redesign touches lighting, depth and motion only.
+ * One board position.
+ *
+ * The accessible contract is untouched: the cell itself is the labelled
+ * `img` node and everything inside it is decorative. The inner spans exist
+ * only so lighting can be layered — a recessed well, the glyph on its own
+ * contact shadow, and a state rim that flashes once as the row is revealed.
  */
 const FortuneCell = memo(function FortuneCell({ state, label, animate, armed = false }: { state: CellState; label: string | null; animate: boolean; armed?: boolean }) {
   const animation = animate && (state === 'safe' || state === 'bomb') ? 'animate-pop-in' : ''
@@ -58,7 +61,6 @@ const FortuneCell = memo(function FortuneCell({ state, label, animate, armed = f
       className={`fortune-cell ${CELL_MODIFIERS[state]} ${animation}${armed ? ' fortune-cell--armed' : ''}`}
     >
       <span className="fortune-cell__well" aria-hidden="true" />
-      <span className="fortune-cell__ring" aria-hidden="true" />
       <span className="fortune-cell__glyph" aria-hidden="true">
         {state === 'safe' ? (
           <Bomb className="h-full w-full" strokeWidth={2.2} />
@@ -66,7 +68,6 @@ const FortuneCell = memo(function FortuneCell({ state, label, animate, armed = f
           <Apple className={`h-full w-full${state === 'hidden' || state === 'empty' ? ' is-dim' : ''}`} strokeWidth={2.2} />
         )}
       </span>
-      <span className="fortune-cell__flare" aria-hidden="true" />
     </div>
   )
 })
@@ -78,35 +79,41 @@ export interface FortuneBoardProps {
 }
 
 /**
- * The Apple of Fortune prediction board.
+ * The Apple of Fortune prediction board — the hero component of the product.
  *
  * Renders the exact same m1…m50 → row/column mapping as the admin console
- * (same RowView model, same key order), but sizes itself to fill the stage
- * it is given — every row stays visible inside the mobile viewport without
- * scrolling (see the .fortune-* rules in index.css).
+ * (same RowView model, same key order, same reveal order), but composes it
+ * like a console instrument: a multiplier rail that fills as rows are
+ * revealed, a ladder of recessed tile surfaces, and a left-to-right cascade
+ * inside each row. Cell size is derived from the stage it is given, so all
+ * ten rows stay on screen without scrolling (see the .fortune-* rules in
+ * index.css).
  */
 export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
   const hasRound = rows !== null
   const displayRows = [...(rows ?? placeholderRows())].reverse()
   const activeRow = phase === 'revealing' ? revealedRows : -1
+  const revealed = hasRound ? Math.min(GRID_ROWS, Math.max(0, revealedRows)) : 0
+  const railStyle = { '--pg-rail': `${(revealed / GRID_ROWS) * 100}%` } as CSSProperties
 
   return (
-    <section aria-label="Prediction board" className="fortune-board">
+    <section aria-label="Prediction board" className="fortune-board" style={railStyle}>
       {displayRows.map((row) => {
-        const revealed = hasRound && row.row <= revealedRows
+        const isRevealed = hasRound && row.row <= revealedRows
         const armed = row.row === activeRow
         return (
           <div key={row.row} className="contents">
-            <div className={`fortune-chip${revealed ? ' fortune-chip--revealed' : ''}${armed ? ' fortune-chip--active' : ''}`}>
+            <div className={`fortune-chip${isRevealed ? ' fortune-chip--revealed' : ''}${armed ? ' fortune-chip--active' : ''}`}>
               {formatMultiplier(row.multiplier)}
             </div>
             {row.cells.map((cell) => {
-              const state: CellState = !hasRound ? 'empty' : revealed ? boardVisualForValue(cell.value) : 'hidden'
+              const state: CellState = !hasRound ? 'empty' : isRevealed ? boardVisualForValue(cell.value) : 'hidden'
               return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} animate={phase === 'revealing' || phase === 'revealed'} armed={armed} />
             })}
           </div>
         )
       })}
+      <span className="fortune-rail" aria-hidden="true" />
     </section>
   )
 }

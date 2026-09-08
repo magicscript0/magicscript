@@ -4,6 +4,8 @@ import {
   GRID_ROWS,
   REVEAL_ROW_DELAY_MS,
   REVEAL_ROW_DELAY_REDUCED_MOTION_MS,
+  ROWS,
+  formatMultiplier,
 } from '../config/game'
 import { useM11Mirror } from '../hooks/useM11Mirror'
 import { publishDemoRound } from '../services/m11'
@@ -33,6 +35,9 @@ function formatRemaining(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
+/** The multiplier ladder the board walks, e.g. ×1.23 → ×349.68. */
+const LADDER_RANGE = `${formatMultiplier(ROWS[0].multiplier)} → ${formatMultiplier(ROWS[ROWS.length - 1].multiplier)}`
+
 /**
  * Apple of Fortune — the public end-user game display.
  *
@@ -43,9 +48,9 @@ function formatRemaining(ms: number): string {
  * lets the existing Firebase `onValue` listener update this display. Nothing
  * is shown from a second local board.
  *
- * The presentation is a public-only layer (`.pg-*` classes): the state
- * machine, the reveal timing, the countdown and every data path below are the
- * ones that were already in place.
+ * Everything below the state machine is public-only presentation (`.pg-*`
+ * classes): the reveal timing, the countdown, the /m11 read path and the
+ * "1"/"0" → SAFE/BROKEN mapping are exactly the ones that were already there.
  */
 export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   const [phase, setPhase] = useState<RoundPhase>('idle')
@@ -57,6 +62,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   const canPublish = mirror.active && mirror.status !== 'error'
   const busy = phase === 'publishing' || phase === 'revealing'
   const lowTime = remainingMs < 120_000
+  const tableState = !mirror.active ? 'OFFLINE' : liveReady ? 'LIVE' : 'STANDBY'
 
   useEffect(() => {
     document.title = 'Apple of Fortune'
@@ -158,16 +164,20 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
       <header className="pg-bar">
         <GameBrandLockup variant="compact" />
         <div className="pg-bar__side">
-          <span className="pg-chip pg-chip--account" title="Account ID">
-            <span className="pg-chip__key">Account</span>
-            <span className="pg-chip__value mono">#{accountId}</span>
+          <span className={`pg-pill pg-pill--state${liveReady ? ' is-live' : ''}`} title="Current game">
+            <span className="pg-pill__dot" aria-hidden="true" />
+            <span className="pg-pill__text">{tableState}</span>
+          </span>
+          <span className="pg-pill pg-pill--account" title="Account ID">
+            <span className="pg-pill__key">Account</span>
+            <span className="pg-pill__value mono">#{accountId}</span>
           </span>
           <span
-            className={`pg-chip pg-chip--timer${lowTime ? ' is-low' : ''}`}
+            className={`pg-pill pg-pill--timer${lowTime ? ' is-low' : ''}`}
             aria-label={`Access time remaining ${formatRemaining(remainingMs)}`}
           >
-            <Timer className="pg-chip__icon" aria-hidden="true" />
-            <span className="pg-chip__value">{formatRemaining(remainingMs)}</span>
+            <Timer className="pg-pill__icon" aria-hidden="true" />
+            <span className="pg-pill__value">{formatRemaining(remainingMs)}</span>
           </span>
           <button
             type="button"
@@ -182,7 +192,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
       </header>
 
       <div className="fortune-stage">
-        <div className={`pg-board${phase === 'revealing' ? ' is-revealing' : ''}${phase === 'revealed' ? ' is-revealed' : ''}`}>
+        <div className={`pg-board${phase === 'revealing' ? ' is-revealing' : ''}${phase === 'revealed' ? ' is-revealed' : ''}${busy ? ' is-busy' : ''}`}>
           <span className="pg-board__corner pg-board__corner--tl" aria-hidden="true" />
           <span className="pg-board__corner pg-board__corner--tr" aria-hidden="true" />
           <span className="pg-board__corner pg-board__corner--bl" aria-hidden="true" />
@@ -191,6 +201,8 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
           <div className="pg-board__head">
             <span className="pg-eyebrow">Multiplier</span>
             <span className="pg-board__rule" aria-hidden="true" />
+            <span className="pg-board__ladder mono">{LADDER_RANGE}</span>
+            <span className="pg-board__split" aria-hidden="true" />
             <span className="pg-legend">
               <span className="pg-legend__item">
                 <span className="pg-dot pg-dot--safe" aria-hidden="true" />
@@ -205,6 +217,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
 
           <FortuneBoard rows={round?.rows ?? null} phase={phase} revealedRows={revealedRows} />
           <span className="pg-board__scan" aria-hidden="true" />
+          <span className="pg-board__shine" aria-hidden="true" />
         </div>
 
         {phase === 'idle' && round === null && (
@@ -215,6 +228,7 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
               </span>
               <p className="pg-idle__title">{syncLabel()}</p>
               <p className="pg-idle__copy">The live current game will appear here when it is available.</p>
+              <span className="pg-idle__loader" aria-hidden="true" />
             </div>
           </div>
         )}
@@ -237,20 +251,20 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
             onClick={() => { void handleNewGame() }}
             disabled={busy || !canPublish}
             aria-label={phase === 'publishing' ? 'Starting new game' : 'New game'}
-            className="pg-btn pg-btn--primary"
+            className={`pg-btn pg-btn--primary pg-dock__primary${phase === 'publishing' ? ' is-busy' : ''}`}
           >
-            {phase === 'publishing' ? <CircleDot className="h-4 w-4 animate-pulse" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
-            {phase === 'publishing' ? 'Starting…' : 'New game'}
+            {phase === 'publishing' ? <span className="pg-btn__spinner pg-btn__spinner--dark" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+            <span>{phase === 'publishing' ? 'Starting…' : 'New game'}</span>
           </button>
           <button
             type="button"
             onClick={handleReveal}
             disabled={phase !== 'ready' || round === null}
             aria-label={phase === 'revealing' ? 'Revealing prediction' : phase === 'revealed' ? 'Prediction shown' : 'Reveal prediction'}
-            className="pg-btn pg-btn--amber"
+            className={`pg-btn pg-btn--amber pg-dock__secondary${phase === 'revealing' ? ' is-busy' : ''}`}
           >
             {phase === 'revealing' ? <CircleDot className="h-4 w-4 animate-pulse" aria-hidden="true" /> : phase === 'revealed' ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
-            {phase === 'revealing' ? 'Revealing…' : phase === 'revealed' ? 'Shown' : 'Reveal'}
+            <span>{phase === 'revealing' ? 'Revealing…' : phase === 'revealed' ? 'Shown' : 'Reveal'}</span>
           </button>
         </div>
       </footer>
