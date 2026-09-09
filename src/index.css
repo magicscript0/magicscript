@@ -676,6 +676,29 @@
 @media (max-width: 639px) {
   .cyber-horizon { bottom: 26%; }
   .cyber-depth { background-image: linear-gradient(180deg, rgba(2, 4, 6, .62) 0%, rgba(2, 4, 6, 0) 22%, rgba(2, 4, 6, 0) 58%, rgba(2, 4, 6, .74) 100%); }
+  .cyber-glow { filter: none; }
+  .cyber-glow--green { animation: none; opacity: .75; }
+  .cyber-ring--a,
+  .cyber-ring--b,
+  .cyber-grid-plane,
+  .cyber-shafts,
+  .cyber-horizon { animation: none; }
+  .cyber-grid-plane { opacity: .55; }
+  .cyber-scanlines { opacity: .22; }
+}
+
+@media (pointer: coarse) {
+  .cyber-glow { filter: none; }
+  .cyber-glow--green,
+  .cyber-ring--a,
+  .cyber-ring--b,
+  .cyber-grid-plane,
+  .cyber-shafts,
+  .cyber-horizon { animation: none; }
+  .pg-panel {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* ------------------------------ shared atoms ---------------------------- */
@@ -1565,6 +1588,14 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   -webkit-backdrop-filter: saturate(126%) blur(20px);
   backdrop-filter: saturate(126%) blur(20px);
   transform: translateZ(0);
+}
+
+@media (max-width: 639px) {
+  .pg-panel {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-image: linear-gradient(168deg, rgba(21, 30, 33, .94), rgba(7, 11, 13, .97));
+  }
 }
 
 /* Faint CRT texture inside the glass. */

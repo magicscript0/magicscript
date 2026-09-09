@@ -55,7 +55,7 @@ function createParticles(count: number, width: number, height: number): Particle
   return particles
 }
 
-function paintFrame(ctx: CanvasRenderingContext2D, particles: Particle[], width: number, height: number) {
+function paintFrame(ctx: CanvasRenderingContext2D, particles: Particle[], width: number, height: number, withHalos: boolean) {
   ctx.clearRect(0, 0, width, height)
   ctx.globalCompositeOperation = 'lighter'
   for (const particle of particles) {
@@ -64,7 +64,7 @@ function paintFrame(ctx: CanvasRenderingContext2D, particles: Particle[], width:
     const alpha = particle.alpha * twinkle
     // Soft halo — reserved for the near plane, where it is actually visible.
     // Far dust is a single cheap arc.
-    if (particle.depth > 0.55) {
+    if (withHalos && particle.depth > 0.55) {
       const halo = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, particle.radius * 4)
       halo.addColorStop(0, `rgba(${color},${(alpha * 0.5).toFixed(3)})`)
       halo.addColorStop(1, `rgba(${color},0)`)
@@ -127,11 +127,14 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
     if (!ctx) return
     if (typeof window === 'undefined') return
 
-    const dpr = Math.min(typeof window.devicePixelRatio === 'number' ? window.devicePixelRatio : 1, 1.5)
+    const isLowPowerDevice = () => window.innerWidth < 640 || (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches)
+    let lowPower = isLowPowerDevice()
+    const dpr = Math.min(typeof window.devicePixelRatio === 'number' ? window.devicePixelRatio : 1, 1.25)
     let particles: Particle[] = []
     let width = 0
     let height = 0
     let frameId: number | null = null
+    let animationTimer: number | null = null
     let running = true
     let disposed = false
 
@@ -141,16 +144,26 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
       if (cssWidth <= 0 || cssHeight <= 0) return
       width = cssWidth
       height = cssHeight
-      canvas.width = Math.round(cssWidth * dpr)
-      canvas.height = Math.round(cssHeight * dpr)
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      lowPower = isLowPowerDevice()
+      const renderDpr = lowPower ? 1 : dpr
+      canvas.width = Math.round(cssWidth * renderDpr)
+      canvas.height = Math.round(cssHeight * renderDpr)
+      ctx.setTransform(renderDpr, 0, 0, renderDpr, 0, 0)
       const area = cssWidth * cssHeight
-      const base = density === 'full' ? Math.floor(area / 13000) : Math.floor(area / 21000)
-      const cap = density === 'full' ? 120 : 60
-      const smallScreen = cssWidth < 640
-      const count = Math.max(14, Math.min(cap, smallScreen ? Math.floor(base / 2) : base))
+      const base = density === 'full' ? Math.floor(area / (lowPower ? 42000 : 22000)) : Math.floor(area / (lowPower ? 60000 : 32000))
+      const cap = density === 'full' ? (lowPower ? 18 : 54) : (lowPower ? 12 : 30)
+      const count = Math.max(lowPower ? 8 : 14, Math.min(cap, base))
       particles = createParticles(count, width, height)
-      paintFrame(ctx, particles, width, height)
+      paintFrame(ctx, particles, width, height, !lowPower)
+      if (!lowPower && !prefersReducedMotion() && frameId === null && animationTimer === null) {
+        frameId = window.requestAnimationFrame(tick)
+      }
+      if (lowPower) {
+        if (frameId !== null) window.cancelAnimationFrame(frameId)
+        if (animationTimer !== null) window.clearTimeout(animationTimer)
+        frameId = null
+        animationTimer = null
+      }
     }
 
     const tick = () => {
@@ -165,17 +178,22 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
           particle.x = Math.random() * width
         }
       }
-      paintFrame(ctx, particles, width, height)
-      frameId = window.requestAnimationFrame(tick)
+      paintFrame(ctx, particles, width, height, true)
+      animationTimer = window.setTimeout(() => {
+        animationTimer = null
+        frameId = window.requestAnimationFrame(tick)
+      }, 42)
     }
 
     const onVisibility = () => {
       const visible = document.visibilityState !== 'hidden'
-      if (visible && running && frameId === null && !prefersReducedMotion()) {
+      if (visible && running && frameId === null && animationTimer === null && !prefersReducedMotion()) {
         frameId = window.requestAnimationFrame(tick)
-      } else if (!visible && frameId !== null) {
-        window.cancelAnimationFrame(frameId)
+      } else if (!visible) {
+        if (frameId !== null) window.cancelAnimationFrame(frameId)
+        if (animationTimer !== null) window.clearTimeout(animationTimer)
         frameId = null
+        animationTimer = null
       }
     }
 
@@ -186,7 +204,7 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
     }
 
     resize()
-    if (!prefersReducedMotion() && typeof window.requestAnimationFrame === 'function') {
+    if (!lowPower && !prefersReducedMotion() && typeof window.requestAnimationFrame === 'function') {
       frameId = window.requestAnimationFrame(tick)
     }
     document.addEventListener('visibilitychange', onVisibility)
@@ -195,6 +213,7 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
       disposed = true
       running = false
       if (frameId !== null) window.cancelAnimationFrame(frameId)
+      if (animationTimer !== null) window.clearTimeout(animationTimer)
       if (resizeTimer !== null) window.clearTimeout(resizeTimer)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('resize', onResize)
