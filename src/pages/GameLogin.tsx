@@ -105,6 +105,14 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
             </div>
 
             <form onSubmit={handleSubmit} noValidate>
+              <div className="pg-form-intro">
+                <span className="pg-form-intro__index mono">01</span>
+                <div>
+                  <p className="pg-form-intro__title">Identify your passage</p>
+                  <p className="pg-form-intro__copy">Use the credentials issued for this session.</p>
+                </div>
+              </div>
+
               {notice && (
                 <div role="status" className="pg-note pg-note--warn">
                   <notice.icon className="pg-note__icon" aria-hidden="true" />

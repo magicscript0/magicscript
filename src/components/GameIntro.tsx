@@ -160,6 +160,11 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
       <span className="pg-intro__corner pg-intro__corner--br" aria-hidden="true" />
 
       <div className="pg-intro__body">
+        <div className="pg-intro__telemetry" aria-hidden="true">
+          <span>MS / 07</span>
+          <span>ORBITAL GATE</span>
+          <span>ENCRYPTED</span>
+        </div>
         <div className="pg-intro__brand">
           <span className="pg-intro__crest" aria-hidden="true">
             <GameBrandMark size="full" halo />
@@ -168,6 +173,7 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
             MAGIC SCRIPT
           </p>
           <p className="pg-intro__sub">Apple of Fortune</p>
+          <span className="pg-intro__seal">PREDICTION ENGINE // ONLINE</span>
         </div>
 
           <div className="pg-intro__instrument">

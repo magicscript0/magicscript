@@ -102,6 +102,23 @@ function paintFrame(ctx: CanvasRenderingContext2D, particles: Particle[], width:
  */
 export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const backdropRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const backdrop = backdropRef.current
+    if (!backdrop || typeof window === 'undefined') return
+    if (prefersReducedMotion() || typeof window.matchMedia !== 'function' || !window.matchMedia('(pointer: fine)').matches) return
+
+    const onPointerMove = (event: PointerEvent) => {
+      const x = (event.clientX / Math.max(window.innerWidth, 1) - 0.5) * 2
+      const y = (event.clientY / Math.max(window.innerHeight, 1) - 0.5) * 2
+      backdrop.style.setProperty('--pg-pointer-x', x.toFixed(3))
+      backdrop.style.setProperty('--pg-pointer-y', y.toFixed(3))
+    }
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true })
+    return () => window.removeEventListener('pointermove', onPointerMove)
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -185,7 +202,7 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
   }, [density])
 
   return (
-    <div aria-hidden="true" className="cyber-backdrop">
+    <div ref={backdropRef} aria-hidden="true" className="cyber-backdrop">
       <div className="cyber-base" />
       <div className="cyber-glow cyber-glow--green" />
       <div className="cyber-glow cyber-glow--red" />
