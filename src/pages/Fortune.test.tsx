@@ -258,6 +258,33 @@ describe('Apple of Fortune public board — Firebase /m11 live mirror', () => {
     expect(container.querySelector('.fortune-board')).not.toBeNull()
   })
 
+  it('re-renders the header countdown without touching the 50-cell board', async () => {
+    const { container, rerender } = render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
+    const board = container.querySelector('.fortune-board')
+    expect(board).not.toBeNull()
+    expect(container.querySelectorAll('.fortune-cell')).toHaveLength(50)
+
+    const mutated = new Set<Element>()
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.target instanceof Element) mutated.add(record.target)
+      }
+    })
+    observer.observe(board as Element, { subtree: true, attributes: true, characterData: true, childList: true })
+
+    // The per-second access countdown (useGameAccess tick) re-renders the
+    // page chrome — never the memoized board.
+    rerender(<Fortune accountId="123456789" remainingMs={599_000} onExit={vi.fn()} />)
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    observer.disconnect()
+
+    expect(screen.getByText('9:59')).toBeInTheDocument()
+    expect(mutated.size).toBe(0)
+  })
+
   it('returns to the Game Login when the player exits', () => {
     const onExit = vi.fn()
     render(<Fortune accountId="123456789" remainingMs={600_000} onExit={onExit} />)

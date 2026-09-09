@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { boardVisualForValue, FortuneBoard } from './FortuneBoard'
 import { M_KEYS, ROWS } from '../config/game'
 import { generateDemoRound } from '../utils/generator'
@@ -7,6 +7,14 @@ import { generateDemoRound } from '../utils/generator'
 afterEach(() => {
   cleanup()
 })
+
+/** Flushes the (async) MutationObserver queue inside act(). */
+async function flushMutations() {
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+}
 
 describe('FortuneBoard — /m11 m1…m50 compatibility', () => {
   it('renders all 50 positions exactly once for a held round', () => {
@@ -48,5 +56,63 @@ describe('FortuneBoard — /m11 m1…m50 compatibility', () => {
   it('renders placeholders without accessible cells before any round exists', () => {
     render(<FortuneBoard rows={null} phase="idle" revealedRows={0} />)
     expect(screen.queryAllByRole('img')).toHaveLength(0)
+  })
+
+  it('treats an unchanged board (countdown tick) as a no-op in the DOM', async () => {
+    const round = generateDemoRound(4242)
+    const { container, rerender } = render(<FortuneBoard rows={round.rows} phase="revealing" revealedRows={0} />)
+    const board = container.querySelector('.fortune-board')
+    expect(board).not.toBeNull()
+
+    const mutated = new Set<Element>()
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.target instanceof Element) mutated.add(record.target)
+      }
+    })
+    observer.observe(board as Element, { subtree: true, attributes: true, characterData: true, childList: true })
+
+    // Same round, same phase, same row count: the per-second access
+    // countdown re-renders none of this — the memoized board is a no-op.
+    rerender(<FortuneBoard rows={round.rows} phase="revealing" revealedRows={0} />)
+    await flushMutations()
+    expect(mutated.size).toBe(0)
+    observer.disconnect()
+  })
+
+  it('reveals one row without touching any unrelated cell or chip', async () => {
+    const round = generateDemoRound(4242)
+    const { container, rerender } = render(<FortuneBoard rows={round.rows} phase="revealing" revealedRows={0} />)
+    const board = container.querySelector('.fortune-board')
+    expect(board).not.toBeNull()
+
+    const mutated = new Set<Element>()
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.target instanceof Element) mutated.add(record.target)
+      }
+    })
+    observer.observe(board as Element, { subtree: true, attributes: true, characterData: true, childList: true })
+
+    // Row 1 (m1–m5) is the bottom of the ladder and renders LAST in the
+    // reversed display order — so its cells are the final five in the DOM.
+    rerender(<FortuneBoard rows={round.rows} phase="revealing" revealedRows={1} />)
+    await flushMutations()
+    observer.disconnect()
+
+    const cells = [...container.querySelectorAll('.fortune-cell')]
+    expect(cells).toHaveLength(50)
+    const rowOneCells = new Set(cells.slice(-5))
+    for (const element of mutated) {
+      if (element.classList.contains('fortune-cell')) {
+        expect(rowOneCells.has(element as Element), 'unrelated cell DOM was mutated').toBe(true)
+      }
+      if (element.classList.contains('fortune-chip')) {
+        expect(element.classList.contains('fortune-chip--active')).toBe(true)
+      }
+    }
+    // Exactly: the section (rail fill), row 1's chip, its five cells and
+    // their five glyph spans (icon swap). Nothing outside row 1 is touched.
+    expect(mutated.size).toBe(12)
   })
 })

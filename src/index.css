@@ -643,6 +643,23 @@
 @media (max-width: 639px) {
   .cyber-horizon { bottom: 26%; }
   .cyber-depth { background-image: linear-gradient(180deg, rgba(2, 4, 6, .62) 0%, rgba(2, 4, 6, 0) 22%, rgba(2, 4, 6, 0) 58%, rgba(2, 4, 6, .74) 100%); }
+
+  /* Mobile path for the ambient scene — same 3D identity on a lighter
+     budget: smaller blurred rasters, the light pass at reduced amplitude,
+     and the rings pulled inside the phone viewport so their slow spin is
+     actually seen. All transform/opacity; the particle field runs its own
+     throttled mobile loop in CyberBackdrop. Desktop rules above are intact. */
+  .cyber-glow { filter: blur(56px); }
+  .cyber-glow--green { width: min(92vw, 480px); height: min(42vh, 240px); }
+  .cyber-glow--red { width: min(54vw, 320px); height: min(26vh, 200px); }
+  .cyber-ring--a { left: -118px; top: 10%; width: 240px; height: 240px; }
+  .cyber-ring--b { right: -148px; top: 44%; width: 330px; height: 330px; }
+  .cyber-shafts { animation-name: pg-shafts-mobile; }
+}
+
+@keyframes pg-shafts-mobile {
+  from { transform: translate3d(-0.8%, 0, 0) scaleY(1); opacity: .55; }
+  to { transform: translate3d(0.8%, 0, 0) scaleY(1.03); opacity: .95; }
 }
 
 /* ------------------------------ shared atoms ---------------------------- */
@@ -717,6 +734,7 @@
 
 /* Pills — the header's only data container, refined rather than boxed. */
 .pg-pill {
+  position: relative;
   display: inline-flex;
   height: 26px;
   align-items: center;
@@ -776,14 +794,27 @@
 .pg-pill--timer.is-low {
   border-color: rgb(var(--pg-warn) / .38);
   background: rgb(var(--pg-warn) / .09);
-  animation: pg-warn-ring 2s ease-in-out infinite;
 }
 
 .pg-pill--timer.is-low .pg-pill__value { color: #f9e0af; }
 
-@keyframes pg-warn-ring {
-  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 0 0 0 rgb(var(--pg-warn) / 0); }
-  50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 0 0 4px rgb(var(--pg-warn) / .09); }
+/* Low-time attention as a composited outline pulse (transform + opacity) —
+   the same warning beat as the old shadow ring, without a per-frame
+   box-shadow repaint running underneath the reveal. */
+.pg-pill--timer.is-low::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 1px solid rgb(var(--pg-warn) / .5);
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  animation: pg-warn-pulse 2s ease-in-out infinite;
+}
+
+@keyframes pg-warn-pulse {
+  0%, 100% { opacity: 0; transform: scale(.98); }
+  50% { opacity: .75; transform: scale(1.03); }
 }
 
 .pg-pill--account { display: none; }
@@ -1778,10 +1809,23 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
   padding-top: env(safe-area-inset-top);
   padding-right: env(safe-area-inset-right);
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
+}
+
+/*
+ * The public game is a fixed stage: while it is mounted the document itself
+ * must never scroll or rubber-band — including the 100vh-vs-100dvh gap that
+ * dynamic mobile toolbars create. `:has` is already used in this layer (the
+ * boot-curtain rule); where it is unsupported the game's own overflow:hidden
+ * stage still keeps everything inside the viewport.
+ */
+html:has(.fortune-screen) {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .pg-bar {
@@ -2105,11 +2149,15 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   left: -1px;
   right: -1px;
   bottom: 0;
-  height: var(--pg-rail, 0%);
+  height: 100%;
   border-radius: 9999px;
   background-image: linear-gradient(180deg, rgb(var(--pg-accent) / .9), rgb(var(--pg-accent) / .12));
   box-shadow: 0 0 14px rgb(var(--pg-accent) / .4);
-  transition: height 460ms var(--pg-ease);
+  /* Fills from the board base with a compositor transform (0…1 scale from
+     --pg-rail) — the same growth, without animating height. */
+  transform: scaleY(var(--pg-rail, 0));
+  transform-origin: bottom;
+  transition: transform 460ms var(--pg-ease);
 }
 
 .fortune-chip {
@@ -2133,7 +2181,8 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   width: 4px;
   height: 1px;
   background: rgba(255, 255, 255, .15);
-  transition: background-color var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease, width var(--pg-t-3) ease;
+  /* The revealed tick grows instantly — only its tint and glow ease. */
+  transition: background-color var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease;
 }
 
 @supports (height: 1cqh) {
@@ -2181,6 +2230,10 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  /* A cell's box comes from the grid track and its internals never affect
+     neighbours, so its layout and paint are contained — a reveal step only
+     repaints the cells that actually changed state. */
+  contain: layout paint;
   border: 1px solid rgba(255, 255, 255, .05);
   border-radius: var(--pg-r-tile);
   background-color: rgba(255, 255, 255, .024);
@@ -2188,7 +2241,10 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
     linear-gradient(180deg, rgba(255, 255, 255, .075) 0%, rgba(255, 255, 255, .02) 38%, rgba(0, 0, 0, .16) 100%);
   box-shadow: var(--pg-shadow-tile);
   color: #6b807a;
-  transition: border-color var(--pg-t-2) ease, box-shadow var(--pg-t-2) ease, background-color var(--pg-t-2) ease, color var(--pg-t-2) ease;
+  /* State lighting switches with the pop-in transform animation (composited);
+     only the hairline and text tint ease — no animated box-shadow or
+     background repaint across the tile. */
+  transition: border-color var(--pg-t-2) ease, color var(--pg-t-2) ease;
 }
 
 /* Inner edge — reserved for interaction states (hover, armed) so the resting
@@ -2200,7 +2256,9 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   border: 1px solid transparent;
   border-radius: calc(var(--pg-r-tile) - 2px);
   pointer-events: none;
-  transition: border-color var(--pg-t-2) ease, box-shadow var(--pg-t-2) ease;
+  /* The armed glow arrives and leaves with the composited pg-armed opacity
+     animation; only the hairline eases. */
+  transition: border-color var(--pg-t-2) ease;
 }
 
 /* Result LED at the base of the tile. */
@@ -2224,7 +2282,6 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   background: radial-gradient(74% 62% at 50% 4%, rgba(255, 255, 255, .05), transparent 70%);
   box-shadow: inset 0 1px 5px rgba(0, 0, 0, .45);
   pointer-events: none;
-  transition: background var(--pg-t-3) ease, box-shadow var(--pg-t-3) ease;
 }
 
 /* The glyph stays square and scales with the row, so a wide tile never
@@ -2506,6 +2563,22 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-dock__actions { max-width: 560px; }
 }
 
+/*
+ * Phones: the waiting card sits over the live ambient field while the round
+ * loads. It is 94 %+ opaque, so the live backdrop blur is invisible there
+ * anyway — and it makes the browser re-sample the animating field behind the
+ * card every frame exactly when the user is entering the game. Drop it on
+ * mobile only (desktop keeps the glass); the card keeps its dark, layered
+ * surface.
+ */
+@media (max-width: 639px) {
+  .pg-idle__card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-image: linear-gradient(180deg, rgba(10, 16, 18, .97) 0%, rgba(6, 10, 12, .985) 100%);
+  }
+}
+
 /* Small phones: shed decoration before the board sheds size. */
 @media (max-width: 379px) {
   .pg-bar { gap: var(--pg-s-1); padding-inline: 8px; }
@@ -2585,4 +2658,5 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-intro__corner,
   .pg-intro__shutter { animation: none; }
   .pg-pill--timer.is-low { animation: none; }
+  .pg-pill--timer.is-low::after { animation: none; opacity: 0; }
 }

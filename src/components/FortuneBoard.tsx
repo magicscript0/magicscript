@@ -72,6 +72,37 @@ const FortuneCell = memo(function FortuneCell({ state, label, animate, armed = f
   )
 })
 
+interface FortuneRowProps {
+  row: RowView
+  hasRound: boolean
+  isRevealed: boolean
+  armed: boolean
+  animate: boolean
+}
+
+/**
+ * One ladder row: its multiplier chip plus the five cells.
+ *
+ * Memoized on stable props (the row objects come straight from the round
+ * view and never change identity mid-round) so a reveal step only re-renders
+ * the row that was just revealed and the row that just became armed — the
+ * other eight rows keep their existing DOM, and unrelated cells are never
+ * touched.
+ */
+const FortuneRow = memo(function FortuneRow({ row, hasRound, isRevealed, armed, animate }: FortuneRowProps) {
+  return (
+    <div className="contents">
+      <div className={`fortune-chip${isRevealed ? ' fortune-chip--revealed' : ''}${armed ? ' fortune-chip--active' : ''}`}>
+        {formatMultiplier(row.multiplier)}
+      </div>
+      {row.cells.map((cell) => {
+        const state: CellState = !hasRound ? 'empty' : isRevealed ? boardVisualForValue(cell.value) : 'hidden'
+        return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} animate={animate} armed={armed} />
+      })}
+    </div>
+  )
+})
+
 export interface FortuneBoardProps {
   rows: readonly RowView[] | null
   phase: RoundPhase
@@ -88,30 +119,27 @@ export interface FortuneBoardProps {
  * inside each row. Cell size is derived from the stage it is given, so all
  * ten rows stay on screen without scrolling (see the .fortune-* rules in
  * index.css).
+ *
+ * The board itself is memoized: its props only change when the round, the
+ * phase or the revealed-row count actually change, so the per-second access
+ * countdown re-renders none of the 50 cells.
  */
-export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
+export const FortuneBoard = memo(function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
   const hasRound = rows !== null
-  const displayRows = [...(rows ?? placeholderRows())].reverse()
+  const displayRows = [...(rows ?? PLACEHOLDER_ROWS)].reverse()
   const activeRow = phase === 'revealing' ? revealedRows : -1
   const revealed = hasRound ? Math.min(GRID_ROWS, Math.max(0, revealedRows)) : 0
-  const railStyle = { '--pg-rail': `${(revealed / GRID_ROWS) * 100}%` } as CSSProperties
+  // 0…1 fill of the multiplier rail; .fortune-rail::after scales to it with
+  // a compositor transform instead of animating height.
+  const railStyle = { '--pg-rail': String(revealed / GRID_ROWS) } as CSSProperties
+  const animate = phase === 'revealing' || phase === 'revealed'
 
   return (
     <section aria-label="Prediction board" className="fortune-board" style={railStyle}>
       {displayRows.map((row) => {
         const isRevealed = hasRound && row.row <= revealedRows
         const armed = row.row === activeRow
-        return (
-          <div key={row.row} className="contents">
-            <div className={`fortune-chip${isRevealed ? ' fortune-chip--revealed' : ''}${armed ? ' fortune-chip--active' : ''}`}>
-              {formatMultiplier(row.multiplier)}
-            </div>
-            {row.cells.map((cell) => {
-              const state: CellState = !hasRound ? 'empty' : isRevealed ? boardVisualForValue(cell.value) : 'hidden'
-              return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} animate={phase === 'revealing' || phase === 'revealed'} armed={armed} />
-            })}
-          </div>
-        )
+        return <FortuneRow key={row.row} row={row} hasRound={hasRound} isRevealed={isRevealed} armed={armed} animate={animate} />
       })}
       <span className="fortune-rail" aria-hidden="true" />
       {/* Mirrors the axis on the right at desktop widths so the ladder reads as
@@ -119,12 +147,14 @@ export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
       <span className="fortune-axis" aria-hidden="true" />
     </section>
   )
-}
+})
 
-function placeholderRows(): RowView[] {
-  return ROWS.map((spec) => ({
-    row: spec.row,
-    multiplier: spec.multiplier,
-    cells: Array.from({ length: 5 }, (_, index) => ({ key: spec.keys[index], value: '0' as const })),
-  })).slice(0, GRID_ROWS)
-}
+/**
+ * Placeholder ladder shown before any round exists. Module-level so the idle
+ * board keeps stable row identity across renders (its rows memoize away).
+ */
+const PLACEHOLDER_ROWS: RowView[] = ROWS.map((spec) => ({
+  row: spec.row,
+  multiplier: spec.multiplier,
+  cells: Array.from({ length: 5 }, (_, index) => ({ key: spec.keys[index], value: '0' as const })),
+})).slice(0, GRID_ROWS)
