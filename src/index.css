@@ -560,6 +560,57 @@
     linear-gradient(180deg, #04070a 0%, #061015 46%, #030608 100%);
 }
 
+/*
+ * The camera: one very slow orbit carrying every layer of the world. It is a
+ * single composited transform over already-composited layers (no repaint of
+ * the world itself), and it is what makes the environment read as a space
+ * the viewer is standing inside rather than a wallpaper with moving bits.
+ * The base scale of 1.035 hides the edges of the drift.
+ */
+.cyber-scene {
+  position: absolute;
+  inset: 0;
+  animation: cyber-camera 80s ease-in-out infinite;
+}
+
+@keyframes cyber-camera {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.035); }
+  50% { transform: translate3d(-0.9%, 0.7%, 0) scale(1.05); }
+}
+
+/* Far atmosphere: the deepest plane of the room, behind the rings and the
+   floor. Soft radial colour only (no blur filter), drifting on its own
+   clock so it never moves in lockstep with anything else. */
+.cyber-mist {
+  position: absolute;
+  left: -22%;
+  right: -22%;
+  top: 22%;
+  height: 34%;
+  background-image:
+    radial-gradient(58% 88% at 28% 52%, rgba(36, 118, 142, .08), transparent 70%),
+    radial-gradient(48% 100% at 74% 42%, rgba(23, 191, 127, .055), transparent 72%),
+    radial-gradient(40% 80% at 52% 68%, rgba(190, 242, 255, .035), transparent 74%);
+  animation: cyber-mist 18s ease-in-out infinite alternate;
+}
+
+@keyframes cyber-mist {
+  from { transform: translate3d(-1.4%, 0, 0); opacity: .5; }
+  to { transform: translate3d(1.8%, 1.4%, 0); opacity: .95; }
+}
+
+/* The closest of the atmospheric rings — small, faint, and on a faster
+   clock than the two distant ones, so the three rings parallax against
+   each other instead of rotating as one. */
+.cyber-ring--c {
+  left: 14%;
+  top: 60%;
+  width: 150px;
+  height: 150px;
+  border-color: rgba(190, 242, 255, .07);
+  animation: cyber-ring-spin 32s linear infinite;
+}
+
 /* Volumetric light. Soft gradient falloff, never a blur filter. */
 .cyber-shafts {
   position: absolute;
@@ -611,6 +662,25 @@
   to { transform: translate3d(0, 44px, 0); }
 }
 
+/* The far half of the floor: a dimmer, finer plane panning at a different
+   speed behind the main grid inside the same perspective — two speeds in
+   one room are what make the floor read as depth instead of a texture. */
+.cyber-grid-plane--far {
+  background-image:
+    linear-gradient(rgba(99, 216, 232, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 216, 232, .038) 1px, transparent 1px);
+  background-size:
+    30px 30px,
+    30px 30px;
+  opacity: .65;
+  animation: cyber-plane-far 12s linear infinite;
+}
+
+@keyframes cyber-plane-far {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 30px, 0); }
+}
+
 /* Distant light where the floor meets the dark. */
 .cyber-horizon {
   position: absolute;
@@ -641,33 +711,46 @@
 }
 
 @media (max-width: 639px) {
-  .cyber-horizon { bottom: 26%; }
-  .cyber-depth { background-image: linear-gradient(180deg, rgba(2, 4, 6, .62) 0%, rgba(2, 4, 6, 0) 22%, rgba(2, 4, 6, 0) 58%, rgba(2, 4, 6, .74) 100%); }
+  .cyber-horizon { bottom: 26%; animation-duration: 9s; }
+  /* The frame scrim lifted on phones: it used to sit exactly on top of the
+     moving floor and horizon and dim them into stillness. The centre is
+     untouched, so board and form contrast is unchanged. */
+  .cyber-depth { background-image: linear-gradient(180deg, rgba(2, 4, 6, .45) 0%, rgba(2, 4, 6, 0) 22%, rgba(2, 4, 6, 0) 58%, rgba(2, 4, 6, .52) 100%); }
 
   /* Mobile path for the ambient scene — same 3D identity on a lighter
-     budget: smaller blurred rasters, the light pass at reduced amplitude,
-     and the rings pulled inside the phone viewport so their slow spin is
-     actually seen. All transform/opacity (already-composited layers, so the
-     faster rhythms cost nothing extra); the particle field runs its own
-     throttled mobile loop in CyberBackdrop. Desktop rules above are intact.
-     The scene must stay visibly alive on a phone: every layer below moves. */
+     budget, but with amplitudes that actually register on a phone (below
+     ~5 px/s, motion reads as stillness). Everything here is transform/
+     opacity on already-composited layers, so the faster rhythms cost the
+     GPU nothing extra; the particle field runs its own throttled loop in
+     CyberBackdrop. The scene must read as a living room at a glance. */
+  .cyber-scene { animation-duration: 70s; }
+  .cyber-mist { top: 18%; height: 30%; animation-duration: 14s; }
   .cyber-glow { filter: blur(56px); }
-  .cyber-glow--green { width: min(92vw, 480px); height: min(42vh, 240px); animation-duration: 6s; }
-  /* The red counter-glow was the one fully static layer — give it a slow
-     diagonal drift and a breathing depth of its own. */
-  .cyber-glow--red { width: min(54vw, 320px); height: min(26vh, 200px); animation: cyber-glow-drift 12s ease-in-out infinite; }
-  .cyber-ring--a { left: -118px; top: 10%; width: 240px; height: 240px; animation-duration: 45s; }
-  .cyber-ring--b { right: -148px; top: 44%; width: 330px; height: 330px; animation-duration: 70s; }
+  .cyber-glow--green { width: min(92vw, 480px); height: min(42vh, 240px); animation-duration: 5s; }
+  /* The red counter-glow: its own slow diagonal drift and breathing depth. */
+  .cyber-glow--red { width: min(54vw, 320px); height: min(26vh, 200px); animation: cyber-glow-drift 10s ease-in-out infinite; }
+  .cyber-ring--a { left: -118px; top: 10%; width: 240px; height: 240px; animation-duration: 34s; }
+  .cyber-ring--b { right: -148px; top: 44%; width: 330px; height: 330px; animation-duration: 52s; }
+  .cyber-ring--c { left: 10%; top: 62%; width: 130px; height: 130px; }
   .cyber-shafts { animation-name: pg-shafts-mobile; }
-  /* A touch faster floor so the grid's forward motion reads on a phone. */
-  .cyber-grid-plane { animation-duration: 6s; }
-  /* The loading curtain's floor keeps a matching, slightly quicker pulse. */
+  /* The floor planes: forward motion fast enough to read, two speeds for
+     depth. The loading curtain's floor keeps a matching quicker pulse. */
+  .cyber-grid-plane { animation-duration: 4.5s; }
+  .cyber-grid-plane--far { animation-duration: 9s; }
   .pg-intro__floor-grid { animation-duration: 7s; }
+
+  /* LOW tier — very constrained devices (save-data, ≤3 cores, ≤3 GB RAM):
+     the added depth planes are shed, but the core environment keeps
+     moving — camera, floor grid, rings, glows and the 20 fps canvas field. */
+  .cyber-backdrop[data-tier='low'] .cyber-mist,
+  .cyber-backdrop[data-tier='low'] .cyber-grid-plane--far,
+  .cyber-backdrop[data-tier='low'] .cyber-ring--c { display: none; }
+  .cyber-backdrop[data-tier='low'] .cyber-scene { animation-duration: 120s; }
 }
 
 @keyframes pg-shafts-mobile {
-  from { transform: translate3d(-0.8%, 0, 0) scaleY(1); opacity: .55; }
-  to { transform: translate3d(0.8%, 0, 0) scaleY(1.03); opacity: .95; }
+  from { transform: translate3d(-1.6%, 0, 0) scaleY(1); opacity: .55; }
+  to { transform: translate3d(1.6%, 0, 0) scaleY(1.03); opacity: .95; }
 }
 
 @keyframes cyber-glow-drift {
@@ -1151,10 +1234,13 @@
 /* ------------------------- boot / loading curtain ----------------------- */
 
 /*
- * The curtain is deliberately semi-opaque: the single shared ambient layer
- * (particles, grid, vignette) keeps breathing behind it, so the hand-over to
- * the login is one continuous scene rather than two screens. The login itself
- * stays `visibility: hidden` underneath, so nothing ghosts through.
+ * The curtain is deliberately semi-opaque — and now clearly so: the shared
+ * living world (camera, mist, rings, floor, particles, sweep) keeps moving
+ * behind it, dimmed but visible, so loading reads as the *entrance* to the
+ * environment rather than a black screen before it. The centre stays dark
+ * enough for the brand and the instrument; the edges open onto the room.
+ * The login itself stays `visibility: hidden` underneath, so nothing
+ * ghosts through.
  */
 .pg-intro {
   position: fixed;
@@ -1166,7 +1252,7 @@
   overflow: hidden;
   background-image:
     radial-gradient(120% 82% at 50% 2%, rgb(var(--pg-accent) / .08), transparent 60%),
-    linear-gradient(180deg, rgba(4, 7, 10, .9) 0%, rgba(3, 6, 8, .95) 56%, rgba(4, 7, 10, .97) 100%);
+    radial-gradient(150% 110% at 50% 46%, rgba(3, 6, 8, .46) 0%, rgba(3, 6, 8, .7) 52%, rgba(3, 6, 8, .92) 100%);
   transition: opacity 520ms ease, transform 520ms var(--pg-ease);
 }
 
@@ -1197,11 +1283,16 @@
   perspective-origin: 50% 100%;
   -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, .9) 8%, transparent 70%);
   mask-image: linear-gradient(to top, rgba(0, 0, 0, .9) 8%, transparent 70%);
-  /* The shared field already has a floor and a horizon; the curtain adds only
-     a nearer plane of it, so the two screens never show two grids at once. */
-  opacity: .5;
+  /* The shared field's own floor is now visible through the semi-opaque
+     curtain; the curtain's plane sits in front of it at lower opacity —
+     one continuous floor with two depths, not two competing grids. */
+  opacity: .34;
 }
 
+/* Bigger cells and a lower opacity than the world's own floor (now visible
+   through the curtain) — the curtain's grid reads as the NEAREST plane of
+   the same field, so entering the login is moving into the room, not
+   swapping one background for another. */
 .pg-intro__floor-grid {
   position: absolute;
   left: -30%;
@@ -1211,7 +1302,7 @@
   background-image:
     linear-gradient(rgb(var(--pg-accent) / .15) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--pg-accent) / .1) 1px, transparent 1px);
-  background-size: 46px 46px;
+  background-size: 60px 60px;
   transform: rotateX(68deg);
   transform-origin: 50% 100%;
   animation: pg-floor 9s linear infinite;
@@ -1219,7 +1310,7 @@
 
 @keyframes pg-floor {
   from { transform: rotateX(68deg) translate3d(0, 0, 0); }
-  to { transform: rotateX(68deg) translate3d(0, 46px, 0); }
+  to { transform: rotateX(68deg) translate3d(0, 60px, 0); }
 }
 
 /* Horizon light where the floor meets the dark. */
@@ -2666,13 +2757,17 @@ html:has(.fortune-screen) {
 
 @media (prefers-reduced-motion: reduce) {
   /* The ambient field settles: no drifting planes, no breathing light. */
+  .cyber-scene,
+  .cyber-mist,
   .cyber-shafts,
   .cyber-grid-plane,
+  .cyber-grid-plane--far,
   .cyber-horizon,
   .cyber-glow--green,
   .cyber-glow--red,
   .cyber-ring--a,
-  .cyber-ring--b {
+  .cyber-ring--b,
+  .cyber-ring--c {
     animation: none;
   }
 
