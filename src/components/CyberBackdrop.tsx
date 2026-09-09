@@ -7,6 +7,15 @@ export interface CyberBackdropProps {
    * board uses a calmer field so the prediction grid stays the focal point.
    */
   density?: 'full' | 'calm'
+  /**
+   * Frame-budget guard for the Apple reveal. While the board is revealing,
+   * the mobile particle field drops from ~30 to ~15 fps so the reveal keeps
+   * the frame budget. The field keeps moving — it only repaints less often —
+   * and returns to full cadence when the reveal ends. This is a ref read by
+   * the running loop, so toggling it never restarts the field, resizes the
+   * canvas, or regenerates particles (no visible pop, no background reset).
+   */
+  focus?: boolean
 }
 
 interface Particle {
@@ -31,14 +40,14 @@ interface Particle {
 
 const TONE_COLORS = ['70,227,161', '190,242,255', '251,113,133'] as const
 
-/**
- * Viewport width at and below which the canvas runs its mobile animation
+/** Viewport width at and below which the canvas runs its mobile animation
  * path. Matches the CSS `max-width: 639px` breakpoint so the 3D scene and
- * the particle field scale down together.
- */
+ * the particle field scale down together. */
 const MOBILE_BREAKPOINT = 640
 /** The mobile field repaints at ~30 fps — continuous life, half the wakeups. */
 const MOBILE_FRAME_MS = 1000 / 30
+/** During the board reveal the mobile field yields the budget: ~15 fps. */
+const MOBILE_FOCUS_FRAME_MS = 1000 / 15
 /** Halos are pre-baked into one sprite per tone instead of per-frame gradients. */
 const SPRITE_SIZE = 48
 
@@ -166,11 +175,22 @@ function paintFrameMobile(ctx: CanvasRenderingContext2D, particles: Particle[], 
  *    reduced drift/sway amplitude and a lower DPR cap. The 3D CSS layers get
  *    their own mobile tuning in index.css.
  *
+ * `focus` (set by the game while the Apple reveal is running) halves the
+ * mobile cadence to ~15 fps so the reveal keeps the frame budget — the
+ * field visibly keeps moving, it just repaints less often.
+ *
  * Both paths pause when the tab is hidden, and `prefers-reduced-motion`
  * renders a single static frame with no animation loop.
  */
-export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
+export function CyberBackdrop({ density = 'full', focus = false }: CyberBackdropProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Read by the running loop — the focus state must never re-run the canvas
+  // effect (that would resize the buffer and regenerate the whole field).
+  const focusRef = useRef(focus)
+
+  useEffect(() => {
+    focusRef.current = focus
+  }, [focus])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -229,12 +249,14 @@ export function CyberBackdrop({ density = 'full' }: CyberBackdropProps) {
 
     const tick = () => {
       if (!running || disposed) return
-      // Mobile: repaint at ~30 fps. The loop keeps waking with the display
-      // (no beat-frequency flicker) but does field work on every second
-      // callback — half the JS and GPU upload of the desktop path.
+      // Mobile: repaint at ~30 fps, dropping to ~15 fps while the board is
+      // revealing (focus mode) so the reveal owns the frame budget. The loop
+      // keeps waking with the display (no beat-frequency flicker); the
+      // desktop path stays at native rAF cadence in every state.
       if (mobile) {
+        const minMs = focusRef.current ? MOBILE_FOCUS_FRAME_MS : MOBILE_FRAME_MS
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-        if (now - lastPaint < MOBILE_FRAME_MS - 1) {
+        if (now - lastPaint < minMs - 1) {
           frameId = window.requestAnimationFrame(tick)
           return
         }

@@ -285,6 +285,25 @@ describe('Apple of Fortune public board — Firebase /m11 live mirror', () => {
     expect(mutated.size).toBe(0)
   })
 
+  it('keeps the ambient field alive through the reveal and dips it into focus mode', () => {
+    const { container } = render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
+    emitSnapshot(deterministicSafeKeys())
+
+    fireEvent.click(screen.getByRole('button', { name: /reveal prediction/i }))
+
+    // During the reveal the stage is in focus mode AND the 3D field is still
+    // mounted and moving — the board gets priority, the background never
+    // disappears or freezes.
+    expect(container.querySelector('.pg-game.is-revealing')).not.toBeNull()
+    expect(container.querySelector('.cyber-backdrop canvas.cyber-particles')).not.toBeNull()
+
+    revealAll()
+
+    // Reveal complete: focus released, the field is still there at full cost.
+    expect(container.querySelector('.pg-game.is-revealing')).toBeNull()
+    expect(container.querySelector('.cyber-backdrop canvas.cyber-particles')).not.toBeNull()
+  })
+
   it('returns to the Game Login when the player exits', () => {
     const onExit = vi.fn()
     render(<Fortune accountId="123456789" remainingMs={600_000} onExit={onExit} />)

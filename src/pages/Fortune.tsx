@@ -158,8 +158,11 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
   }
 
   return (
-    <div className="fortune-screen pg-game">
-      <CyberBackdrop density="calm" />
+    <div className={`fortune-screen pg-game${phase === 'revealing' ? ' is-revealing' : ''}`}>
+      {/* While the ladder reveals, the ambient field yields its frame budget
+          (focus) and the room eases back (see .pg-game.is-revealing rules) —
+          the board owns the screen, the field never stops moving. */}
+      <CyberBackdrop density="calm" focus={phase === 'revealing'} />
 
       <header className="pg-bar">
         <GameBrandLockup variant="compact" />

@@ -647,19 +647,32 @@
   /* Mobile path for the ambient scene — same 3D identity on a lighter
      budget: smaller blurred rasters, the light pass at reduced amplitude,
      and the rings pulled inside the phone viewport so their slow spin is
-     actually seen. All transform/opacity; the particle field runs its own
-     throttled mobile loop in CyberBackdrop. Desktop rules above are intact. */
+     actually seen. All transform/opacity (already-composited layers, so the
+     faster rhythms cost nothing extra); the particle field runs its own
+     throttled mobile loop in CyberBackdrop. Desktop rules above are intact.
+     The scene must stay visibly alive on a phone: every layer below moves. */
   .cyber-glow { filter: blur(56px); }
-  .cyber-glow--green { width: min(92vw, 480px); height: min(42vh, 240px); }
-  .cyber-glow--red { width: min(54vw, 320px); height: min(26vh, 200px); }
-  .cyber-ring--a { left: -118px; top: 10%; width: 240px; height: 240px; }
-  .cyber-ring--b { right: -148px; top: 44%; width: 330px; height: 330px; }
+  .cyber-glow--green { width: min(92vw, 480px); height: min(42vh, 240px); animation-duration: 6s; }
+  /* The red counter-glow was the one fully static layer — give it a slow
+     diagonal drift and a breathing depth of its own. */
+  .cyber-glow--red { width: min(54vw, 320px); height: min(26vh, 200px); animation: cyber-glow-drift 12s ease-in-out infinite; }
+  .cyber-ring--a { left: -118px; top: 10%; width: 240px; height: 240px; animation-duration: 45s; }
+  .cyber-ring--b { right: -148px; top: 44%; width: 330px; height: 330px; animation-duration: 70s; }
   .cyber-shafts { animation-name: pg-shafts-mobile; }
+  /* A touch faster floor so the grid's forward motion reads on a phone. */
+  .cyber-grid-plane { animation-duration: 6s; }
+  /* The loading curtain's floor keeps a matching, slightly quicker pulse. */
+  .pg-intro__floor-grid { animation-duration: 7s; }
 }
 
 @keyframes pg-shafts-mobile {
   from { transform: translate3d(-0.8%, 0, 0) scaleY(1); opacity: .55; }
   to { transform: translate3d(0.8%, 0, 0) scaleY(1.03); opacity: .95; }
+}
+
+@keyframes cyber-glow-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: .55; }
+  50% { transform: translate3d(-3%, 2.5%, 0); opacity: .95; }
 }
 
 /* ------------------------------ shared atoms ---------------------------- */
@@ -1970,6 +1983,22 @@ html:has(.fortune-screen) {
   100% { opacity: 0; }
 }
 
+/*
+ * Reveal focus: while the ladder resolves, the whole ambient field eases
+ * back a touch — a single composited opacity dip (the mobile canvas loop
+ * halves its cadence at the same time in CyberBackdrop), so the frame
+ * budget and the contrast belong to the board. The field never freezes or
+ * disappears: it keeps drifting at reduced cost, then eases back to full
+ * atmosphere when the reveal completes.
+ */
+.pg-game .cyber-backdrop {
+  transition: opacity 460ms var(--pg-ease);
+}
+
+.pg-game.is-revealing .cyber-backdrop {
+  opacity: .88;
+}
+
 /* The stage floor the ladder stands on. */
 .pg-board::after {
   content: "";
@@ -2294,7 +2323,13 @@ html:has(.fortune-screen) {
   justify-content: center;
   width: clamp(16px, calc(var(--cell, 48px) * .6), 44px);
   height: clamp(16px, calc(var(--cell, 48px) * .6), 44px);
-  transition: filter var(--pg-t-3) ease;
+  /* The state glow is applied INSTANTLY — no filter transition. A
+     transitioning filter is not compositor-animatable: every frame of a
+     420 ms none→drop-shadow ramp re-rasterizes the glyph on the GPU, and
+     five of them per reveal step are exactly the per-row stutter phones
+     feel. The cost becomes one raster per state flip, and the pg-glyph-in
+     opacity ramp already fades the glow in on the compositor — so the snap
+     is invisible and the reveal stays entirely transform/opacity. */
 }
 
 .fortune-cell__glyph svg.is-dim { opacity: .3; }
@@ -2564,18 +2599,23 @@ html:has(.fortune-screen) {
 }
 
 /*
- * Phones: the waiting card sits over the live ambient field while the round
- * loads. It is 94 %+ opaque, so the live backdrop blur is invisible there
- * anyway — and it makes the browser re-sample the animating field behind the
- * card every frame exactly when the user is entering the game. Drop it on
- * mobile only (desktop keeps the glass); the card keeps its dark, layered
- * surface.
+ * Phones: the waiting card and the login's command panel sit over the live
+ * ambient field. Both are 84 %+ opaque, so the live backdrop blur is
+ * invisible on them anyway — and it makes the browser re-sample the
+ * animating field behind them every frame (with the keyboard up, that is
+ * right while the user is typing). Drop it on mobile only (desktop keeps
+ * the full glass); both surfaces keep their layered dark glass.
  */
 @media (max-width: 639px) {
   .pg-idle__card {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background-image: linear-gradient(180deg, rgba(10, 16, 18, .97) 0%, rgba(6, 10, 12, .985) 100%);
+  }
+
+  .pg-panel {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 
@@ -2630,6 +2670,7 @@ html:has(.fortune-screen) {
   .cyber-grid-plane,
   .cyber-horizon,
   .cyber-glow--green,
+  .cyber-glow--red,
   .cyber-ring--a,
   .cyber-ring--b {
     animation: none;

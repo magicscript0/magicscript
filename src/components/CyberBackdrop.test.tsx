@@ -48,6 +48,7 @@ describe('CyberBackdrop mobile animation path', () => {
     arc: ReturnType<typeof vi.fn>
     drawImage: ReturnType<typeof vi.fn>
     createRadialGradient: ReturnType<typeof vi.fn>
+    setTransform: ReturnType<typeof vi.fn>
     [key: string]: unknown
   }
 
@@ -86,8 +87,8 @@ describe('CyberBackdrop mobile animation path', () => {
   }
 
   /** Drive the rAF loop with exact, controlled timestamps (no wall clock). */
-  function driveFrames(count: number, stepMs: number) {
-    let now = 0
+  function driveFrames(count: number, stepMs: number, startMs = 0) {
+    let now = startMs
     for (let i = 0; i < count; i += 1) {
       now += stepMs
       driveNow = now
@@ -189,5 +190,31 @@ describe('CyberBackdrop mobile animation path', () => {
     expect(mobileCtx.drawImage.mock.calls.length).toBe(16 * 31)
     const baked = contexts.slice(2).reduce((sum, sprite) => sum + sprite.createRadialGradient.mock.calls.length, 0)
     expect(baked).toBe(3)
+  })
+
+  it('yields half its cadence to a board reveal (focus mode) without restarting the field', () => {
+    setViewport(390, 844)
+    const { container, rerender, unmount } = render(<CyberBackdrop density="calm" />)
+    const ctx = contexts[0]
+
+    const stepMs = 1000 / 60
+    // 20 display frames at normal mobile cadence: paints on every 2nd frame.
+    driveFrames(20, stepMs)
+    expect(ctx.clearRect.mock.calls.length).toBe(11) // initial + 10
+
+    // The game enters reveal: the running loop halves its cadence. The clock
+    // keeps running — the loop's last-paint timestamp persists across the
+    // focus toggle, exactly like a real reveal in the middle of a session.
+    rerender(<CyberBackdrop density="calm" focus />)
+    driveFrames(20, stepMs, 20 * stepMs)
+    // …and now repaints only on every 4th frame: +5 paints.
+    expect(ctx.clearRect.mock.calls.length).toBe(16)
+
+    // The field was throttled, never restarted: same canvas element, the
+    // buffer was sized exactly once, and no halo sprites were re-baked.
+    expect(container.querySelectorAll('canvas.cyber-particles')).toHaveLength(1)
+    expect(ctx.setTransform.mock.calls.length).toBe(1)
+    expect(contexts.length).toBe(4) // main canvas + 3 sprites, nothing new
+    unmount()
   })
 })
