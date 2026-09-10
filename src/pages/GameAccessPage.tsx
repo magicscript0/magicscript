@@ -9,6 +9,7 @@ import {
   createGameAccessCode,
   formatDurationMinutes,
   gameAccessCodeStatus,
+  gameAccessSessionEndsAt,
   listGameAccessCodes,
   revokeGameAccessCode,
   type CreatedGameAccessCode,
@@ -28,6 +29,13 @@ export function GameAccessPage({ admin }: { admin: AdminProfile }) {
   const [showCreate, setShowCreate] = useState(false)
   const [revealed, setRevealed] = useState<{ code: string; id: string } | null>(null)
   const [confirmingRevoke, setConfirmingRevoke] = useState<GameAccessCodeSummary | null>(null)
+  // Refreshes activation-derived countdowns/statuses; enforcement stays server-side.
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const loadCodes = useCallback(async () => {
     setLoading(true)
@@ -62,8 +70,9 @@ export function GameAccessPage({ admin }: { admin: AdminProfile }) {
     }
   }
 
-  const activeCount = useMemo(() => codes.filter((code) => gameAccessCodeStatus(code) === 'active').length, [codes])
-  const closedCount = useMemo(() => codes.filter((code) => ['expired', 'revoked', 'inactive'].includes(gameAccessCodeStatus(code))).length, [codes])
+  const activeCount = useMemo(() => codes.filter((code) => gameAccessCodeStatus(code, now) === 'active').length, [codes, now])
+  const waitingCount = useMemo(() => codes.filter((code) => gameAccessCodeStatus(code, now) === 'inactive').length, [codes, now])
+  const closedCount = useMemo(() => codes.filter((code) => ['expired', 'revoked'].includes(gameAccessCodeStatus(code, now))).length, [codes, now])
 
   return <>
     <PageHeader
@@ -72,8 +81,9 @@ export function GameAccessPage({ admin }: { admin: AdminProfile }) {
       description="Issue Access Codes for the Apple of Fortune game console. The session timer starts when the player activates the code — never at creation — and expiration is enforced server-side."
       action={<button type="button" className="btn-primary" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create access code</button>}
     />
-    <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-lg">
-      <div className="panel p-4"><p className="eyebrow">Active now</p><p className="mono mt-2 text-2xl font-semibold text-emerald-200">{loading ? '—' : activeCount}</p></div>
+    <div className="mb-5 grid grid-cols-3 gap-3 sm:max-w-2xl">
+      <div className="panel p-4"><p className="eyebrow">Live sessions</p><p className="mono mt-2 text-2xl font-semibold text-emerald-200">{loading ? '—' : activeCount}</p></div>
+      <div className="panel p-4"><p className="eyebrow">Awaiting activation</p><p className="mono mt-2 text-2xl font-semibold text-slate-300">{loading ? '—' : waitingCount}</p></div>
       <div className="panel p-4"><p className="eyebrow">Expired / revoked</p><p className="mono mt-2 text-2xl font-semibold text-slate-300">{loading ? '—' : closedCount}</p></div>
     </div>
     {revealed && <OneTimeAccessCode code={revealed.code} onClose={() => setRevealed(null)} onCopied={() => success('Access code copied to clipboard.')} />}
@@ -83,7 +93,7 @@ export function GameAccessPage({ admin }: { admin: AdminProfile }) {
       {loading ? <div className="px-4 pb-5 sm:px-5"><LoadingRows count={5} /></div> : codes.length === 0 ? (
         <EmptyState icon={Ticket} title="No game access codes yet" description="Create a code to let an end user into Apple of Fortune for a limited time." action={<button type="button" className="btn-secondary" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create first code</button>} />
       ) : (
-        <AccessCodeTable codes={codes} onRevoke={setConfirmingRevoke} />
+        <AccessCodeTable codes={codes} now={now} onRevoke={setConfirmingRevoke} />
       )}
     </section>
     <div className="mt-5 flex items-start gap-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[.045] px-4 py-3 text-xs leading-5 text-cyan-100">
@@ -114,24 +124,53 @@ export function GameAccessPage({ admin }: { admin: AdminProfile }) {
   </>
 }
 
-function AccessCodeTable({ codes, onRevoke }: { codes: GameAccessCodeSummary[]; onRevoke: (code: GameAccessCodeSummary) => void }) {
+/** Compact live countdown for running sessions (presentation only). */
+function formatRemaining(ms: number): string {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60_000))
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`
+  return `${minutes}m`
+}
+
+/** Short absolute timestamp, consistent with the rest of the console. */
+function formatStamp(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function AccessCodeTable({ codes, now, onRevoke }: { codes: GameAccessCodeSummary[]; now: number; onRevoke: (code: GameAccessCodeSummary) => void }) {
   return <div className="table-wrap rounded-t-none border-x-0 border-b-0"><table className="data-table">
-    <thead><tr><th>Code</th><th>Session</th><th>Status</th><th>Created</th><th>Redeem by</th><th>Uses</th><th>Last account</th><th className="text-right">Actions</th></tr></thead>
+    <thead><tr><th>Code</th><th>Session</th><th>Status</th><th>Created</th><th>Redeem by</th><th>Activated</th><th>Session ends</th><th>Uses</th><th>Last account</th><th className="text-right">Actions</th></tr></thead>
     <tbody className="divide-y divide-white/[.06]">
-      {codes.map((code) => <AccessCodeRow key={code.id} code={code} onRevoke={onRevoke} />)}
+      {codes.map((code) => <AccessCodeRow key={code.id} code={code} now={now} onRevoke={onRevoke} />)}
     </tbody>
   </table></div>
 }
 
-function AccessCodeRow({ code, onRevoke }: { code: GameAccessCodeSummary; onRevoke: (code: GameAccessCodeSummary) => void }) {
-  const status = gameAccessCodeStatus(code)
+function AccessCodeRow({ code, now, onRevoke }: { code: GameAccessCodeSummary; now: number; onRevoke: (code: GameAccessCodeSummary) => void }) {
+  const status = gameAccessCodeStatus(code, now)
   const tone = status === 'active' ? 'success' : status === 'expired' ? 'warning' : status === 'revoked' ? 'danger' : 'neutral'
+  // Label speaks the lifecycle: waiting → running → done, plus disabled.
+  const label = status === 'inactive' ? (code.active ? 'awaiting activation' : 'disabled') : status
+  const sessionEndsAt = gameAccessSessionEndsAt(code)
   return <tr>
     <td><span className="mono text-xs text-slate-400">MS-••••-••••</span></td>
     <td className="whitespace-nowrap text-xs">{formatDurationMinutes(code.duration_minutes)}</td>
-    <td><StatusBadge label={status} tone={tone} /></td>
+    <td>
+      <StatusBadge label={label} tone={tone} />
+      {status === 'active' && sessionEndsAt !== null && (
+        <p className="mt-0.5 text-[10px] text-emerald-200/70">{formatRemaining(sessionEndsAt - now)} left</p>
+      )}
+      {status === 'inactive' && code.active && (
+        <p className="mt-0.5 text-[10px] text-slate-600">timer starts on activation</p>
+      )}
+    </td>
     <td className="whitespace-nowrap text-xs">{formatRelativeTime(code.created_at)}</td>
-    <td className="whitespace-nowrap text-xs">{code.expires_at ? new Date(code.expires_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : <span className="text-slate-400">On activation</span>}</td>
+    <td className="whitespace-nowrap text-xs">{code.expires_at ? formatStamp(code.expires_at) : <span className="text-slate-400">Until revoked</span>}</td>
+    <td className="whitespace-nowrap text-xs">{code.redeemed_at ? formatStamp(code.redeemed_at) : <span className="text-slate-600">—</span>}</td>
+    <td className="whitespace-nowrap text-xs">{sessionEndsAt !== null ? formatStamp(new Date(sessionEndsAt).toISOString()) : <span className="text-slate-600">Starts on activation</span>}</td>
     <td className="mono whitespace-nowrap text-xs">{code.uses_count}</td>
     <td className="whitespace-nowrap text-xs">{code.account_id ? <span className="mono text-slate-300">{code.account_id}</span> : <span className="text-slate-600">—</span>}{code.redeemed_at && <p className="mt-0.5 text-[10px] text-slate-600">{formatRelativeTime(code.redeemed_at)}</p>}</td>
     <td>
@@ -140,7 +179,10 @@ function AccessCodeRow({ code, onRevoke }: { code: GameAccessCodeSummary; onRevo
           type="button"
           className="rounded-lg p-2 text-slate-500 hover:bg-rose-300/10 hover:text-rose-200 disabled:opacity-30"
           onClick={() => onRevoke(code)}
-          disabled={status === 'revoked' || status === 'expired'}
+          // Revocation stays available for ended sessions too: until a code is
+          // revoked it can still be redeemed again, and revoking immediately
+          // kills every session derived from it (server-side).
+          disabled={status === 'revoked'}
           aria-label="Revoke access code"
           title="Revoke"
         >

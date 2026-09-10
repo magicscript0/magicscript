@@ -241,4 +241,25 @@ describe('game access session', () => {
     expect(result.current.remainingMs).toBeLessThanOrEqual(9 * 60_000)
     expect(result.current.remainingMs).toBeGreaterThan(8 * 60_000)
   })
+
+  it('starts the session countdown at redemption, never at code creation', async () => {
+    // The code was issued hours before the player redeems it; the server
+    // answers with the ACTIVATION-based deadline (server_now + duration),
+    // so the client countdown covers the full duration regardless of the
+    // code's creation age.
+    const issuedAt = iso(-240) // code created 4 hours earlier (server clock)
+    redeemMock.mockResolvedValue({ token: 'late-token', expiresAt: iso(120), serverNow: BASELINE, accountId: '123456789' })
+
+    const { result } = renderHook(() => useGameAccess())
+    await flush()
+    await act(async () => {
+      await result.current.login('123456789', 'MS-LATE-CODE')
+    })
+
+    expect(result.current.status).toBe('active')
+    expect(issuedAt).not.toBeNull() // creation age is intentionally irrelevant
+    // Full 2-hour duration remaining — not duration minus 4 hours.
+    expect(result.current.remainingMs).toBeGreaterThan(119 * 60_000)
+    expect(result.current.expiresAt).toBe(Date.now() + 120 * 60_000)
+  })
 })

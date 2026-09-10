@@ -1432,10 +1432,11 @@
 
 /*
  * The upper strip holding the "live activity" estimate and the visitor-local
- * clock. Anchored to the top-right of the login viewport with safe-area
- * insets, so it never collides with the notch / Dynamic Island and never
- * covers the login form. It is display-only (no interactions), so the small
- * chip height does not violate touch-target guidance.
+ * clock. On the login screen the two chips pin to OPPOSITE top corners:
+ * activity top-left, local date+time top-right, both offset by safe-area
+ * insets so they never collide with the notch / Dynamic Island and never
+ * cover the login form. They are display-only (no interactions), so the
+ * small chip height does not violate touch-target guidance.
  */
 .pg-hud {
   display: flex;
@@ -1444,12 +1445,21 @@
   gap: var(--pg-s-2);
 }
 
+/* The clock chip is always the right-hand indicator, even when it is the
+   only chip rendered (or when a long localized date wraps it to its own
+   row on very narrow screens). */
+.pg-hud .pg-pill--clock {
+  margin-left: auto;
+}
+
 .pg-hud--login {
   position: absolute;
   top: max(14px, calc(env(safe-area-inset-top) + 10px));
   right: max(16px, env(safe-area-inset-right));
   left: max(16px, env(safe-area-inset-left));
   z-index: 20;
+  align-items: flex-start;
+  justify-content: space-between;
   flex-wrap: wrap;
 }
 
@@ -1475,14 +1485,20 @@
   color: rgb(var(--pg-ice) / .9);
 }
 
+/* The full local date + time must always be readable: no ellipsis, no
+   clipping. The pill sizes to its content; narrow screens shrink spacing
+   instead of truncating (see the responsive rules below). */
 .pg-pill--clock .pg-pill__value {
+  max-width: none;
   letter-spacing: .02em;
 }
 
 @media (max-width: 379px) {
   .pg-hud .pg-pill__key { display: none; }
   .pg-hud .pg-pill { padding: 0 var(--pg-s-1); }
-  .pg-hud .pg-pill__value { max-width: 130px; }
+  /* Compact the activity count on tiny screens, but never cap the clock
+     value — the complete date + time stays visible. */
+  .pg-hud .pg-pill:not(.pg-pill--clock) .pg-pill__value { max-width: 130px; }
 }
 
 /* Admin-side preview surface (reuses the public design tokens only). */
@@ -1495,8 +1511,9 @@
   border: 1px solid rgba(255, 255, 255, .06);
 }
 
+/* Mirror the production login HUD: activity top-left, clock top-right. */
 .pg-preview > .pg-hud {
-  justify-content: flex-start;
+  justify-content: space-between;
   margin-bottom: var(--pg-s-5);
 }
 
@@ -1541,6 +1558,16 @@
 @media (min-width: 640px) {
   .pg-login {
     padding-inline: max(24px, env(safe-area-inset-left)) max(24px, env(safe-area-inset-right));
+  }
+}
+
+/* On narrow viewports the centered stack can reach the corner chips. Keep
+   the HUD strip (chip bottom ≈ safe-area + 36px) clear of the brand and the
+   login panel: the extra top padding only applies to small screens, so the
+   desktop composition is untouched. */
+@media (max-width: 767px) {
+  .pg-login {
+    padding-top: max(46px, calc(env(safe-area-inset-top) + 46px));
   }
 }
 
