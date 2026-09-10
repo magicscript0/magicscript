@@ -61,6 +61,10 @@ describe('game access code status', () => {
   it('treats the exact expiry instant as expired', () => {
     expect(gameAccessCodeStatus({ ...base, expires_at: '2026-09-02T12:00:00.000Z' }, now)).toBe('expired')
   })
+
+  it('treats a null redeem-by deadline as active (the code waits for activation)', () => {
+    expect(gameAccessCodeStatus({ ...base, expires_at: null }, now)).toBe('active')
+  })
 })
 
 describe('duration formatting', () => {

@@ -36,11 +36,13 @@ export interface GameBrandLockupProps {
   variant?: 'full' | 'compact'
   /** Optional supporting line under the product name (login screen only). */
   caption?: string
+  /** Public product heading, admin-controlled on the login screen. */
+  title?: string
 }
 
-export function GameBrandLockup({ variant = 'full', caption }: GameBrandLockupProps) {
+export function GameBrandLockup({ variant = 'full', caption, title = 'Apple of Fortune' }: GameBrandLockupProps) {
   const wordmark = <span className="pg-brand__word pg-glitch" data-text="MAGIC SCRIPT">MAGIC SCRIPT</span>
-  const title = <h1 className="pg-brand__title">Apple of Fortune</h1>
+  const heading = <h1 className="pg-brand__title">{title}</h1>
 
   if (variant === 'compact') {
     return (
@@ -48,7 +50,7 @@ export function GameBrandLockup({ variant = 'full', caption }: GameBrandLockupPr
         <GameBrandMark size="compact" />
         <div className="pg-brand__text">
           {wordmark}
-          {title}
+          {heading}
         </div>
       </div>
     )
@@ -60,7 +62,7 @@ export function GameBrandLockup({ variant = 'full', caption }: GameBrandLockupPr
         <GameBrandMark halo />
       </div>
       {wordmark}
-      {title}
+      {heading}
       {caption ? <p className="pg-brand__caption">{caption}</p> : null}
     </div>
   )

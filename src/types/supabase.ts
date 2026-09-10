@@ -54,7 +54,8 @@ export interface GameAccessCodeRow extends Record<string, unknown> {
   id: string
   duration_minutes: number
   active: boolean
-  expires_at: string
+  /** Optional "redeem-by" deadline. NULL = redeemable until revoked. */
+  expires_at: string | null
   created_at: string
   created_by: string | null
   revoked_at: string | null
@@ -92,6 +93,9 @@ export interface SocialLinksRow extends Record<string, unknown> {
 
 export type OnlineCounterMode = 'random' | 'fixed'
 
+/** Local-time presentation clock: 12-hour (AM/PM) or 24-hour. */
+export type LocalClockMode = '12h' | '24h'
+
 export interface DisplaySettingsRow extends Record<string, unknown> {
   id: string
   online_count_enabled: boolean
@@ -101,6 +105,8 @@ export interface DisplaySettingsRow extends Record<string, unknown> {
   online_count_fixed: number | null
   online_count_refresh_ms: number
   brand_accent: string
+  local_time_enabled: boolean
+  local_time_clock: LocalClockMode
   updated_at: string
   updated_by: string | null
 }
@@ -166,7 +172,7 @@ export interface Database {
           id?: string
           duration_minutes: number
           active?: boolean
-          expires_at: string
+          expires_at?: string | null
           created_at?: string
           created_by?: string | null
           revoked_at?: string | null
@@ -225,6 +231,8 @@ export interface Database {
           online_count_fixed?: number | null
           online_count_refresh_ms?: number
           brand_accent?: string
+          local_time_enabled?: boolean
+          local_time_clock?: LocalClockMode
           updated_at?: string
           updated_by?: string | null
         }
@@ -266,7 +274,7 @@ export interface Database {
       }
       create_game_access_code: {
         Args: { p_code_hash: string; p_duration_minutes: number; p_created_by: string }
-        Returns: Array<{ id: string; expires_at: string; created_at: string; duration_minutes: number }>
+        Returns: Array<{ id: string; expires_at: string | null; created_at: string; duration_minutes: number }>
       }
       redeem_game_access: {
         Args: { p_code_hash: string; p_account_id: string }
@@ -309,6 +317,8 @@ export interface DisplaySettings {
   onlineCountFixed: number | null
   onlineCountRefreshMs: number
   brandAccent: string
+  localTimeEnabled: boolean
+  localTimeClock: LocalClockMode
 }
 
 export interface GeneralSettings {
@@ -319,8 +329,17 @@ export interface GeneralSettings {
   maintenanceMode: boolean
 }
 
+/** Public login presentation settings (stored in the existing site_settings table). */
+export interface LoginSettings {
+  title: string
+  caption: string
+  statusLabel: string
+  showStatus: boolean
+}
+
 export interface ControlSettings {
   general: GeneralSettings
+  login: LoginSettings
   social: SocialLinks
   display: DisplaySettings
 }

@@ -69,7 +69,7 @@ export function GameAccessPage({ admin }: { admin: AdminProfile }) {
     <PageHeader
       eyebrow="Access / Apple of Fortune"
       title="Game access codes"
-      description="Issue time-bound Access Codes for the Apple of Fortune game console. A code controls how long an end user may play; expiration is enforced server-side."
+      description="Issue Access Codes for the Apple of Fortune game console. The session timer starts when the player activates the code — never at creation — and expiration is enforced server-side."
       action={<button type="button" className="btn-primary" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create access code</button>}
     />
     <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-lg">
@@ -88,7 +88,7 @@ export function GameAccessPage({ admin }: { admin: AdminProfile }) {
     </section>
     <div className="mt-5 flex items-start gap-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[.045] px-4 py-3 text-xs leading-5 text-cyan-100">
       <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
-      <p><strong className="font-semibold">How access works.</strong> The end user signs in at the game screen with an Account ID (9–11 digits) plus one of these codes. The session ends automatically at the code expiry, when you revoke it, or when the browser can no longer verify it.</p>
+      <p><strong className="font-semibold">How access works.</strong> The end user signs in at the game screen with an Account ID (9–11 digits) plus one of these codes. The session timer starts at the moment the code is activated, runs for the configured duration, and ends automatically when you revoke it or when the browser can no longer verify it.</p>
     </div>
     <CreateAccessCodeDialog
       open={showCreate}
@@ -116,7 +116,7 @@ export function GameAccessPage({ admin }: { admin: AdminProfile }) {
 
 function AccessCodeTable({ codes, onRevoke }: { codes: GameAccessCodeSummary[]; onRevoke: (code: GameAccessCodeSummary) => void }) {
   return <div className="table-wrap rounded-t-none border-x-0 border-b-0"><table className="data-table">
-    <thead><tr><th>Code</th><th>Validity</th><th>Status</th><th>Created</th><th>Expires</th><th>Uses</th><th>Last account</th><th className="text-right">Actions</th></tr></thead>
+    <thead><tr><th>Code</th><th>Session</th><th>Status</th><th>Created</th><th>Redeem by</th><th>Uses</th><th>Last account</th><th className="text-right">Actions</th></tr></thead>
     <tbody className="divide-y divide-white/[.06]">
       {codes.map((code) => <AccessCodeRow key={code.id} code={code} onRevoke={onRevoke} />)}
     </tbody>
@@ -131,7 +131,7 @@ function AccessCodeRow({ code, onRevoke }: { code: GameAccessCodeSummary; onRevo
     <td className="whitespace-nowrap text-xs">{formatDurationMinutes(code.duration_minutes)}</td>
     <td><StatusBadge label={status} tone={tone} /></td>
     <td className="whitespace-nowrap text-xs">{formatRelativeTime(code.created_at)}</td>
-    <td className="whitespace-nowrap text-xs">{new Date(code.expires_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+    <td className="whitespace-nowrap text-xs">{code.expires_at ? new Date(code.expires_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : <span className="text-slate-400">On activation</span>}</td>
     <td className="mono whitespace-nowrap text-xs">{code.uses_count}</td>
     <td className="whitespace-nowrap text-xs">{code.account_id ? <span className="mono text-slate-300">{code.account_id}</span> : <span className="text-slate-600">—</span>}{code.redeemed_at && <p className="mt-0.5 text-[10px] text-slate-600">{formatRelativeTime(code.redeemed_at)}</p>}</td>
     <td>
@@ -190,7 +190,6 @@ function CreateAccessCodeDialog({ open, admin, onClose, onCreated, onError }: { 
 
   const durationMinutes = preset === CUSTOM_PRESET ? customMinutes : preset
   const validDuration = Number.isInteger(durationMinutes) && durationMinutes >= GAME_ACCESS_DURATION_LIMITS.min && durationMinutes <= GAME_ACCESS_DURATION_LIMITS.max
-  const expiresPreview = validDuration ? new Date(Date.now() + durationMinutes * 60_000) : null
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -203,7 +202,7 @@ function CreateAccessCodeDialog({ open, admin, onClose, onCreated, onError }: { 
       const created = await createGameAccessCode(durationMinutes, admin.id)
       let auditError: string | null = null
       try {
-        await recordActivity(admin.id, 'CREATE_GAME_ACCESS_CODE', { code_id: created.record.id, duration_minutes: durationMinutes, expires_at: created.record.expires_at })
+        await recordActivity(admin.id, 'CREATE_GAME_ACCESS_CODE', { code_id: created.record.id, session_minutes: durationMinutes })
       } catch (cause) {
         auditError = friendlyControlError(cause, 'The code was created, but the audit event could not be recorded.')
       }
@@ -225,7 +224,7 @@ function CreateAccessCodeDialog({ open, admin, onClose, onCreated, onError }: { 
         </div>
         <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-500 hover:text-slate-200" aria-label="Close create access code dialog"><X className="h-5 w-5" /></button>
       </div>
-      <p className="mt-3 text-xs leading-5 text-slate-500">The code is generated locally with secure randomness and only its hash is stored. Access ends automatically at expiry — the expiry timestamp is computed by the server.</p>
+      <p className="mt-3 text-xs leading-5 text-slate-500">The code is generated locally with secure randomness and only its hash is stored. The session timer starts when the player activates the code — the expiry timestamp is computed by the server at activation.</p>
       <div className="mt-5 space-y-4">
         <div>
           <span className="field-label">Validity duration</span>
@@ -258,8 +257,8 @@ function CreateAccessCodeDialog({ open, admin, onClose, onCreated, onError }: { 
           />
         </div>
         <div className="rounded-xl border border-white/[.07] bg-black/10 px-3.5 py-3 text-xs leading-5 text-slate-400">
-          {validDuration && expiresPreview
-            ? <>Valid for <span className="font-semibold text-slate-200">{formatDurationMinutes(durationMinutes)}</span> · expires around <span className="font-semibold text-slate-200">{expiresPreview.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span> (server clock).</>
+          {validDuration
+            ? <>A <span className="font-semibold text-slate-200">{formatDurationMinutes(durationMinutes)}</span> session starts the moment the player activates the code — not when it is created (server clock).</>
             : <>Enter a duration between {GAME_ACCESS_DURATION_LIMITS.min} and {GAME_ACCESS_DURATION_LIMITS.max} minutes.</>}
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
   Gauge,
   LayoutDashboard,
   LogOut,
+  MonitorSmartphone,
   Settings2,
   SlidersHorizontal,
   Ticket,
@@ -27,19 +28,29 @@ interface NavigationItem {
   permission: Permission
 }
 
-const NAVIGATION: readonly NavigationItem[] = [
+/**
+ * Control-center navigation, grouped by responsibility:
+ * - PUBLIC GAME: everything an operator uses to shape the public experience.
+ * - OPERATIONS: the game console, round history, and the two access systems.
+ * - WORKSPACE: identity/notices and the signed-in account.
+ */
+const PUBLIC_GAME: readonly NavigationItem[] = [
   { route: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
-  { route: 'game', label: 'Game Console', icon: Gauge, permission: 'game.use' },
-  { route: 'history', label: 'Round History', icon: ClipboardList, permission: 'history.view' },
-  { route: 'codes', label: 'Admin Codes', icon: FileKey2, permission: 'codes.manage' },
-  { route: 'access', label: 'Game Access', icon: Ticket, permission: 'access.manage' },
-  { route: 'logs', label: 'Activity Logs', icon: Activity, permission: 'logs.view' },
+  { route: 'public', label: 'Login & appearance', icon: MonitorSmartphone, permission: 'display.manage' },
+  { route: 'display', label: 'Online & time', icon: SlidersHorizontal, permission: 'display.manage' },
+  { route: 'social', label: 'Social links', icon: Cable, permission: 'social.manage' },
 ]
 
-const SETTINGS: readonly NavigationItem[] = [
-  { route: 'social', label: 'Social Links', icon: Cable, permission: 'social.manage' },
-  { route: 'display', label: 'Display Settings', icon: SlidersHorizontal, permission: 'display.manage' },
-  { route: 'general', label: 'General Settings', icon: Settings2, permission: 'general.manage' },
+const OPERATIONS: readonly NavigationItem[] = [
+  { route: 'game', label: 'Game console', icon: Gauge, permission: 'game.use' },
+  { route: 'history', label: 'Round history', icon: ClipboardList, permission: 'history.view' },
+  { route: 'access', label: 'Game access', icon: Ticket, permission: 'access.manage' },
+  { route: 'codes', label: 'Admin codes', icon: FileKey2, permission: 'codes.manage' },
+  { route: 'logs', label: 'Activity logs', icon: Activity, permission: 'logs.view' },
+]
+
+const WORKSPACE: readonly NavigationItem[] = [
+  { route: 'general', label: 'General settings', icon: Settings2, permission: 'general.manage' },
   { route: 'profile', label: 'Profile', icon: UserRound, permission: 'profile.view' },
 ]
 
@@ -54,8 +65,9 @@ export interface AdminSidebarProps {
 }
 
 export function AdminSidebar({ role, route, open, username, onNavigate, onLogout, onClose }: AdminSidebarProps) {
-  const visibleMain = NAVIGATION.filter((item) => can(role, item.permission))
-  const visibleSettings = SETTINGS.filter((item) => can(role, item.permission))
+  const visiblePublic = PUBLIC_GAME.filter((item) => can(role, item.permission))
+  const visibleOperations = OPERATIONS.filter((item) => can(role, item.permission))
+  const visibleWorkspace = WORKSPACE.filter((item) => can(role, item.permission))
 
   useEffect(() => {
     if (!open) return
@@ -101,12 +113,20 @@ export function AdminSidebar({ role, route, open, username, onNavigate, onLogout
         </div>
 
         <nav aria-label="Primary navigation" className="flex-1 overflow-y-auto">
-          <p className="eyebrow px-3 pb-2">Workspace</p>
-          <div className="space-y-1">{links(visibleMain)}</div>
-          {visibleSettings.length > 0 && (
+          <p className="eyebrow px-3 pb-2">Public Game</p>
+          <div className="space-y-1">{links(visiblePublic)}</div>
+
+          {visibleOperations.length > 0 && (
             <>
-              <p className="eyebrow mt-7 px-3 pb-2">Configuration</p>
-              <div className="space-y-1">{links(visibleSettings)}</div>
+              <p className="eyebrow mt-7 px-3 pb-2">Operations</p>
+              <div className="space-y-1">{links(visibleOperations)}</div>
+            </>
+          )}
+
+          {visibleWorkspace.length > 0 && (
+            <>
+              <p className="eyebrow mt-7 px-3 pb-2">Workspace</p>
+              <div className="space-y-1">{links(visibleWorkspace)}</div>
             </>
           )}
         </nav>
@@ -129,4 +149,4 @@ export function AdminSidebar({ role, route, open, username, onNavigate, onLogout
   )
 }
 
-export { NAVIGATION, SETTINGS }
+export { OPERATIONS, PUBLIC_GAME, WORKSPACE }
