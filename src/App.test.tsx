@@ -210,4 +210,18 @@ describe('admin access-code permission split', () => {
     expect(screen.queryByRole('button', { name: /game access/i })).toBeNull()
     expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
   })
+
+  it('hides Public Game settings from operators and shows them to admins', async () => {
+    goTo('/admin')
+    setAdminSession({ admin: { ...ADMIN, role: 'operator' } })
+    render(<App />)
+    await act(async () => { await Promise.resolve() })
+    expect(screen.queryByRole('button', { name: /login & appearance/i })).toBeNull()
+
+    cleanup()
+    setAdminSession({ admin: ADMIN })
+    render(<App />)
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByRole('button', { name: /login & appearance/i })).toBeInTheDocument()
+  })
 })

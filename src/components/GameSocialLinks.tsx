@@ -1,7 +1,13 @@
 import { ArrowUpRight, Send, Youtube } from 'lucide-react'
+import type { SocialLinks as SocialLinksValue } from '../types/supabase'
 
-const TELEGRAM_URL = 'https://t.me/fox_script_vip'
-const YOUTUBE_URL = 'https://youtube.com/@nano_scriptt?si=b-81mV0awzjsRmbv'
+/**
+ * Fallback channels used ONLY when the caller does not provide admin-managed
+ * links (e.g. standalone usage and the existing login tests). The public flow
+ * always passes the Supabase-controlled links instead.
+ */
+const DEFAULT_TELEGRAM_URL = 'https://t.me/fox_script_vip'
+const DEFAULT_YOUTUBE_URL = 'https://youtube.com/@nano_scriptt'
 
 interface SocialChannel {
   label: string
@@ -12,30 +18,37 @@ interface SocialChannel {
   accent: string
 }
 
-const CHANNELS: readonly SocialChannel[] = [
-  {
-    label: 'Telegram',
-    handle: '@fox_script_vip',
-    url: TELEGRAM_URL,
-    icon: Send,
-    accent: 'pg-social--ice',
-  },
-  {
-    label: 'YouTube',
-    handle: '@nano_scriptt',
-    url: YOUTUBE_URL,
-    icon: Youtube,
-    accent: 'pg-social--rose',
-  },
+function handleFromUrl(url: string, label: string): string {
+  try {
+    const path = new URL(url).pathname.split('/').filter(Boolean).pop() ?? ''
+    return path.startsWith('@') ? path : `@${label.toLowerCase()}`
+  } catch {
+    return `@${label.toLowerCase()}`
+  }
+}
+
+const DEFAULT_CHANNELS: readonly SocialChannel[] = [
+  { label: 'Telegram', handle: '@fox_script_vip', url: DEFAULT_TELEGRAM_URL, icon: Send, accent: 'pg-social--ice' },
+  { label: 'YouTube', handle: '@nano_scriptt', url: DEFAULT_YOUTUBE_URL, icon: Youtube, accent: 'pg-social--rose' },
 ]
 
 /**
  * Community channels on the public Game Login screen.
  *
- * Fixed public links (not admin-managed): they open safely in a new tab.
- * Side-by-side on desktop, stacked on narrow mobile screens.
+ * Consumes the admin-managed `social_links` when provided (a cleared link is
+ * hidden, matching the admin dashboard's preview); falls back to the fixed
+ * public defaults otherwise. Links always open safely in a new tab.
  */
-export function GameSocialLinks() {
+export function GameSocialLinks({ links }: { links?: SocialLinksValue }) {
+  const channels: readonly SocialChannel[] = links
+    ? ([
+        links.telegramUrl ? { label: 'Telegram', handle: handleFromUrl(links.telegramUrl, 'Telegram'), url: links.telegramUrl, icon: Send, accent: 'pg-social--ice' } : null,
+        links.youtubeUrl ? { label: 'YouTube', handle: handleFromUrl(links.youtubeUrl, 'YouTube'), url: links.youtubeUrl, icon: Youtube, accent: 'pg-social--rose' } : null,
+      ].filter((channel): channel is SocialChannel => channel !== null))
+    : DEFAULT_CHANNELS
+
+  if (channels.length === 0) return null
+
   return (
     <div className="pg-social">
       <div className="pg-social__head" aria-hidden="true">
@@ -44,7 +57,7 @@ export function GameSocialLinks() {
         <span className="pg-social__rule" />
       </div>
       <div className="pg-social__grid">
-        {CHANNELS.map(({ label, handle, url, icon: Icon, accent }) => (
+        {channels.map(({ label, handle, url, icon: Icon, accent }) => (
           <a
             key={label}
             href={url}

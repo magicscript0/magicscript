@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { GameLogin } from './GameLogin'
 import { GameAccessError } from '../services/gameAccess'
+import { DEFAULT_CONTROL_SETTINGS } from '../services/control'
+import type { ControlSettings } from '../types/supabase'
 
 afterEach(() => {
   cleanup()
@@ -125,7 +127,7 @@ describe('Apple of Fortune login screen', () => {
     expect(telegram).toHaveAttribute('target', '_blank')
     expect(telegram.getAttribute('rel') ?? '').toMatch(/noopener/)
     const youtube = screen.getByRole('link', { name: /youtube/i })
-    expect(youtube).toHaveAttribute('href', 'https://youtube.com/@nano_scriptt?si=b-81mV0awzjsRmbv')
+    expect(youtube).toHaveAttribute('href', 'https://youtube.com/@nano_scriptt')
     expect(youtube).toHaveAttribute('target', '_blank')
     expect(youtube.getAttribute('rel') ?? '').toMatch(/noopener/)
   })
@@ -141,5 +143,51 @@ describe('Apple of Fortune login screen', () => {
     })
     const stored = [...Object.values(sessionStorage), ...Object.values(localStorage)].join(' ')
     expect(stored).not.toContain('MS-SECRET-CODE-VALUE')
+  })
+
+  it('renders the admin-controlled title and supporting text', () => {
+    const settings: ControlSettings = {
+      ...DEFAULT_CONTROL_SETTINGS,
+      login: { ...DEFAULT_CONTROL_SETTINGS.login, title: 'Sky Fortune', caption: 'Tap to begin.' },
+    }
+    render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+    expect(screen.getByRole('heading', { name: 'Sky Fortune' })).toBeInTheDocument()
+    expect(screen.getByText('Tap to begin.')).toBeInTheDocument()
+  })
+
+  it('hides the status indicator when the admin disables it', () => {
+    const settings: ControlSettings = {
+      ...DEFAULT_CONTROL_SETTINGS,
+      login: { ...DEFAULT_CONTROL_SETTINGS.login, statusLabel: 'Open', showStatus: false },
+    }
+    render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+    expect(screen.queryByText('Open')).toBeNull()
+  })
+
+  it('shows the live-activity and local-time HUD chips', () => {
+    render(<GameLogin onLogin={vi.fn()} />)
+    expect(screen.getByTestId('public-hud')).toBeInTheDocument()
+    expect(screen.getByText('Live activity')).toBeInTheDocument()
+    expect(screen.getByLabelText(/local time/i)).toBeInTheDocument()
+  })
+
+  it('hides the live-activity chip when the admin disables it', () => {
+    const settings: ControlSettings = {
+      ...DEFAULT_CONTROL_SETTINGS,
+      display: { ...DEFAULT_CONTROL_SETTINGS.display, onlineCountEnabled: false },
+    }
+    render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+    expect(screen.queryByText('Live activity')).toBeNull()
+    expect(screen.getByLabelText(/local time/i)).toBeInTheDocument()
+  })
+
+  it('hides the local-time chip when the admin disables it', () => {
+    const settings: ControlSettings = {
+      ...DEFAULT_CONTROL_SETTINGS,
+      display: { ...DEFAULT_CONTROL_SETTINGS.display, localTimeEnabled: false },
+    }
+    render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+    expect(screen.getByText('Live activity')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/local time/i)).toBeNull()
   })
 })

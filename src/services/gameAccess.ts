@@ -52,7 +52,8 @@ export function gameAccessCodeStatus(
   now = Date.now(),
 ): GameAccessCodeStatus {
   if (code.revoked_at !== null) return 'revoked'
-  if (Date.parse(code.expires_at) <= now) return 'expired'
+  // A NULL redeem-by deadline means the code waits for activation (until revoked).
+  if (code.expires_at !== null && Date.parse(code.expires_at) <= now) return 'expired'
   return code.active ? 'active' : 'inactive'
 }
 
@@ -150,8 +151,9 @@ export interface RedemptionResult {
 
 /**
  * Redeems an Access Code for an Account ID. The server validates the code
- * (active, unrevoked, unexpired) and returns a fresh session token whose
- * expiry equals the code's expiry.
+ * (active, unrevoked, and within its optional redeem-by deadline) and returns
+ * a fresh session token whose expiry is computed AT ACTIVATION — the code's
+ * duration starts counting from this redemption, never from code creation.
  */
 export async function redeemGameAccess(accountId: string, plainCode: string): Promise<RedemptionResult> {
   const cleanAccountId = normalizeAccountId(accountId)
@@ -262,7 +264,9 @@ export async function createGameAccessCode(
     id: row.id,
     duration_minutes: row.duration_minutes,
     active: true,
-    expires_at: row.expires_at,
+    // Server-side the code now waits for activation: expires_at is the
+    // optional redeem-by deadline (null until the operator sets one).
+    expires_at: row.expires_at ?? null,
     created_at: row.created_at,
     created_by: adminId,
     revoked_at: null,

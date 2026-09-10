@@ -1,14 +1,14 @@
 import { isValidHttpUrl } from '../utils/urls'
-import { classifySupabaseRequestError, requireClient } from './supabase'
+import { classifySupabaseRequestError, getSupabaseClient, requireClient } from './supabase'
 import type {
   ControlSettings,
   DisplaySettings,
-  DisplaySettingsRow,
   GeneralSettings,
   Json,
+  LocalClockMode,
+  LoginSettings,
   SiteSettingRow,
   SocialLinks,
-  SocialLinksRow,
 } from '../types/supabase'
 
 export const DEFAULT_CONTROL_SETTINGS: ControlSettings = {
@@ -19,9 +19,15 @@ export const DEFAULT_CONTROL_SETTINGS: ControlSettings = {
     announcement: '',
     maintenanceMode: false,
   },
+  login: {
+    title: 'Apple of Fortune',
+    caption: 'Enter your details to open the game.',
+    statusLabel: 'Ready',
+    showStatus: true,
+  },
   social: {
     telegramUrl: 'https://t.me/fox_script_vip',
-    youtubeUrl: '',
+    youtubeUrl: 'https://youtube.com/@nano_scriptt',
   },
   display: {
     onlineCountEnabled: true,
@@ -31,8 +37,24 @@ export const DEFAULT_CONTROL_SETTINGS: ControlSettings = {
     onlineCountFixed: 220,
     onlineCountRefreshMs: 3000,
     brandAccent: 'emerald',
+    localTimeEnabled: true,
+    localTimeClock: '12h',
   },
 }
+
+/** Site-setting keys the public login consumes (presentation only). */
+const LOGIN_SETTING_KEYS = ['login_title', 'login_caption', 'login_status_label', 'login_status_enabled'] as const
+
+/** Site-setting keys for the workspace identity / notices. */
+const GENERAL_SETTING_KEYS = [
+  'site_name',
+  'site_description',
+  'browser_title',
+  'announcement',
+  'maintenance_mode',
+] as const
+
+const ALL_SITE_SETTING_KEYS = [...GENERAL_SETTING_KEYS, ...LOGIN_SETTING_KEYS] as const
 
 export interface ControlSettingsState {
   settings: ControlSettings
@@ -49,7 +71,14 @@ function asBoolean(value: Json | undefined, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
-function normalizeGeneral(rows: readonly SiteSettingRow[]): GeneralSettings {
+function isLocalClockMode(value: Json | undefined): value is LocalClockMode {
+  return value === '12h' || value === '24h'
+}
+
+/** The minimal site_settings shape both loaders provide (key + value). */
+export type SiteSettingEntry = { key: string; value: Json }
+
+export function normalizeGeneral(rows: readonly SiteSettingEntry[]): GeneralSettings {
   const byKey = new Map(rows.map((row) => [row.key, row.value]))
   return {
     siteName: asString(byKey.get('site_name'), DEFAULT_CONTROL_SETTINGS.general.siteName),
@@ -66,14 +95,43 @@ function normalizeGeneral(rows: readonly SiteSettingRow[]): GeneralSettings {
   }
 }
 
-function normalizeSocial(row: SocialLinksRow | null): SocialLinks {
+export function normalizeLogin(rows: readonly SiteSettingEntry[]): LoginSettings {
+  const byKey = new Map(rows.map((row) => [row.key, row.value]))
+  return {
+    title: asString(byKey.get('login_title'), DEFAULT_CONTROL_SETTINGS.login.title),
+    caption: asString(byKey.get('login_caption'), DEFAULT_CONTROL_SETTINGS.login.caption),
+    statusLabel: asString(byKey.get('login_status_label'), DEFAULT_CONTROL_SETTINGS.login.statusLabel),
+    showStatus: asBoolean(
+      byKey.get('login_status_enabled'),
+      DEFAULT_CONTROL_SETTINGS.login.showStatus,
+    ),
+  }
+}
+
+/** Minimal social_links shape both loaders provide. */
+export type SocialLinksEntry = { telegram_url: string | null; youtube_url: string | null }
+
+/** Minimal display_settings shape both loaders provide (no audit columns). */
+export type DisplaySettingsEntry = {
+  online_count_enabled: boolean
+  online_count_min: number
+  online_count_max: number
+  online_count_mode: DisplaySettings['onlineCountMode']
+  online_count_fixed: number | null
+  online_count_refresh_ms: number
+  brand_accent: string
+  local_time_enabled: boolean
+  local_time_clock: LocalClockMode
+}
+
+export function normalizeSocial(row: SocialLinksEntry | null): SocialLinks {
   return {
     telegramUrl: row?.telegram_url ?? '',
     youtubeUrl: row?.youtube_url ?? '',
   }
 }
 
-function normalizeDisplay(row: DisplaySettingsRow | null): DisplaySettings {
+export function normalizeDisplay(row: DisplaySettingsEntry | null): DisplaySettings {
   const defaults = DEFAULT_CONTROL_SETTINGS.display
   return {
     onlineCountEnabled: row?.online_count_enabled ?? defaults.onlineCountEnabled,
@@ -83,6 +141,23 @@ function normalizeDisplay(row: DisplaySettingsRow | null): DisplaySettings {
     onlineCountFixed: row?.online_count_fixed ?? defaults.onlineCountFixed,
     onlineCountRefreshMs: row?.online_count_refresh_ms ?? defaults.onlineCountRefreshMs,
     brandAccent: row?.brand_accent ?? defaults.brandAccent,
+    localTimeEnabled: row?.local_time_enabled ?? defaults.localTimeEnabled,
+    localTimeClock:
+      row && isLocalClockMode(row.local_time_clock) ? row.local_time_clock : defaults.localTimeClock,
+  }
+}
+
+/** Assembles a full settings object from already-fetched rows (shared by both loaders). */
+function assembleControlSettings(
+  generalRows: readonly SiteSettingEntry[],
+  socialRow: SocialLinksEntry | null,
+  displayRow: DisplaySettingsEntry | null,
+): ControlSettings {
+  return {
+    general: normalizeGeneral(generalRows),
+    login: normalizeLogin(generalRows),
+    social: normalizeSocial(socialRow),
+    display: normalizeDisplay(displayRow),
   }
 }
 
@@ -94,7 +169,7 @@ export async function loadControlSettings(): Promise<ControlSettings> {
     client
       .from('site_settings')
       .select('key, value, type, is_public, updated_at, updated_by')
-      .in('key', ['site_name', 'site_description', 'browser_title', 'announcement', 'maintenance_mode']),
+      .in('key', [...ALL_SITE_SETTING_KEYS]),
     client
       .from('social_links')
       .select('id, telegram_url, youtube_url, updated_at, updated_by')
@@ -103,7 +178,7 @@ export async function loadControlSettings(): Promise<ControlSettings> {
     client
       .from('display_settings')
       .select(
-        'id, online_count_enabled, online_count_min, online_count_max, online_count_mode, online_count_fixed, online_count_refresh_ms, brand_accent, updated_at, updated_by',
+        'id, online_count_enabled, online_count_min, online_count_max, online_count_mode, online_count_fixed, online_count_refresh_ms, brand_accent, local_time_enabled, local_time_clock, updated_at, updated_by',
       )
       .eq('id', 'primary')
       .maybeSingle(),
@@ -113,10 +188,36 @@ export async function loadControlSettings(): Promise<ControlSettings> {
   if (socialResult.error) throw classifySupabaseRequestError(socialResult.error, 'Social links could not be loaded. Check the social_links table and its RLS policy.')
   if (displayResult.error) throw classifySupabaseRequestError(displayResult.error, 'Display settings could not be loaded. Check the display_settings table and its RLS policy.')
 
-  return {
-    general: normalizeGeneral(generalResult.data ?? []),
-    social: normalizeSocial(socialResult.data),
-    display: normalizeDisplay(displayResult.data),
+  return assembleControlSettings(generalResult.data ?? [], socialResult.data, displayResult.data)
+}
+
+/**
+ * Public (anonymous) read of the same settings the public login consumes.
+ * Selects only the columns granted to `anon` and never throws: when Supabase
+ * is unconfigured or unreachable the login falls back to safe defaults so the
+ * public flow keeps working offline.
+ */
+export async function loadPublicGameSettings(): Promise<ControlSettings> {
+  const client = getSupabaseClient()
+  if (!client) return DEFAULT_CONTROL_SETTINGS
+
+  try {
+    const [generalResult, socialResult, displayResult] = await Promise.all([
+      client.from('site_settings').select('key, value').in('key', [...ALL_SITE_SETTING_KEYS]),
+      client.from('social_links').select('id, telegram_url, youtube_url').eq('id', 'primary').maybeSingle(),
+      client
+        .from('display_settings')
+        .select(
+          'id, online_count_enabled, online_count_min, online_count_max, online_count_mode, online_count_fixed, online_count_refresh_ms, brand_accent, local_time_enabled, local_time_clock',
+        )
+        .eq('id', 'primary')
+        .maybeSingle(),
+    ])
+
+    if (generalResult.error || socialResult.error || displayResult.error) return DEFAULT_CONTROL_SETTINGS
+    return assembleControlSettings(generalResult.data ?? [], socialResult.data, displayResult.data)
+  } catch {
+    return DEFAULT_CONTROL_SETTINGS
   }
 }
 
@@ -151,6 +252,25 @@ export async function saveGeneralSettings(settings: GeneralSettings, adminId: st
   if (error) throw classifySupabaseRequestError(error, 'General settings could not be saved. Check the site_settings table and its RLS policy.')
 }
 
+export async function saveLoginSettings(settings: LoginSettings, adminId: string): Promise<void> {
+  const title = settings.title.trim()
+  const caption = settings.caption.trim()
+  const statusLabel = settings.statusLabel.trim()
+  if (title.length === 0 || title.length > 80) throw new Error('The public title must be between 1 and 80 characters.')
+  if (caption.length > 180) throw new Error('The supporting text must be 180 characters or fewer.')
+  if (statusLabel.length > 60) throw new Error('The status label must be 60 characters or fewer.')
+
+  const client = requireClient()
+  const rows = [
+    { key: 'login_title', value: title, type: 'string' as const, is_public: true, updated_by: adminId },
+    { key: 'login_caption', value: caption, type: 'string' as const, is_public: true, updated_by: adminId },
+    { key: 'login_status_label', value: statusLabel, type: 'string' as const, is_public: true, updated_by: adminId },
+    { key: 'login_status_enabled', value: settings.showStatus, type: 'boolean' as const, is_public: true, updated_by: adminId },
+  ]
+  const { error } = await client.from('site_settings').upsert(rows, { onConflict: 'key' })
+  if (error) throw classifySupabaseRequestError(error, 'Login settings could not be saved. Check the site_settings table and its RLS policy.')
+}
+
 export async function saveSocialLinks(social: SocialLinks, adminId: string): Promise<void> {
   const telegramUrl = normalizeUrlInput(social.telegramUrl)
   const youtubeUrl = normalizeUrlInput(social.youtubeUrl)
@@ -179,7 +299,8 @@ export async function saveDisplaySettings(display: DisplaySettings, adminId: str
     display.onlineCountMax < display.onlineCountMin ||
     display.onlineCountRefreshMs < 1000 ||
     (display.onlineCountMode === 'fixed' &&
-      (!Number.isInteger(display.onlineCountFixed) || (display.onlineCountFixed ?? -1) < 0))
+      (!Number.isInteger(display.onlineCountFixed) || (display.onlineCountFixed ?? -1) < 0)) ||
+    (display.localTimeClock !== '12h' && display.localTimeClock !== '24h')
   ) {
     throw new Error('Check the online display values before saving.')
   }
@@ -195,6 +316,8 @@ export async function saveDisplaySettings(display: DisplaySettings, adminId: str
       online_count_fixed: display.onlineCountFixed,
       online_count_refresh_ms: display.onlineCountRefreshMs,
       brand_accent: display.brandAccent,
+      local_time_enabled: display.localTimeEnabled,
+      local_time_clock: display.localTimeClock,
       updated_by: adminId,
     },
     { onConflict: 'id' },

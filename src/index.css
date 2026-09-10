@@ -442,7 +442,8 @@
 .pg-flow,
 .pg-intro,
 .pg-login,
-.pg-game {
+.pg-game,
+.pg-preview {
   /* palette */
   --pg-accent: 70 227 161;
   --pg-ice: 99 216 232;
@@ -1425,6 +1426,78 @@
 .pg-pip.is-on {
   background: rgb(var(--pg-accent) / .92);
   box-shadow: 0 0 8px rgb(var(--pg-accent) / .55);
+}
+
+/* --------------------------- public HUD chips ---------------------------- */
+
+/*
+ * The upper strip holding the "live activity" estimate and the visitor-local
+ * clock. Anchored to the top-right of the login viewport with safe-area
+ * insets, so it never collides with the notch / Dynamic Island and never
+ * covers the login form. It is display-only (no interactions), so the small
+ * chip height does not violate touch-target guidance.
+ */
+.pg-hud {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--pg-s-2);
+}
+
+.pg-hud--login {
+  position: absolute;
+  top: max(14px, calc(env(safe-area-inset-top) + 10px));
+  right: max(16px, env(safe-area-inset-right));
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 20;
+  flex-wrap: wrap;
+}
+
+.pg-pill--activity {
+  border-color: rgb(var(--pg-accent) / .24);
+  background: rgb(var(--pg-accent) / .06);
+}
+
+.pg-pill--activity .pg-pill__icon {
+  color: rgb(var(--pg-accent) / .9);
+}
+
+.pg-pill--activity .pg-pill__key {
+  color: rgb(var(--pg-accent) / .78);
+}
+
+.pg-pill--clock {
+  border-color: rgb(var(--pg-ice) / .2);
+  background: rgb(var(--pg-ice) / .05);
+}
+
+.pg-pill--clock .pg-pill__icon {
+  color: rgb(var(--pg-ice) / .9);
+}
+
+.pg-pill--clock .pg-pill__value {
+  letter-spacing: .02em;
+}
+
+@media (max-width: 379px) {
+  .pg-hud .pg-pill__key { display: none; }
+  .pg-hud .pg-pill { padding: 0 var(--pg-s-1); }
+  .pg-hud .pg-pill__value { max-width: 130px; }
+}
+
+/* Admin-side preview surface (reuses the public design tokens only). */
+.pg-preview {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 60% at 50% -8%, rgb(var(--pg-accent) / .1), transparent 62%),
+    #04070a;
+  border: 1px solid rgba(255, 255, 255, .06);
+}
+
+.pg-preview > .pg-hud {
+  justify-content: flex-start;
+  margin-bottom: var(--pg-s-5);
 }
 
 /* ----------------------------- login surface ---------------------------- */

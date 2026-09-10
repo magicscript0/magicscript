@@ -6,6 +6,7 @@ import { LoadingScreen } from './components/LoadingScreen'
 import { useAdminSession } from './hooks/useAdminSession'
 import { useGameAccess } from './hooks/useGameAccess'
 import { usePageRoute } from './hooks/usePageRoute'
+import { usePublicGameSettings } from './hooks/usePublicGameSettings'
 import { isAppPath, usePathRoute } from './hooks/usePathRoute'
 import { AdminLayout, useSharedControlSettings } from './layouts/AdminLayout'
 import { ActivityLogsPage } from './pages/ActivityLogsPage'
@@ -20,6 +21,7 @@ import { GeneralSettingsPage } from './pages/GeneralSettingsPage'
 import { Login } from './pages/Login'
 import { NotAuthorizedPage } from './pages/NotAuthorizedPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { PublicGamePage } from './pages/PublicGamePage'
 import { RoundHistoryPage } from './pages/RoundHistoryPage'
 import { SocialLinksPage } from './pages/SocialLinksPage'
 import { can } from './utils/permissions'
@@ -28,6 +30,7 @@ import type { Permission } from './utils/permissions'
 
 const ROUTE_PERMISSIONS: Record<PageRoute, Permission> = {
   dashboard: 'dashboard.view',
+  public: 'display.manage',
   game: 'game.use',
   history: 'history.view',
   codes: 'codes.manage',
@@ -41,7 +44,7 @@ const ROUTE_PERMISSIONS: Record<PageRoute, Permission> = {
 
 /** Workspace sections reachable through the legacy `/#/section` bookmarks. */
 const ADMIN_HASH_ROUTES: readonly PageRoute[] = [
-  'dashboard', 'game', 'history', 'codes', 'access', 'logs', 'social', 'display', 'general', 'profile',
+  'dashboard', 'public', 'game', 'history', 'codes', 'access', 'logs', 'social', 'display', 'general', 'profile',
 ]
 
 function Workspace({ admin, route, navigate, onLogout, sessionError }: { admin: NonNullable<ReturnType<typeof useAdminSession>['admin']>; route: PageRoute; navigate: (route: PageRoute) => void; onLogout: () => void; sessionError: string | null }) {
@@ -56,6 +59,7 @@ function WorkspacePage({ admin, route, onLogout }: { admin: NonNullable<ReturnTy
 
   if (!can(admin.role, ROUTE_PERMISSIONS[route])) return <NotAuthorizedPage role={admin.role} />
   if (route === 'dashboard') return <DashboardPage adminId={admin.id} adminRole={admin.role} />
+  if (route === 'public') return <PublicGamePage admin={admin} />
   if (route === 'game') return <Console operatorId={admin.username || admin.email} adminId={admin.id} displaySettings={settings.display} onLogout={onLogout} embedded />
   if (route === 'history') return <RoundHistoryPage />
   if (route === 'codes') return <AdminCodesPage admin={admin} />
@@ -109,6 +113,7 @@ type GameBootPhase = 'playing' | 'dissolving' | 'done'
 
 function GameArea({ path }: { path: '/' | '/play' }) {
   const access = useGameAccess()
+  const settings = usePublicGameSettings()
   const { replace, navigate } = usePathRoute()
   const authorized = access.status === 'active'
   /**
@@ -157,7 +162,7 @@ function GameArea({ path }: { path: '/' | '/play' }) {
       )
     }
     if (authorized && access.accountId !== null) {
-      return <Fortune accountId={access.accountId} remainingMs={access.remainingMs} onExit={access.exit} />
+      return <Fortune accountId={access.accountId} remainingMs={access.remainingMs} onExit={access.exit} displaySettings={settings.display} />
     }
     // Brief fall-through while the URL redirect above settles.
   }
@@ -166,7 +171,7 @@ function GameArea({ path }: { path: '/' | '/play' }) {
       <CyberBackdrop />
       {boot !== 'done' ? <GameIntro onReveal={() => setBoot('dissolving')} onFinish={() => setBoot('done')} /> : null}
       <div className={`pg-veil${boot === 'playing' ? '' : ' pg-veil--open'}`}>
-        <GameLogin onLogin={handleLogin} endReason={access.reason} ambient={false} />
+        <GameLogin onLogin={handleLogin} endReason={access.reason} ambient={false} settings={settings} />
       </div>
     </div>
   )

@@ -12,11 +12,13 @@ import { publishDemoRound } from '../services/m11'
 import { CyberBackdrop } from '../components/CyberBackdrop'
 import { GameBrandLockup } from '../components/GameBrand'
 import { FortuneBoard } from '../components/FortuneBoard'
+import { LocalTimeChip, OnlineActivityChip } from '../components/PublicGameHud'
 import { generateDemoRound } from '../utils/generator'
 import { liveValuesToRows } from '../utils/m11Snapshot'
 import { validateM11Node } from '../utils/validation'
 import { prefersReducedMotion } from '../utils/random'
 import type { ConsoleRound, RoundPhase } from '../types/game'
+import type { DisplaySettings } from '../types/supabase'
 
 export interface FortuneProps {
   accountId: string
@@ -24,6 +26,8 @@ export interface FortuneProps {
   remainingMs: number
   /** Voluntary exit back to the Game Login screen. */
   onExit: () => void
+  /** Admin-controlled display settings for the header HUD chips. */
+  displaySettings?: DisplaySettings
 }
 
 function formatRemaining(ms: number): string {
@@ -52,7 +56,7 @@ const LADDER_RANGE = `${formatMultiplier(ROWS[0].multiplier)} → ${formatMultip
  * classes): the reveal timing, the countdown, the /m11 read path and the
  * "1"/"0" → SAFE/BROKEN mapping are exactly the ones that were already there.
  */
-export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
+export function Fortune({ accountId, remainingMs, onExit, displaySettings }: FortuneProps) {
   const [phase, setPhase] = useState<RoundPhase>('idle')
   const [round, setRound] = useState<ConsoleRound | null>(null)
   const [revealedRows, setRevealedRows] = useState(0)
@@ -164,6 +168,12 @@ export function Fortune({ accountId, remainingMs, onExit }: FortuneProps) {
       <header className="pg-bar">
         <GameBrandLockup variant="compact" />
         <div className="pg-bar__side">
+          {displaySettings && (
+            <div className="hidden items-center gap-2 lg:flex" data-testid="game-hud">
+              <OnlineActivityChip display={displaySettings} />
+              <LocalTimeChip display={displaySettings} />
+            </div>
+          )}
           <span className={`pg-pill pg-pill--state${liveReady ? ' is-live' : ''}`} title="Current game">
             <span className="pg-pill__dot" aria-hidden="true" />
             <span className="pg-pill__text">{tableState}</span>
