@@ -3,8 +3,11 @@ import { AlertCircle, ArrowRight, Clock3, Hash, KeyRound, LogOut, ShieldBan } fr
 import { CyberBackdrop } from '../components/CyberBackdrop'
 import { GameBrandLockup } from '../components/GameBrand'
 import { GameSocialLinks } from '../components/GameSocialLinks'
+import { PublicGameHud } from '../components/PublicGameHud'
+import { DEFAULT_CONTROL_SETTINGS } from '../services/control'
 import { describeAccessCodeIssue, describeAccountIdIssue, GameAccessError, normalizeAccountId } from '../services/gameAccess'
 import type { GameAccessEndReason } from '../hooks/useGameAccess'
+import type { ControlSettings } from '../types/supabase'
 
 export interface GameLoginProps {
   onLogin: (accountId: string, accessCode: string) => Promise<void>
@@ -16,6 +19,8 @@ export interface GameLoginProps {
    * mid-transition) and passes `false` here; standalone usage keeps it.
    */
   ambient?: boolean
+  /** Admin-controlled public presentation settings (title, caption, links, HUD). */
+  settings?: ControlSettings
 }
 
 function endReasonNotice(reason: GameAccessEndReason): { icon: typeof Clock3; message: string } | null {
@@ -30,10 +35,12 @@ function endReasonNotice(reason: GameAccessEndReason): { icon: typeof Clock3; me
  *
  * Behaviour is exactly the existing one: the same client-side format checks,
  * the same `onLogin` hand-off to the access hook, the same disabled/busy
- * states and the same end-of-session notices. Only the visuals were rebuilt
- * for the premium flow (glass command panel, refined fields, ambient stage).
+ * states and the same end-of-session notices. The visuals consume the
+ * admin-controlled public settings (title, caption, status label, social
+ * links, live-activity estimate and local time) with safe defaults when none
+ * are supplied.
  */
-export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLoginProps) {
+export function GameLogin({ onLogin, endReason = null, ambient = true, settings = DEFAULT_CONTROL_SETTINGS }: GameLoginProps) {
   const [accountId, setAccountId] = useState('')
   const [accessCode, setAccessCode] = useState('')
   const [checking, setChecking] = useState(false)
@@ -85,8 +92,10 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
     <main className={`pg-login relative flex items-center justify-center overflow-x-hidden${ambient ? ' pg-login--solo' : ''}`}>
       {ambient ? <CyberBackdrop /> : null}
 
+      <PublicGameHud display={settings.display} className="pg-hud--login" />
+
       <div className="pg-login__stack relative z-10 w-full max-w-[452px]">
-        <GameBrandLockup caption="Enter your details to open the game." />
+        <GameBrandLockup title={settings.login.title} caption={settings.login.caption || undefined} />
 
         <div className="pg-panel">
           <span className="pg-panel__corner pg-panel__corner--tl" aria-hidden="true" />
@@ -98,10 +107,12 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
             <div className="pg-panel__head">
               <p className="pg-eyebrow">Session access</p>
               <span className="pg-panel__rule" aria-hidden="true" />
-              <span className="pg-panel__state">
-                <span className="pg-dot" aria-hidden="true" />
-                Ready
-              </span>
+              {settings.login.showStatus && (
+                <span className="pg-panel__state">
+                  <span className="pg-dot" aria-hidden="true" />
+                  {settings.login.statusLabel || 'Ready'}
+                </span>
+              )}
             </div>
 
             <form onSubmit={handleSubmit} noValidate>
@@ -185,7 +196,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true }: GameLog
               )}
             </form>
 
-            <GameSocialLinks />
+            <GameSocialLinks links={settings.social} />
           </div>
         </div>
       </div>

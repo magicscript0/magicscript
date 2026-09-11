@@ -46,14 +46,41 @@ export function describeAccessCodeIssue(value: string): string | null {
 
 export type GameAccessCodeStatus = 'active' | 'expired' | 'revoked' | 'inactive'
 
-/** Pure status derivation for the admin dashboard inventory. */
+/**
+ * When the session activated by this code ends (epoch ms), derived from the
+ * SERVER-recorded activation time plus the configured duration. The database
+ * (`game_access_sessions.expires_at`) remains the enforcement authority; this
+ * is presentation arithmetic for the admin inventory. Returns null while the
+ * code has never been redeemed (the session timer has not started).
+ */
+export function gameAccessSessionEndsAt(
+  code: Pick<GameAccessCodeSummary, 'redeemed_at' | 'duration_minutes'>,
+): number | null {
+  if (code.redeemed_at === null) return null
+  const activatedAt = Date.parse(code.redeemed_at)
+  if (!Number.isFinite(activatedAt)) return null
+  return activatedAt + code.duration_minutes * 60_000
+}
+
+/**
+ * Pure status derivation for the admin dashboard inventory, following the
+ * access lifecycle: a created code is `inactive` (waiting, timer NOT
+ * started) until a player redeems it; redemption starts the countdown on the
+ * server clock (`redeemed_at + duration_minutes`); `active` means a session
+ * is currently running; `expired` covers a used-up session and an
+ * unredeemed code whose redeem-by deadline passed; `revoked` is terminal.
+ */
 export function gameAccessCodeStatus(
-  code: Pick<GameAccessCodeSummary, 'active' | 'expires_at' | 'revoked_at'>,
+  code: Pick<GameAccessCodeSummary, 'active' | 'expires_at' | 'revoked_at' | 'redeemed_at' | 'duration_minutes'>,
   now = Date.now(),
 ): GameAccessCodeStatus {
   if (code.revoked_at !== null) return 'revoked'
-  if (Date.parse(code.expires_at) <= now) return 'expired'
-  return code.active ? 'active' : 'inactive'
+  if (!code.active) return 'inactive'
+  const sessionEndsAt = gameAccessSessionEndsAt(code)
+  if (sessionEndsAt !== null) return sessionEndsAt <= now ? 'expired' : 'active'
+  // A NULL redeem-by deadline means the code waits for activation (until revoked).
+  if (code.expires_at !== null && Date.parse(code.expires_at) <= now) return 'expired'
+  return 'inactive'
 }
 
 export function formatDurationMinutes(minutes: number): string {
@@ -150,8 +177,9 @@ export interface RedemptionResult {
 
 /**
  * Redeems an Access Code for an Account ID. The server validates the code
- * (active, unrevoked, unexpired) and returns a fresh session token whose
- * expiry equals the code's expiry.
+ * (active, unrevoked, and within its optional redeem-by deadline) and returns
+ * a fresh session token whose expiry is computed AT ACTIVATION — the code's
+ * duration starts counting from this redemption, never from code creation.
  */
 export async function redeemGameAccess(accountId: string, plainCode: string): Promise<RedemptionResult> {
   const cleanAccountId = normalizeAccountId(accountId)
@@ -262,7 +290,9 @@ export async function createGameAccessCode(
     id: row.id,
     duration_minutes: row.duration_minutes,
     active: true,
-    expires_at: row.expires_at,
+    // Server-side the code now waits for activation: expires_at is the
+    // optional redeem-by deadline (null until the operator sets one).
+    expires_at: row.expires_at ?? null,
     created_at: row.created_at,
     created_by: adminId,
     revoked_at: null,

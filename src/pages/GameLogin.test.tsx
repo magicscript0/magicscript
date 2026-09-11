@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { GameLogin } from './GameLogin'
 import { GameAccessError } from '../services/gameAccess'
+import { formatLocalDateTime } from '../utils/localClock'
+import { DEFAULT_CONTROL_SETTINGS } from '../services/control'
+import type { ControlSettings } from '../types/supabase'
 
 afterEach(() => {
   cleanup()
@@ -125,7 +128,7 @@ describe('Apple of Fortune login screen', () => {
     expect(telegram).toHaveAttribute('target', '_blank')
     expect(telegram.getAttribute('rel') ?? '').toMatch(/noopener/)
     const youtube = screen.getByRole('link', { name: /youtube/i })
-    expect(youtube).toHaveAttribute('href', 'https://youtube.com/@nano_scriptt?si=b-81mV0awzjsRmbv')
+    expect(youtube).toHaveAttribute('href', 'https://youtube.com/@nano_scriptt')
     expect(youtube).toHaveAttribute('target', '_blank')
     expect(youtube.getAttribute('rel') ?? '').toMatch(/noopener/)
   })
@@ -141,5 +144,128 @@ describe('Apple of Fortune login screen', () => {
     })
     const stored = [...Object.values(sessionStorage), ...Object.values(localStorage)].join(' ')
     expect(stored).not.toContain('MS-SECRET-CODE-VALUE')
+  })
+
+  it('renders the admin-controlled title and supporting text', () => {
+    const settings: ControlSettings = {
+      ...DEFAULT_CONTROL_SETTINGS,
+      login: { ...DEFAULT_CONTROL_SETTINGS.login, title: 'Sky Fortune', caption: 'Tap to begin.' },
+    }
+    render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+    expect(screen.getByRole('heading', { name: 'Sky Fortune' })).toBeInTheDocument()
+    expect(screen.getByText('Tap to begin.')).toBeInTheDocument()
+  })
+
+  it('hides the status indicator when the admin disables it', () => {
+    const settings: ControlSettings = {
+      ...DEFAULT_CONTROL_SETTINGS,
+      login: { ...DEFAULT_CONTROL_SETTINGS.login, statusLabel: 'Open', showStatus: false },
+    }
+    render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+    expect(screen.queryByText('Open')).toBeNull()
+  })
+
+  it('shows the live-activity and local-time HUD chips', () => {
+    render(<GameLogin onLogin={vi.fn()} />)
+    expect(screen.getByTestId('public-hud')).toBeInTheDocument()
+    expect(screen.getByText('Live activity')).toBeInTheDocument()
+    expect(screen.getByLabelText(/local time/i)).toBeInTheDocument()
+  })
+
+  it('hides the live-activity chip when the admin disables it', () => {
+    const settings: ControlSettings = {
+      ...DEFAULT_CONTROL_SETTINGS,
+      display: { ...DEFAULT_CONTROL_SETTINGS.display, onlineCountEnabled: false },
+    }
+    render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+    expect(screen.queryByText('Live activity')).toBeNull()
+    expect(screen.getByLabelText(/local time/i)).toBeInTheDocument()
+  })
+
+  it('hides the local-time chip when the admin disables it', () => {
+    const settings: ControlSettings = {
+      ...DEFAULT_CONTROL_SETTINGS,
+      display: { ...DEFAULT_CONTROL_SETTINGS.display, localTimeEnabled: false },
+    }
+    render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+    expect(screen.getByText('Live activity')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/local time/i)).toBeNull()
+  })
+})
+
+describe('Apple of Fortune login HUD placement and clock', () => {
+  const FIXED = new Date('2026-09-10T20:46:00')
+
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  function renderLoginAtFixedTime(overrides?: Partial<ControlSettings['display']>) {
+    vi.useFakeTimers()
+    vi.setSystemTime(FIXED)
+    const settings: ControlSettings | undefined = overrides
+      ? { ...DEFAULT_CONTROL_SETTINGS, display: { ...DEFAULT_CONTROL_SETTINGS.display, ...overrides } }
+      : undefined
+    return render(<GameLogin onLogin={vi.fn()} settings={settings} />)
+  }
+
+  it('pins live activity to the top-left slot and local time to the top-right slot', () => {
+    renderLoginAtFixedTime()
+    const hud = screen.getByTestId('public-hud')
+    const chips = hud.querySelectorAll('.pg-pill')
+    expect(chips.length).toBe(2)
+    // DOM order encodes the corners: activity first (left), clock last (right).
+    expect(chips[0].className).toContain('pg-pill--activity')
+    expect(chips[1].className).toContain('pg-pill--clock')
+    // The two-sided split comes from the login HUD modifier.
+    expect(hud.className).toContain('pg-hud--login')
+  })
+
+  it('keeps the login surface free of horizontal overflow', () => {
+    const { container } = renderLoginAtFixedTime()
+    expect(container.querySelector('main')?.className).toContain('overflow-x-hidden')
+  })
+
+  it('shows the complete local date + time with minute precision (12-hour)', () => {
+    renderLoginAtFixedTime({ localTimeClock: '12h' })
+    const chip = screen.getByLabelText(/local time/i)
+    // Exactly the full formatted value — nothing truncated or ellipsized.
+    expect(chip.textContent).toBe(formatLocalDateTime(FIXED, '12h'))
+    expect(chip.textContent).toMatch(/^\d{2} [A-Za-z]{3} \d{4} · \d{2}:\d{2} (AM|PM)$/)
+    expect(chip.textContent).not.toContain('…')
+  })
+
+  it('shows the complete local date + time in 24-hour format when configured', () => {
+    renderLoginAtFixedTime({ localTimeClock: '24h' })
+    const chip = screen.getByLabelText(/local time/i)
+    expect(chip.textContent).toBe(formatLocalDateTime(FIXED, '24h'))
+    expect(chip.textContent).toMatch(/^\d{2} [A-Za-z]{3} \d{4} · \d{2}:\d{2}$/)
+    expect(chip.textContent).toContain('20:46')
+    expect(chip.textContent).not.toMatch(/AM|PM/)
+  })
+
+  it('reports an unknown verification failure with the safe retry message', async () => {
+    const onLogin = vi.fn().mockRejectedValue(
+      new GameAccessError('unknown', 'Access could not be verified right now. Try again shortly.'),
+    )
+    render(<GameLogin onLogin={onLogin} />)
+    fillField('Account ID', '123456789')
+    fillField('Access Code', 'MS-ABCDE-FGHIJ-KLMNP-QRSTU')
+    submit()
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Access could not be verified right now. Try again shortly.')
+    })
+  })
+
+  it('uses the same safe retry message for unexpected non-access failures', async () => {
+    const onLogin = vi.fn().mockRejectedValue(new TypeError('Unexpected token < in JSON'))
+    render(<GameLogin onLogin={onLogin} />)
+    fillField('Account ID', '123456789')
+    fillField('Access Code', 'MS-ABCDE-FGHIJ-KLMNP-QRSTU')
+    submit()
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Access could not be verified right now. Try again shortly.')
+    })
   })
 })

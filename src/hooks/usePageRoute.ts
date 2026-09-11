@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 export type PageRoute =
   | 'dashboard'
+  | 'public'
   | 'game'
   | 'history'
   | 'codes'
@@ -14,6 +15,7 @@ export type PageRoute =
 
 const VALID_ROUTES: readonly PageRoute[] = [
   'dashboard',
+  'public',
   'game',
   'history',
   'codes',
