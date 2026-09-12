@@ -110,6 +110,8 @@ It uses `SUPABASE_SERVICE_ROLE_KEY` only in the Edge Function runtime. That key 
 - `round_history` — non-sensitive operational round records; never a money or wager ledger.
 - `game_access_codes` — hashed, time-bound Apple of Fortune access codes (duration, server-computed expiry, revocation, last Account ID).
 - `game_access_sessions` — hashed opaque session tokens bound to a code expiry; the only end-user authorization state.
+- `visitor_sessions` — pseudonymous visitor/activity records (device class, approximate country, referrer host, page, counters); never secrets or raw IPs.
+- `security_events` — authentication/security audit events with result, reason, and server-assigned severity.
 
 All tables have timestamps, relevant constraints, and indexes. A shared trigger keeps `updated_at` consistent.
 
@@ -124,6 +126,7 @@ Row Level Security is enabled on every table.
 - `operator` can use the Game Console and review operational history/profile only.
 - Codes cannot be created with `super_admin` role by a normal admin; the policy requires a super administrator for that escalation.
 - Activity logs and round history are append-only from the browser. An actor may append only their own ID; no browser user can edit or delete logs.
+- Monitoring audit tables (`visitor_sessions`, `security_events`) have no browser insert/update/delete policies at all — writes flow only through the `SECURITY DEFINER` RPCs; reads require an active `super_admin`/`admin` profile.
 - No policy grants anonymous insert, update, delete, permission changes, code creation, or admin management.
 
 Frontend permission checks improve the interface, but every sensitive operation is also enforced by RLS.
@@ -159,6 +162,27 @@ The online counter is explicitly a display value, not presence analytics. Admini
 
 The UI does not claim that this value represents verified traffic.
 
+## Visitor & Security Monitoring Center
+
+`supabase/migrations/20260912000000_visitor_security_monitoring.sql` adds a dedicated audit layer: `visitor_sessions` (pseudonymous sessions, device class, approximate country, referrer host, page, activity timestamps, counters) and `security_events` (authentication/security events with result, reason, and server-assigned severity), plus the `track_visitor_activity` / `visitor_heartbeat` / `prune_security_monitoring` RPCs and supporting indexes.
+
+The Admin Dashboard gains a **Monitoring** sidebar group with three pages:
+
+- **Visitors** — activity summary cards, live filtered session table, and a chronological per-visitor timeline;
+- **Auth** — the authentication audit log (login success/failure, logout, unknown account, expired and revoked access attempts) with type/result/country/device/time filters;
+- **Security alerts** — visitors grouped by server-assigned severity, targeted-account rollups, and the exact detection thresholds.
+
+Design rules that are enforced, not just documented:
+
+- **Instrumented, never parallel.** Events come from the existing flows (`useAdminSession`, `useGameAccess`, the Console login page, `App` route changes, `VisitorTracker`); there is no second auth or tracking system, and the Firebase `/m11` contract is untouched.
+- **Privacy by schema.** No passwords, access codes, tokens, cookies, secrets, or raw IP columns exist — the integration tests assert the schema itself. Failed logins store only the *reason*. The approximate country is resolved locally from the browser timezone (`src/utils/approximateLocation.ts`), so tracking performs no extra network requests.
+- **Server-side authority.** Browsers cannot insert or update audit rows directly; the only write path is the `SECURITY DEFINER` RPC, which derives the result from the event type, enforces whitelists for reasons and paths, caps lengths, accepts `p_user_id` only when it equals `auth.uid()`, and assigns every severity itself. Reads require `has_admin_role('admin')` (operators excluded) via RLS; operators are also denied in the UI and navigation.
+- **Fail-safe.** Every recorder swallows its own errors and is fired off the login critical path — a monitoring failure can never break a login. The unconfigured-Supabase build records nothing.
+- **Cheap.** Session start once per load, page views on major route changes only (client- plus server-side deduplication), heartbeats at most every two minutes while visible (server enforces 20s), auth outcomes only on actual login/logout events. Updates arrive through Supabase Realtime with a debounced silent reload — no aggressive polling.
+- **Retention.** `prune_security_monitoring(days_to_keep)` (7–365, admin-only) deletes expired events and idle sessions; the Security alerts page exposes it behind a confirm dialog.
+
+A single failed attempt is never presented as an attack: severity starts at `warning` only after repeated failures (for example 4+ for one visitor, 5+ for one account) and the alert page states the thresholds explicitly. No automated blocking or banning is performed — the system flags suspicious behavior for admin review only.
+
 ## Firebase safety contract
 
 The existing service layer in `src/services/m11.ts` remains the only Firebase write path.
@@ -189,10 +213,14 @@ src/
   config/        Firebase and Supabase environment contracts
   types/         game and typed control-plane models
   services/      existing Firebase/m11 services + Supabase control services
-  hooks/         Auth, route, settings, online display, and Firebase observers
+                 + visitor tracking / security monitoring services
+  hooks/         Auth, route, settings, online display, Firebase observers,
+                 monitoring feed
   layouts/       authenticated shell and game-console shell
-  components/    cyber UI primitives, navigation, grid, status, toast, dialogs
-  pages/         Login, Dashboard, Game Console, History, Codes, Logs, Settings, Profile
+  components/    cyber UI primitives, navigation, grid, status, toast, dialogs,
+                 VisitorTracker
+  pages/         Login, Dashboard, Game Console, History, Codes, Logs, Settings,
+                 Profile, Visitors, Auth, Alerts
 supabase/
   migrations/    reproducible PostgreSQL schema, functions, indexes, RLS
   functions/    server-side code verification boundary

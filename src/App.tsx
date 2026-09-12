@@ -3,6 +3,7 @@ import { CyberBackdrop } from './components/CyberBackdrop'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { GameIntro, hasGameIntroCompleted } from './components/GameIntro'
 import { LoadingScreen } from './components/LoadingScreen'
+import { VisitorTracker } from './components/VisitorTracker'
 import { useAdminSession } from './hooks/useAdminSession'
 import { useGameAccess } from './hooks/useGameAccess'
 import { usePageRoute } from './hooks/usePageRoute'
@@ -11,6 +12,7 @@ import { isAppPath, usePathRoute } from './hooks/usePathRoute'
 import { AdminLayout, useSharedControlSettings } from './layouts/AdminLayout'
 import { ActivityLogsPage } from './pages/ActivityLogsPage'
 import { AdminCodesPage } from './pages/AdminCodesPage'
+import { AuthActivityPage } from './pages/AuthActivityPage'
 import { Console } from './pages/Console'
 import { DashboardPage } from './pages/DashboardPage'
 import { DisplaySettingsPage } from './pages/DisplaySettingsPage'
@@ -23,7 +25,10 @@ import { NotAuthorizedPage } from './pages/NotAuthorizedPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { PublicGamePage } from './pages/PublicGamePage'
 import { RoundHistoryPage } from './pages/RoundHistoryPage'
+import { SecurityAlertsPage } from './pages/SecurityAlertsPage'
 import { SocialLinksPage } from './pages/SocialLinksPage'
+import { VisitorsPage } from './pages/VisitorsPage'
+import { recordGameLoginFailure, recordGameLoginSuccess } from './services/visitorTracking'
 import { can } from './utils/permissions'
 import type { PageRoute } from './hooks/usePageRoute'
 import type { Permission } from './utils/permissions'
@@ -36,6 +41,9 @@ const ROUTE_PERMISSIONS: Record<PageRoute, Permission> = {
   codes: 'codes.manage',
   access: 'access.manage',
   logs: 'logs.view',
+  visitors: 'security.view',
+  auth: 'security.view',
+  alerts: 'security.view',
   social: 'social.manage',
   display: 'display.manage',
   general: 'general.manage',
@@ -44,7 +52,7 @@ const ROUTE_PERMISSIONS: Record<PageRoute, Permission> = {
 
 /** Workspace sections reachable through the legacy `/#/section` bookmarks. */
 const ADMIN_HASH_ROUTES: readonly PageRoute[] = [
-  'dashboard', 'public', 'game', 'history', 'codes', 'access', 'logs', 'social', 'display', 'general', 'profile',
+  'dashboard', 'public', 'game', 'history', 'codes', 'access', 'logs', 'visitors', 'auth', 'alerts', 'social', 'display', 'general', 'profile',
 ]
 
 function Workspace({ admin, route, navigate, onLogout, sessionError }: { admin: NonNullable<ReturnType<typeof useAdminSession>['admin']>; route: PageRoute; navigate: (route: PageRoute) => void; onLogout: () => void; sessionError: string | null }) {
@@ -65,6 +73,9 @@ function WorkspacePage({ admin, route, onLogout }: { admin: NonNullable<ReturnTy
   if (route === 'codes') return <AdminCodesPage admin={admin} />
   if (route === 'access') return <GameAccessPage admin={admin} />
   if (route === 'logs') return <ActivityLogsPage />
+  if (route === 'visitors') return <VisitorsPage />
+  if (route === 'auth') return <AuthActivityPage />
+  if (route === 'alerts') return <SecurityAlertsPage admin={admin} />
   if (route === 'social') return <SocialLinksPage admin={admin} />
   if (route === 'display') return <DisplaySettingsPage admin={admin} />
   if (route === 'general') return <GeneralSettingsPage admin={admin} />
@@ -144,7 +155,16 @@ function GameArea({ path }: { path: '/' | '/play' }) {
   /** Successful redemption at the login screen opens the game console. */
   const handleLogin = useCallback(
     async (accountId: string, code: string) => {
-      await access.login(accountId, code)
+      try {
+        await access.login(accountId, code)
+      } catch (cause) {
+        // Fail-safe monitoring: records the ATTEMPT and its error CATEGORY
+        // only — never the submitted access code — then rethrows unchanged
+        // so the login screen keeps its exact existing error behaviour.
+        recordGameLoginFailure(accountId, cause)
+        throw cause
+      }
+      recordGameLoginSuccess(accountId)
       navigate('/play')
     },
     [access, navigate],
@@ -203,5 +223,9 @@ function Root() {
 }
 
 export default function App() {
-  return <ErrorBoundary><Root /></ErrorBoundary>
+  // The VisitorTracker observes routing milestones for the monitoring
+  // center (session start, key page views, throttled heartbeat). It renders
+  // nothing, writes only to Supabase, and is fail-safe by contract — it can
+  // never block or alter the flows it observes.
+  return <ErrorBoundary><VisitorTracker /><Root /></ErrorBoundary>
 }

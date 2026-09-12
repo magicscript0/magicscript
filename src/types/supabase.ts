@@ -119,6 +119,93 @@ export interface ActivityLogRow extends Record<string, unknown> {
   created_at: string
 }
 
+/* ------------------------------------------------------------------ */
+/* Visitor & Security Monitoring Center                                */
+/* ------------------------------------------------------------------ */
+
+/** Coarse device class stored for monitoring visitors (never a fingerprint). */
+export type VisitorDeviceType = 'mobile' | 'desktop' | 'tablet' | 'unknown'
+
+/** The fixed catalogue of meaningful tracking events (mirrors the SQL enum). */
+export type SecurityEventType =
+  | 'session_start'
+  | 'page_view'
+  | 'game_login_success'
+  | 'game_login_failure'
+  | 'game_access_expired'
+  | 'game_access_revoked'
+  | 'game_logout'
+  | 'admin_login_success'
+  | 'admin_login_failure'
+  | 'admin_logout'
+
+/** Server-derived outcome of an event (mirrors the SQL enum). */
+export type SecurityEventResult = 'success' | 'failure' | 'info'
+
+/** Server-computed suspicious-activity level (mirrors the SQL enum). */
+export type SecuritySeverity = 'normal' | 'warning' | 'suspicious' | 'high_risk'
+
+/**
+ * Whitelisted failure CATEGORIES. There is deliberately no free-text reason:
+ * a submitted password, access code, or token can never be expressed here.
+ */
+export type SecurityEventReason =
+  | 'invalid_account'
+  | 'invalid_code'
+  | 'unavailable'
+  | 'network'
+  | 'unknown'
+  | 'access_expired'
+  | 'access_revoked'
+  | 'invalid_credentials'
+  | 'rate_limited'
+  | 'email_not_confirmed'
+  | 'profile_missing'
+  | 'profile_inactive'
+  | 'insufficient_role'
+  | 'configuration'
+  | 'session'
+  | 'database'
+
+/** Pseudonymous visitor profile (technical environment metadata only). */
+export interface VisitorSessionRow extends Record<string, unknown> {
+  id: string
+  visitor_key: string
+  user_id: string | null
+  game_account_id: string | null
+  first_seen_at: string
+  last_seen_at: string
+  session_count: number
+  login_success_count: number
+  login_failure_count: number
+  country_code: string | null
+  device_type: VisitorDeviceType
+  browser: string | null
+  os: string | null
+  last_path: string | null
+  referrer_host: string | null
+}
+
+/** Append-only security/audit event (never contains secrets by schema). */
+export interface SecurityEventRow extends Record<string, unknown> {
+  id: string
+  visitor_id: string
+  visitor_key: string
+  event_type: SecurityEventType
+  result: SecurityEventResult
+  reason: SecurityEventReason | null
+  severity: SecuritySeverity
+  recent_failure_count: number
+  user_id: string | null
+  game_account_id: string | null
+  country_code: string | null
+  device_type: VisitorDeviceType | null
+  browser: string | null
+  os: string | null
+  path: string | null
+  created_at: string
+}
+
 export type RoundHistorySource = 'live' | 'published' | 'local'
 export type RoundHistoryStatus = 'ready' | 'revealed' | 'failed'
 
@@ -265,6 +352,51 @@ export interface Database {
         Update: Partial<RoundHistoryRow>
         Relationships: []
       }
+      visitor_sessions: {
+        Row: VisitorSessionRow
+        Insert: {
+          id?: string
+          visitor_key: string
+          user_id?: string | null
+          game_account_id?: string | null
+          first_seen_at?: string
+          last_seen_at?: string
+          session_count?: number
+          login_success_count?: number
+          login_failure_count?: number
+          country_code?: string | null
+          device_type?: VisitorDeviceType
+          browser?: string | null
+          os?: string | null
+          last_path?: string | null
+          referrer_host?: string | null
+        }
+        Update: Partial<VisitorSessionRow>
+        Relationships: []
+      }
+      security_events: {
+        Row: SecurityEventRow
+        Insert: {
+          id?: string
+          visitor_id: string
+          visitor_key: string
+          event_type: SecurityEventType
+          result: SecurityEventResult
+          reason?: SecurityEventReason | null
+          severity?: SecuritySeverity
+          recent_failure_count?: number
+          user_id?: string | null
+          game_account_id?: string | null
+          country_code?: string | null
+          device_type?: VisitorDeviceType | null
+          browser?: string | null
+          os?: string | null
+          path?: string | null
+          created_at?: string
+        }
+        Update: Partial<SecurityEventRow>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -284,6 +416,31 @@ export interface Database {
         Args: { p_token_hash: string }
         Returns: Array<{ valid: boolean; expires_at: string; server_now: string; account_id: string }>
       }
+      track_visitor_activity: {
+        Args: {
+          p_visitor_key: string
+          p_event_type: SecurityEventType
+          p_path?: string | null
+          p_reason?: SecurityEventReason | string | null
+          p_account_id?: string | null
+          p_user_id?: string | null
+          p_new_session?: boolean
+          p_country_code?: string | null
+          p_device_type?: VisitorDeviceType
+          p_browser?: string | null
+          p_os?: string | null
+          p_referrer_host?: string | null
+        }
+        Returns: Array<{ event_id: string | null; severity: SecuritySeverity; recent_failure_count: number }>
+      }
+      visitor_heartbeat: {
+        Args: { p_visitor_key: string }
+        Returns: boolean
+      }
+      prune_security_monitoring: {
+        Args: { p_retention_days?: number }
+        Returns: Array<{ events_deleted: number; visitors_deleted: number }>
+      }
     }
     Enums: {
       admin_role: AdminRole
@@ -291,6 +448,10 @@ export interface Database {
       online_counter_mode: OnlineCounterMode
       round_history_source: RoundHistorySource
       round_history_status: RoundHistoryStatus
+      visitor_device_type: VisitorDeviceType
+      security_event_type: SecurityEventType
+      security_event_result: SecurityEventResult
+      security_severity: SecuritySeverity
     }
     CompositeTypes: Record<string, never>
   }

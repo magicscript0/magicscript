@@ -7,6 +7,7 @@ export type Permission =
   | 'codes.manage'
   | 'access.manage'
   | 'logs.view'
+  | 'security.view'
   | 'social.manage'
   | 'display.manage'
   | 'general.manage'
@@ -20,6 +21,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     'codes.manage',
     'access.manage',
     'logs.view',
+    'security.view',
     'social.manage',
     'display.manage',
     'general.manage',
@@ -32,11 +34,14 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     'codes.manage',
     'access.manage',
     'logs.view',
+    'security.view',
     'social.manage',
     'display.manage',
     'general.manage',
     'profile.view',
   ],
+  // NOTE: the operator permission set is intentionally unchanged — the
+  // monitoring center is restricted to admin roles, matching the RLS bar.
   operator: ['dashboard.view', 'game.use', 'history.view', 'profile.view'],
 }
 
