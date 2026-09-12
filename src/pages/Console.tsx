@@ -9,7 +9,7 @@ import { useM11Mirror } from '../hooks/useM11Mirror'
 import { useSimulatedOnlineUsers } from '../hooks/useSimulatedOnlineUsers'
 import { useConfiguredOnlineUsers } from '../hooks/useConfiguredOnlineUsers'
 import { DEFAULT_CONTROL_SETTINGS } from '../services/control'
-import { friendlyControlError } from '../services/supabase'
+import { adminErrorMessage } from '../i18n/dashboard'
 import { Header } from '../components/Header'
 import { ActionButtons } from '../components/ActionButtons'
 import { GameGrid } from '../components/GameGrid'
@@ -31,11 +31,11 @@ export interface ConsoleProps {
   embedded?: boolean
 }
 
-const START_MESSAGES = ['Preparing a new round…', 'Generating 50 positions…', 'Validating the round contract…'] as const
-const BADGE_LABELS: Record<RoundSource, string> = { live: 'Firebase — Read Only', published: 'Firebase — Published', demo: 'Local generation' }
+const START_MESSAGES = ['جارٍ تجهيز جولة جديدة…', 'جارٍ توليد 50 موضعًا…', 'جارٍ التحقق من عقد الجولة…'] as const
+const BADGE_LABELS: Record<RoundSource, string> = { live: 'مباشرة من Firebase (قراءة فقط)', published: 'منشورة عبر Firebase', demo: 'توليد محلي' }
 const BADGE_CLASSES: Record<RoundSource, string> = { live: 'border-emerald-300/25 bg-emerald-300/[.08] text-emerald-200', published: 'border-cyan-300/25 bg-cyan-300/[.08] text-cyan-200', demo: 'border-amber-300/25 bg-amber-300/[.08] text-amber-200' }
 const BADGE_DOTS: Record<RoundSource, string> = { live: 'bg-emerald-300', published: 'bg-cyan-300', demo: 'bg-amber-300' }
-const BADGE_TITLES: Record<RoundSource, string> = { live: 'Frozen from the existing read-only Firebase bridge.', published: 'Generated, validated, and published through the single guarded Firebase path.', demo: 'Generated in this browser without a Firebase write.' }
+const BADGE_TITLES: Record<RoundSource, string> = { live: 'نسخة قراءة فقط مجمّدة من جسر Firebase الحالي.', published: 'تم توليدها والتحقق منها ونشرها عبر مسار النشر الوحيد المحمي.', demo: 'تم توليدها في هذا المتصفح بدون كتابة على Firebase.' }
 
 export function Console({ operatorId, onLogout, displaySettings, adminId, embedded = false }: ConsoleProps) {
   const [phase, setPhase] = useState<RoundPhase>('idle')
@@ -61,9 +61,9 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
     void Promise.allSettled([activity, history]).then((results) => {
       const failures = results
         .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-        .map((result) => friendlyControlError(result.reason, 'Supabase control metadata could not be recorded.'))
+        .map((result) => adminErrorMessage(result.reason, 'تعذر تسجيل بيانات التحكم في Supabase.'))
       if (failures.length > 0) {
-        setError(`Firebase round completed, but Supabase control metadata could not be recorded: ${[...new Set(failures)].join(' ')}`)
+        setError(`اكتملت جولة Firebase، لكن تعذر تسجيل بيانات التحكم: ${[...new Set(failures)].join(' ')}`)
       }
     })
   }, [])
@@ -82,23 +82,23 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
         )
       }
     } catch {
-      setRound(null); setPhase('idle'); setError('The live round could not be mapped. No data was changed.')
+      setRound(null); setPhase('idle'); setError('تعذر تحميل الجولة المباشرة. لم تتغير أي بيانات.')
     }
   }, [adminId, busy, liveReady, mirror.evaluation, mirror.lastUpdated, recordControlMetadata])
 
   const handleNewGame = useCallback(async () => {
     if (busy || !configured) return
     const previousRound = round
-    setError(null); setSuccess(null); setPublishMessage('Generating 50 cells…'); setPhase('publishing')
+    setError(null); setSuccess(null); setPublishMessage('جارٍ توليد 50 خلية…'); setPhase('publishing')
     try {
       const candidate = generateDemoRound()
-      setPublishMessage('Validating round…')
+      setPublishMessage('جارٍ التحقق من الجولة…')
       const check = validateM11Node(candidate.node)
       if (!check.valid) throw new Error('Generated round failed validation.')
-      setPublishMessage('Publishing to Firebase…')
+      setPublishMessage('جارٍ النشر إلى Firebase…')
       await publishDemoRound(candidate.node)
       setRound({ source: 'published', seed: candidate.seed, createdAt: Date.now(), rows: nodeToRows(candidate.node) })
-      setRevealedRows(0); setPhase('ready'); setPublishMessage(null); setSuccess('New game published successfully.')
+      setRevealedRows(0); setPhase('ready'); setPublishMessage(null); setSuccess('تم نشر جولة جديدة بنجاح.')
       if (adminId) {
         recordControlMetadata(
           recordActivity(adminId, 'NEW_GAME', { source: 'firebase_m11', round_identifier: `seed-${candidate.seed}`, cell_count: 50 }),
@@ -106,7 +106,7 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
         )
       }
     } catch {
-      setPublishMessage(null); setRound(previousRound); setPhase(previousRound ? 'ready' : 'idle'); setError('Live game bridge temporarily unavailable. The current round was not replaced.')
+      setPublishMessage(null); setRound(previousRound); setPhase(previousRound ? 'ready' : 'idle'); setError('جسر اللعبة المباشر غير متاح مؤقتًا. الجولة الحالية لم تُستبدل.')
     }
   }, [adminId, busy, configured, recordControlMetadata, round])
 
@@ -125,7 +125,7 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
           )
         }
       } catch {
-        setPhase('idle'); setError('A valid local round could not be created. Please try again.')
+        setPhase('idle'); setError('تعذر إنشاء جولة محلية صالحة. حاول مرة أخرى.')
       }
     }, START_SIMULATION_MS)
   }, [adminId, busy, recordControlMetadata])
@@ -166,26 +166,26 @@ export function Console({ operatorId, onLogout, displaySettings, adminId, embedd
   const newerSnapshotAvailable = (round?.source === 'live' || round?.source === 'published') && mirror.lastUpdated !== null && mirror.lastUpdated > round.createdAt && (phase === 'revealing' || phase === 'revealed')
 
   function statusLine(): string {
-    if (phase === 'idle') return liveReady ? 'Live round available — load it or create a new game.' : configured ? 'No round held — create a new game when ready.' : 'No round held — create a local round to inspect the grid.'
-    if (phase === 'generating') return 'Preparing a local round…'
-    if (phase === 'publishing') return publishMessage ?? 'Publishing new game…'
-    if (phase === 'ready') return round?.source === 'live' ? 'Live /m11 round loaded — press SHOW to reveal it.' : round?.source === 'published' ? 'New game published — press SHOW to reveal it.' : 'Local Round ready — press SHOW to reveal it.'
-    if (phase === 'revealing') return 'Revealing result…'
-    return round?.source === 'published' ? 'Published round complete — create another when ready.' : round?.source === 'live' ? 'Live round complete — load the current bridge again.' : 'Round complete — create another when ready.'
+    if (phase === 'idle') return liveReady ? 'توجد جولة مباشرة — حمّلها أو أنشئ جولة جديدة.' : configured ? 'لا توجد جولة محملة — أنشئ جولة جديدة عندما تكون جاهزًا.' : 'لا توجد جولة محملة — يمكنك إنشاء جولة محلية لمعاينة الشبكة.'
+    if (phase === 'generating') return 'جارٍ تجهيز جولة محلية…'
+    if (phase === 'publishing') return publishMessage ?? 'جارٍ نشر جولة جديدة…'
+    if (phase === 'ready') return round?.source === 'live' ? 'تم تحميل الجولة المباشرة — اضغط «عرض الجولة» لكشفها.' : round?.source === 'published' ? 'تم نشر جولة جديدة — اضغط «عرض الجولة» لكشفها.' : 'الجولة المحلية جاهزة — اضغط «عرض الجولة» لكشفها.'
+    if (phase === 'revealing') return 'جارٍ كشف النتيجة…'
+    return round?.source === 'published' ? 'اكتملت الجولة المنشورة — يمكنك إنشاء جولة جديدة.' : round?.source === 'live' ? 'اكتملت الجولة المباشرة — يمكنك تحميل الجولة الحالية مرة أخرى.' : 'اكتملت الجولة — يمكنك إنشاء جولة أخرى.'
   }
 
   const content = <div className="space-y-4 sm:space-y-5">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><span className="status-dot animate-pulse-soft bg-emerald-300" /><p aria-live="polite" className="text-sm font-medium text-slate-300">{statusLine()}</p>{phase === 'revealed' && <span className="rounded-full bg-emerald-300/[.08] px-2 py-1 text-[11px] font-semibold text-emerald-200">{safeCellCount} safe cells</span>}</div><div className="flex flex-wrap items-center gap-2">{newerSnapshotAvailable && <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.06] px-2.5 py-1 text-[11px] font-semibold text-cyan-100">Newer /m11 snapshot received — load it or start a NEW GAME</span>}<span data-testid="data-source-badge" className={`status-badge ${BADGE_CLASSES[badgeSource]}`} title={BADGE_TITLES[badgeSource]}><span className={`status-dot ${BADGE_DOTS[badgeSource]}`} />{BADGE_LABELS[badgeSource]}</span>{round && <span className="mono text-[10px] text-slate-600">{round.source === 'live' ? `received ${new Date(round.createdAt).toLocaleTimeString()}` : `seed ${round.seed}`}</span>}</div></div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><span className="status-dot animate-pulse-soft bg-emerald-300" /><p aria-live="polite" className="text-sm font-medium text-slate-300">{statusLine()}</p>{phase === 'revealed' && <span className="rounded-full bg-emerald-300/[.08] px-2 py-1 text-[11px] font-semibold text-emerald-200">{safeCellCount} خلية آمنة</span>}</div><div className="flex flex-wrap items-center gap-2">{newerSnapshotAvailable && <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.06] px-2.5 py-1 text-[11px] font-semibold text-cyan-100">وصلت نسخة أحدث من /m11 — حمّلها أو أنشئ جولة جديدة</span>}<span data-testid="data-source-badge" className={`status-badge ${BADGE_CLASSES[badgeSource]}`} title={BADGE_TITLES[badgeSource]}><span className={`status-dot ${BADGE_DOTS[badgeSource]}`} />{BADGE_LABELS[badgeSource]}</span>{round && <span className="ltr-island mono text-[10px] text-slate-600">{round.source === 'live' ? `وصلت ${new Date(round.createdAt).toLocaleTimeString()}` : `بذرة ${round.seed}`}</span>}</div></div>
     <ActionButtons phase={phase} liveReady={liveReady} firebaseConfigured={configured} onLoadLive={handleLoadLive} onNewGame={handleNewGame} onNewDemo={configured ? null : handleNewLocalRound} onShow={handleShow} />
-    {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-4 py-3 text-sm text-rose-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />{error}{error.startsWith('Live game bridge') && <span className="hidden" aria-hidden="true">Publish failed — current round was not replaced.</span>}</div>}
+    {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-4 py-3 text-sm text-rose-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />{error}{error.startsWith('جسر اللعبة') && <span className="hidden" aria-hidden="true">فشل النشر — الجولة الحالية لم تُستبدل.</span>}</div>}
     {success && <div role="status" className="flex items-start gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[.06] px-4 py-3 text-sm text-emerald-100"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />{success}</div>}
     {phase === 'generating' && <div role="status" className="flex items-center justify-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[.04] px-4 py-3 text-sm text-cyan-100"><CircleDot className="h-4 w-4 animate-pulse text-cyan-300" />{START_MESSAGES[messageIndex]}</div>}
-    {phase === 'publishing' && <div data-testid="publish-status" role="status" className="flex items-center justify-center gap-2 rounded-xl border border-emerald-300/15 bg-emerald-300/[.04] px-4 py-3 text-sm text-emerald-100"><CircleDot className="h-4 w-4 animate-pulse text-emerald-300" />{publishMessage ?? 'Publishing new game…'}<span className="mono text-[10px] text-slate-600">single guarded path</span></div>}
+    {phase === 'publishing' && <div data-testid="publish-status" role="status" className="flex items-center justify-center gap-2 rounded-xl border border-emerald-300/15 bg-emerald-300/[.04] px-4 py-3 text-sm text-emerald-100"><CircleDot className="h-4 w-4 animate-pulse text-emerald-300" />{publishMessage ?? 'جارٍ نشر جولة جديدة…'}<span className="text-[10px] text-slate-600">مسار نشر واحد محمي</span></div>}
     <GameGrid rows={round?.rows ?? null} phase={phase} revealedRows={revealedRows} nextSource={liveReady ? 'live' : 'demo'} />
-    {(phase === 'revealing' || phase === 'revealed') && <div className="flex items-center justify-between text-xs text-slate-500"><span aria-live="polite">Row {Math.min(revealedRows, GRID_ROWS)} of {GRID_ROWS} revealed</span><div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/[.08] sm:w-40"><div className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-emerald-300 transition-all duration-300" style={{ width: `${(Math.min(revealedRows, GRID_ROWS) / GRID_ROWS) * 100}%` }} /></div></div>}
+    {(phase === 'revealing' || phase === 'revealed') && <div className="flex items-center justify-between text-xs text-slate-500"><span aria-live="polite">تم كشف صف {Math.min(revealedRows, GRID_ROWS)} من {GRID_ROWS}</span><div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/[.08] sm:w-40"><div className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-emerald-300 transition-all duration-300" style={{ width: `${(Math.min(revealedRows, GRID_ROWS) / GRID_ROWS) * 100}%` }} /></div></div>}
     <MirrorPanel connection={connection} mirror={mirror} />
-    <div className="flex items-start gap-2 rounded-xl border border-amber-300/10 bg-amber-300/[.03] px-3.5 py-3 text-[11px] leading-5 text-amber-100/70"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />No real money · no wagering. This is an operational visualization only; no external betting connectivity is provided.</div>
-    <div className="flex items-start gap-2 text-[11px] leading-5 text-slate-600"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />The game console preserves the existing Firebase bridge and 50-position payload. Supabase records management metadata only.</div>
+    <div className="flex items-start gap-2 rounded-xl border border-amber-300/10 bg-amber-300/[.03] px-3.5 py-3 text-[11px] leading-5 text-amber-100/70"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />لا أموال حقيقية · لا رهانات. هذا عرض تشغيلي فقط؛ لا يوجد أي اتصال خارجي بالمراهنات.</div>
+    <div className="flex items-start gap-2 text-[11px] leading-5 text-slate-600"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />وحدة التحكم تحافظ على جسر Firebase الحالي وحمولة الـ 50 موضعًا كما هي. يسجل Supabase بيانات الإدارة فقط.</div>
   </div>
 
   if (embedded) return content

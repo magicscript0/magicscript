@@ -65,7 +65,7 @@ describe('root route — the game experience is the default product', () => {
     render(<App />)
     expect(screen.getByLabelText('Account ID')).toBeInTheDocument()
     expect(screen.getByLabelText('Access Code')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Work email')).toBeNull()
+    expect(screen.queryByLabelText('البريد الإلكتروني للعمل')).toBeNull()
     expect(screen.getByRole('heading', { name: 'Apple of Fortune' })).toBeInTheDocument()
   })
 
@@ -73,7 +73,7 @@ describe('root route — the game experience is the default product', () => {
     setAdminSession({ admin: ADMIN })
     render(<App />)
     expect(screen.getByLabelText('Account ID')).toBeInTheDocument()
-    expect(screen.queryAllByText('System overview')).toHaveLength(0)
+    expect(screen.queryAllByText('نظرة عامة')).toHaveLength(0)
   })
 
   it('canonicalizes unknown paths to the Game Login', () => {
@@ -149,15 +149,15 @@ describe('protected Admin area', () => {
   it('redirects "/admin" to the admin login when unauthenticated', () => {
     goTo('/admin')
     render(<App />)
-    expect(screen.getByLabelText('Work email')).toBeInTheDocument()
+    expect(screen.getByLabelText('البريد الإلكتروني للعمل')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/login/admin')
   })
 
   it('shows the Supabase Auth screen at "/login/admin"', () => {
     goTo('/login/admin')
     render(<App />)
-    expect(screen.getByLabelText('Work email')).toBeInTheDocument()
-    expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    expect(screen.getByLabelText('البريد الإلكتروني للعمل')).toBeInTheDocument()
+    expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
     expect(screen.queryByLabelText('Account ID')).toBeNull()
   })
 
@@ -165,9 +165,9 @@ describe('protected Admin area', () => {
     goTo('/admin')
     setAdminSession({ admin: ADMIN })
     render(<App />)
-    expect(screen.getAllByText('System overview').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('نظرة عامة').length).toBeGreaterThanOrEqual(1)
     // The new access-code management section is part of the admin workspace.
-    expect(screen.getByRole('button', { name: /game access/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /أكواد دخول اللعبة/ })).toBeInTheDocument()
   })
 
   it('moves a signed-in admin from "/login/admin" into the dashboard', () => {
@@ -175,7 +175,7 @@ describe('protected Admin area', () => {
     setAdminSession({ admin: ADMIN })
     render(<App />)
     expect(window.location.pathname).toBe('/admin')
-    expect(screen.getAllByText('System overview').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('نظرة عامة').length).toBeGreaterThanOrEqual(1)
   })
 
   it('keeps legacy "/#/section" bookmarks working under the admin area', () => {
@@ -189,15 +189,15 @@ describe('protected Admin area', () => {
     goTo('/admin')
     setGameAccess({ status: 'active', accountId: '123456789', remainingMs: 600_000 })
     render(<App />)
-    expect(screen.getByLabelText('Work email')).toBeInTheDocument()
-    expect(screen.queryAllByText('System overview')).toHaveLength(0)
+    expect(screen.getByLabelText('البريد الإلكتروني للعمل')).toBeInTheDocument()
+    expect(screen.queryAllByText('نظرة عامة')).toHaveLength(0)
   })
 
   it('shows a loading state while the admin session is bootstrapped', () => {
     goTo('/admin')
     setAdminSession({ loading: true })
     render(<App />)
-    expect(screen.getByText(/securing workspace/i)).toBeInTheDocument()
+    expect(screen.getByText(/جارٍ تأمين مساحة العمل/)).toBeInTheDocument()
   })
 })
 
@@ -207,8 +207,8 @@ describe('admin access-code permission split', () => {
     setAdminSession({ admin: { ...ADMIN, role: 'operator' } })
     render(<App />)
     await act(async () => { await Promise.resolve() })
-    expect(screen.queryByRole('button', { name: /game access/i })).toBeNull()
-    expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /أكواد دخول اللعبة/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /الرئيسية/ })).toBeInTheDocument()
   })
 
   it('hides Public Game settings from operators and shows them to admins', async () => {
@@ -216,12 +216,12 @@ describe('admin access-code permission split', () => {
     setAdminSession({ admin: { ...ADMIN, role: 'operator' } })
     render(<App />)
     await act(async () => { await Promise.resolve() })
-    expect(screen.queryByRole('button', { name: /login & appearance/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /الدخول والمظهر/ })).toBeNull()
 
     cleanup()
     setAdminSession({ admin: ADMIN })
     render(<App />)
     await act(async () => { await Promise.resolve() })
-    expect(screen.getByRole('button', { name: /login & appearance/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /الدخول والمظهر/ })).toBeInTheDocument()
   })
 })

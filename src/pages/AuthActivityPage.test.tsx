@@ -89,9 +89,9 @@ afterEach(() => {
 describe('Authentication Activity page', () => {
   it('renders the authentication summary cards', async () => {
     render(<AuthActivityPage />)
-    await waitFor(() => expect(screen.getByText('Successful logins')).toBeInTheDocument())
-    expect(screen.getByText('Failed login attempts')).toBeInTheDocument()
-    expect(screen.getByText('Suspicious activity')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('محاولات ناجحة')).toBeInTheDocument())
+    expect(screen.getByText('محاولات فاشلة')).toBeInTheDocument()
+    expect(screen.getByText('محاولات مريبة')).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByText('44')).toBeInTheDocument()
       expect(screen.getByText('45')).toBeInTheDocument()
@@ -101,17 +101,17 @@ describe('Authentication Activity page', () => {
 
   it('lists authentication events with outcomes, categories, and context', async () => {
     render(<AuthActivityPage />)
-    await waitFor(() => expect(screen.getAllByText('Failed game login')).toHaveLength(2))
-    expect(screen.getByText('Successful admin login')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByText('دخول فاشل للعبة')).toHaveLength(2))
+    expect(screen.getByText('دخول ناجح للوحة التحكم')).toBeInTheDocument()
     // Non-authentication events stay out of this section.
-    expect(screen.queryByText('Opened Game console')).toBeNull()
+    expect(screen.queryByText('فتح وحدة التحكم باللعبة')).toBeNull()
     // Visitor pseudonym and account identifier, never a credential.
     expect(screen.getAllByText('#A82F').length).toBeGreaterThanOrEqual(3)
     expect(screen.getAllByText('123456789').length).toBeGreaterThanOrEqual(2)
-    expect(screen.getAllByText('Failed').length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText('Success')).toBeInTheDocument()
-    expect(screen.getAllByText('invalid code').length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText('Warning')).toBeInTheDocument()
+    expect(screen.getAllByText('فشل').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('نجاح')).toBeInTheDocument()
+    expect(screen.getAllByText('كود غير صحيح').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('تحذير')).toBeInTheDocument()
   })
 
   it('refetches with result, event type, and suspicious-only filters', async () => {
@@ -119,29 +119,29 @@ describe('Authentication Activity page', () => {
     await waitFor(() => expect(listEventsMock).toHaveBeenCalledTimes(1))
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Filter by result'), { target: { value: 'failure' } })
+      fireEvent.change(screen.getByLabelText('التصفية حسب النتيجة'), { target: { value: 'failure' } })
     })
     await waitFor(() => expect(listEventsMock).toHaveBeenLastCalledWith(expect.objectContaining({ result: 'failure' })))
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Filter by event type'), { target: { value: 'admin_login_failure' } })
+      fireEvent.change(screen.getByLabelText('التصفية حسب نوع الحدث'), { target: { value: 'admin_login_failure' } })
     })
     await waitFor(() => expect(listEventsMock).toHaveBeenLastCalledWith(expect.objectContaining({ eventType: 'admin_login_failure' })))
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Filter by period'), { target: { value: '30d' } })
+      fireEvent.change(screen.getByLabelText('التصفية حسب المدة'), { target: { value: '30d' } })
     })
     await waitFor(() => expect(listEventsMock).toHaveBeenLastCalledWith(expect.objectContaining({ range: '30d' })))
 
     await act(async () => {
-      fireEvent.click(screen.getByLabelText(/suspicious activity only/i))
+      fireEvent.click(screen.getByLabelText(/النشاط المريب فقط/))
     })
     await waitFor(() => expect(listEventsMock).toHaveBeenLastCalledWith(expect.objectContaining({ severity: 'flagged' })))
   })
 
   it('states the privacy contract: categories only, never entered secrets', () => {
     render(<AuthActivityPage />)
-    expect(screen.getByText(/submitted password or access code is never sent, stored, or shown/i)).toBeInTheDocument()
-    expect(screen.getByText(/entered passwords or access codes are never recorded anywhere/i)).toBeInTheDocument()
+    expect(screen.getByText(/كلمة المرور أو كود الدخول المُدخل لا يُرسل ولا يُخزن ولا يُعرض أبدًا/)).toBeInTheDocument()
+    expect(screen.getByText(/لا تُسجل أي كلمات مرور أو أكواد مُدخلة في أي مكان/)).toBeInTheDocument()
   })
 })

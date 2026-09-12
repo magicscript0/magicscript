@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, ChevronRight, CircleHelp, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronLeft, CircleHelp, Loader2, RefreshCw } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -108,15 +108,15 @@ export function LoadingRows({ count = 4 }: { count?: number }) {
 }
 
 export function InlineError({ message, onRetry }: { message: string; onRetry?: () => void }) {
-  return <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-4 py-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{message}</span>{onRetry && <button type="button" className="btn-ghost self-start text-xs sm:self-auto" onClick={onRetry}><RefreshCw className="h-3.5 w-3.5" /> Retry</button>}</div>
+  return <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-4 py-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{message}</span>{onRetry && <button type="button" className="btn-ghost self-start text-xs sm:self-auto" onClick={onRetry}><RefreshCw className="h-3.5 w-3.5" /> إعادة المحاولة</button>}</div>
 }
 
-export function SaveButton({ saving, children = 'Save changes' }: { saving: boolean; children?: ReactNode }) {
-  return <button type="submit" className="btn-primary" disabled={saving}>{saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <><Check className="h-4 w-4" />{children}</>}</button>
+export function SaveButton({ saving, children = 'حفظ التغييرات' }: { saving: boolean; children?: ReactNode }) {
+  return <button type="submit" className="btn-primary" disabled={saving}>{saving ? <><Loader2 className="h-4 w-4 animate-spin" /> جارٍ الحفظ…</> : <><Check className="h-4 w-4" />{children}</>}</button>
 }
 
 export function Breadcrumb({ label }: { label: string }) {
-  return <div className="mb-5 flex items-center gap-1.5 text-xs text-slate-600"><span>Workspace</span><ChevronRight className="h-3 w-3" /><span className="text-slate-400">{label}</span></div>
+  return <div className="mb-5 flex items-center gap-1.5 text-xs text-slate-600"><span>لوحة التحكم</span><ChevronLeft className="h-3 w-3" /><span className="text-slate-400">{label}</span></div>
 }
 
 export function HelpHint({ children }: { children: ReactNode }) {

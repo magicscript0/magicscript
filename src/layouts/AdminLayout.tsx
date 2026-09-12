@@ -22,6 +22,9 @@ export function AdminLayout({ admin, route, onNavigate, onLogout, sessionError =
   const { settings, setSettings, loading: settingsLoading, available: settingsAvailable, error: settingsError, reload } = useControlSettings()
   const displayName = admin.username || admin.email.split('@')[0]
 
+  // RTL/Arabic document direction is applied by AdminArea (which also owns
+  // the login and loading screens); the public game area resets it to LTR.
+
   const sharedSettings = {
     settings,
     setSettings,
@@ -34,7 +37,7 @@ export function AdminLayout({ admin, route, onNavigate, onLogout, sessionError =
   return (
     <ToastProvider>
       <SettingsContext.Provider value={sharedSettings}>
-        <div className="min-h-screen lg:pl-[272px]">
+        <div className="min-h-screen lg:pr-[272px]">
           <AdminSidebar
             role={admin.role}
             route={route}
@@ -54,7 +57,7 @@ export function AdminLayout({ admin, route, onNavigate, onLogout, sessionError =
           </main>
           <footer className="border-t border-white/[.06] px-4 py-5 sm:px-9">
             <div className="mx-auto flex max-w-[1500px] flex-col gap-3 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-              <p><span className="font-semibold text-slate-500">MAGIC SCRIPT</span> · Control center for game visualization operations.</p>
+              <p><span className="brand-latin font-semibold text-slate-500">MAGIC SCRIPT</span> · مركز التحكم في عمليات عرض اللعبة.</p>
               <SocialLinks links={settings.social} compact />
             </div>
           </footer>

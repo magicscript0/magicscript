@@ -27,19 +27,19 @@ describe('Supabase Auth sign-in screen', () => {
   it('renders the MAGIC SCRIPT Auth notice and both fields', () => {
     render(<Login onAuthenticate={vi.fn().mockResolvedValue(PROFILE)} />)
     expect(screen.getByText('MAGIC SCRIPT')).toBeInTheDocument()
-    expect(screen.getByText(/Access is protected by Supabase Auth/i)).toBeInTheDocument()
-    expect(screen.getByLabelText('Work email')).toBeInTheDocument()
-    expect(screen.getByLabelText('Password')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /login/i })).toBeEnabled()
+    expect(screen.getByText(/الدخول محمي بنظام المصادقة/)).toBeInTheDocument()
+    expect(screen.getByLabelText('البريد الإلكتروني للعمل')).toBeInTheDocument()
+    expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /تسجيل الدخول/ })).toBeEnabled()
   })
 
   it('rejects an empty email with a friendly message', () => {
     const authenticate = vi.fn().mockResolvedValue(PROFILE)
     render(<Login onAuthenticate={authenticate} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /login/i }))
+    fireEvent.click(screen.getByRole('button', { name: /تسجيل الدخول/ }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Enter your work email.')
+    expect(screen.getByRole('alert')).toHaveTextContent('أدخل البريد الإلكتروني للعمل.')
     expect(authenticate).not.toHaveBeenCalled()
   })
 
@@ -47,11 +47,11 @@ describe('Supabase Auth sign-in screen', () => {
     const authenticate = vi.fn().mockResolvedValue(PROFILE)
     render(<Login onAuthenticate={authenticate} />)
 
-    fillField('Work email', 'not-an-email')
-    fillField('Password', 'secret-password')
-    fireEvent.click(screen.getByRole('button', { name: /login/i }))
+    fillField('البريد الإلكتروني للعمل', 'not-an-email')
+    fillField('كلمة المرور', 'secret-password')
+    fireEvent.click(screen.getByRole('button', { name: /تسجيل الدخول/ }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid work email.')
+    expect(screen.getByRole('alert')).toHaveTextContent('أدخل بريدًا إلكترونيًا صحيحًا.')
     expect(authenticate).not.toHaveBeenCalled()
   })
 
@@ -59,10 +59,10 @@ describe('Supabase Auth sign-in screen', () => {
     const authenticate = vi.fn().mockResolvedValue(PROFILE)
     render(<Login onAuthenticate={authenticate} />)
 
-    fillField('Work email', 'operator@example.com')
-    fireEvent.click(screen.getByRole('button', { name: /login/i }))
+    fillField('البريد الإلكتروني للعمل', 'operator@example.com')
+    fireEvent.click(screen.getByRole('button', { name: /تسجيل الدخول/ }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Enter your password.')
+    expect(screen.getByRole('alert')).toHaveTextContent('أدخل كلمة المرور.')
     expect(authenticate).not.toHaveBeenCalled()
   })
 
@@ -70,24 +70,24 @@ describe('Supabase Auth sign-in screen', () => {
     const authenticate = vi.fn().mockRejectedValue(new InvalidCredentialsError())
     render(<Login onAuthenticate={authenticate} />)
 
-    fillField('Work email', 'operator@example.com')
-    fillField('Password', 'not-the-password')
-    fireEvent.click(screen.getByRole('button', { name: /login/i }))
+    fillField('البريد الإلكتروني للعمل', 'operator@example.com')
+    fillField('كلمة المرور', 'not-the-password')
+    fireEvent.click(screen.getByRole('button', { name: /تسجيل الدخول/ }))
 
-    expect(screen.getByRole('button', { name: /checking/i })).toBeDisabled()
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The email or password could not be verified.'))
+    expect(screen.getByRole('button', { name: /جارٍ التحقق/ })).toBeDisabled()
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('تعذر التحقق من البريد الإلكتروني أو كلمة المرور.'))
     expect(authenticate).toHaveBeenCalledWith('operator@example.com', 'not-the-password')
-    expect(screen.getByRole('button', { name: /login/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /تسجيل الدخول/ })).toBeEnabled()
   })
 
   it('trims the email and delegates valid credentials to Supabase Auth', async () => {
     const authenticate = vi.fn().mockResolvedValue(PROFILE)
     render(<Login onAuthenticate={authenticate} />)
 
-    fillField('Work email', '  operator@example.com  ')
-    fillField('Password', 'auth-password')
+    fillField('البريد الإلكتروني للعمل', '  operator@example.com  ')
+    fillField('كلمة المرور', 'auth-password')
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /login/i }))
+      fireEvent.click(screen.getByRole('button', { name: /تسجيل الدخول/ }))
       await Promise.resolve()
     })
 
@@ -96,18 +96,18 @@ describe('Supabase Auth sign-in screen', () => {
   })
 
   it('shows a session bootstrap diagnostic supplied by the Auth hook', () => {
-    render(<Login onAuthenticate={vi.fn().mockResolvedValue(PROFILE)} statusMessage="Your MAGIC SCRIPT administrator profile is inactive. Contact a Super Admin." />)
-    expect(screen.getByRole('alert')).toHaveTextContent('administrator profile is inactive')
+    render(<Login onAuthenticate={vi.fn().mockResolvedValue(PROFILE)} statusMessage="حسابك الإداري غير نشط حاليًا. تواصل مع المدير الرئيسي." />)
+    expect(screen.getByRole('alert')).toHaveTextContent('حسابك الإداري غير نشط')
   })
 
   it('never stores the password in web storage after a successful authentication request', async () => {
     const authenticate = vi.fn().mockResolvedValue(PROFILE)
     render(<Login onAuthenticate={authenticate} />)
 
-    fillField('Work email', 'operator@example.com')
-    fillField('Password', 'auth-password')
+    fillField('البريد الإلكتروني للعمل', 'operator@example.com')
+    fillField('كلمة المرور', 'auth-password')
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /login/i }))
+      fireEvent.click(screen.getByRole('button', { name: /تسجيل الدخول/ }))
       await Promise.resolve()
     })
 

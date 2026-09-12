@@ -25,9 +25,8 @@ import {
   type MonitoringRange,
 } from '../services/securityMonitoring'
 import { recordActivity } from '../services/activity'
-import { friendlyControlError } from '../services/supabase'
+import { adminErrorMessage, formatTimeArabic, relativeTimeArabic } from '../i18n/dashboard'
 import type { AdminProfile, SecurityEventRow, SecuritySeverity } from '../types/supabase'
-import { formatRelativeTime } from '../utils/time'
 
 const SEVERITY_RANK: Record<SecuritySeverity, number> = { normal: 0, warning: 1, suspicious: 2, high_risk: 3 }
 
@@ -42,10 +41,10 @@ interface VisitorAlertGroup {
 }
 
 /**
- * SECURITY ALERTS — suspicious patterns detected SERVER-SIDE by the
- * tracking RPC (windowed failure counts per visitor and per account,
- * authentication floods, and rapid repeated requests). A single failed
- * login is never flagged; escalation requires repetition.
+ * التنبيهات الأمنية — أنماط مريبة بيحسبها الخادم من النشاط المتكرر:
+ * محاولات دخول فاشلة متكررة من زائر واحد، محاولات متكررة على حساب واحد،
+ * سيل محاولات دخول، وطلبات متكررة بسرعة. المحاولة الفاشلة الواحدة
+ * لا تُعتبر تنبيهًا أبدًا.
  */
 export function SecurityAlertsPage({ admin }: { admin: AdminProfile }) {
   const { success, error: toastError } = useToast()
@@ -121,10 +120,10 @@ export function SecurityAlertsPage({ admin }: { admin: AdminProfile }) {
     try {
       const result = await pruneMonitoringData(90)
       await recordActivity(admin.id, 'PRUNE_SECURITY_MONITORING', { retention_days: 90, events_deleted: result.eventsDeleted, visitors_deleted: result.visitorsDeleted })
-      success(`Retention cleanup finished: ${result.eventsDeleted} events and ${result.visitorsDeleted} visitor profiles older than 90 days were deleted.`)
+      success(`اكتمل التنظيف: تم حذف ${result.eventsDeleted} حدثًا و ${result.visitorsDeleted} ملف زائر أقدم من 90 يومًا.`)
       await feed.reload()
     } catch (cause) {
-      toastError(friendlyControlError(cause, 'Monitoring data could not be pruned.'))
+      toastError(adminErrorMessage(cause, 'تعذر تنظيف بيانات المراقبة. حاول مرة أخرى.'))
     } finally {
       setPruning(false)
     }
@@ -132,17 +131,17 @@ export function SecurityAlertsPage({ admin }: { admin: AdminProfile }) {
 
   return <>
     <PageHeader
-      eyebrow="Monitoring / security"
-      title="Security alerts"
-      description="Suspicious patterns computed server-side from windowed activity: repeated failed logins by a visitor, repeated attempts against one account, authentication floods, and rapid repeated requests."
-      action={<button type="button" className="btn-ghost" onClick={() => { void feed.reload() }}><RefreshCw className="h-4 w-4" /> Refresh</button>}
+      eyebrow="المراقبة / التنبيهات الأمنية"
+      title="التنبيهات الأمنية"
+      description="هنا بتشوف الأنماط المريبة اللي بيكتشفها الخادم تلقائيًا — زي عدد كبير من محاولات الدخول الفاشلة خلال وقت قصير. القرار النهائي دايمًا بمراجعة بشرية، ولا يوجد حظر تلقائي."
+      action={<button type="button" className="btn-ghost" onClick={() => { void feed.reload() }}><RefreshCw className="h-4 w-4" /> تحديث</button>}
     />
 
     <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <MetricCard label="Warning" value={String(severityCounts.warning)} detail={`Repeated failures · ${MONITORING_RANGE_OPTIONS.find((option) => option.value === range)?.label ?? ''}`} icon={AlertTriangle} tone="amber" loading={feed.loading && feed.data === null} />
-      <MetricCard label="Suspicious" value={String(severityCounts.suspicious)} detail="Sustained repeated activity" icon={ShieldAlert} tone="amber" loading={feed.loading && feed.data === null} />
-      <MetricCard label="High risk" value={String(severityCounts.highRisk)} detail="Heavy repeated activity" icon={Siren} tone="cyan" loading={feed.loading && feed.data === null} />
-      <MetricCard label="Visitors flagged" value={String(groups.length)} detail={`At least ${SEVERITY_LABELS[minSeverity].toLowerCase()} level`} icon={Radar} tone="slate" loading={feed.loading && feed.data === null} />
+      <MetricCard label="تحذير" value={String(severityCounts.warning)} detail={`تكرار بسيط · ${MONITORING_RANGE_OPTIONS.find((option) => option.value === range)?.label ?? ''}`} icon={AlertTriangle} tone="amber" loading={feed.loading && feed.data === null} />
+      <MetricCard label="مريب" value={String(severityCounts.suspicious)} detail="نشاط متكرر بشكل ملحوظ" icon={ShieldAlert} tone="amber" loading={feed.loading && feed.data === null} />
+      <MetricCard label="خطورة عالية" value={String(severityCounts.highRisk)} detail="نشاط متكرر بكثافة" icon={Siren} tone="cyan" loading={feed.loading && feed.data === null} />
+      <MetricCard label="زوار مُبلّغ عنهم" value={String(groups.length)} detail={`بدرجة ${SEVERITY_LABELS[minSeverity]} أو أعلى`} icon={Radar} tone="slate" loading={feed.loading && feed.data === null} />
     </div>
 
     {feed.error && <div className="mb-5"><InlineError message={feed.error} onRetry={() => { void feed.reload() }} /></div>}
@@ -152,24 +151,24 @@ export function SecurityAlertsPage({ admin }: { admin: AdminProfile }) {
         <div className="flex flex-col gap-3 border-b border-white/[.06] p-4 sm:p-5">
           <PanelHeading
             icon={ShieldAlert}
-            title="Flagged visitors"
-            description="Grouped by pseudonymous visitor; expand a row for its chronological timeline."
-            action={<StatusBadge label={feed.live ? 'Live' : 'Auto-refresh 45s'} tone={feed.live ? 'success' : 'info'} pulse={feed.live} />}
+            title="الزوار المُبلّغ عنهم"
+            description="مجمّعين حسب الزائر؛ اضغط على أي صف لعرض سجله بالترتيب."
+            action={<StatusBadge label={feed.live ? 'مباشر' : 'تحديث تلقائي كل 45 ثانية'} tone={feed.live ? 'success' : 'info'} pulse={feed.live} />}
           />
           <div className="flex flex-wrap gap-2">
-            <select className="select h-10 w-auto text-xs" value={range} onChange={(event) => setRange(event.target.value as MonitoringRange)} aria-label="Alert period">
+            <select className="select h-10 w-auto text-xs" value={range} onChange={(event) => setRange(event.target.value as MonitoringRange)} aria-label="مدة التنبيهات">
               {MONITORING_RANGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
-            <select className="select h-10 w-auto text-xs" value={minSeverity} onChange={(event) => setMinSeverity(event.target.value as typeof minSeverity)} aria-label="Minimum severity">
-              <option value="warning">Warning and above</option>
-              <option value="suspicious">Suspicious and above</option>
-              <option value="high_risk">High risk only</option>
+            <select className="select h-10 w-auto text-xs" value={minSeverity} onChange={(event) => setMinSeverity(event.target.value as typeof minSeverity)} aria-label="الحد الأدنى للدرجة">
+              <option value="warning">تحذير فأعلى</option>
+              <option value="suspicious">مريب فأعلى</option>
+              <option value="high_risk">خطورة عالية فقط</option>
             </select>
           </div>
         </div>
 
         {feed.loading && feed.data === null ? <div className="p-4 sm:p-5"><LoadingRows count={4} /></div> : groups.length === 0 ? (
-          <EmptyState icon={ShieldCheck} title="Nothing flagged in this window" description="No visitor reached the warning threshold. A single failed login is normal and is never treated as an attack." />
+          <EmptyState icon={ShieldCheck} title="لا توجد تنبيهات في هذه المدة" description="مفيش زائر وصل لحد التحذير. المحاولة الفاشلة الواحدة طبيعية ولا تُعامل كهجوم أبدًا." />
         ) : (
           <div className="divide-y divide-white/[.06]">
             {groups.map((group) => (
@@ -186,13 +185,13 @@ export function SecurityAlertsPage({ admin }: { admin: AdminProfile }) {
 
       <div className="flex flex-col gap-5">
         <section className="panel">
-          <PanelHeading icon={History} title="Targeted accounts" description="Game Account IDs with repeated failed attempts in the window." />
-          {accountGroups.length === 0 ? <p className="text-xs leading-5 text-slate-500">No account is being targeted repeatedly right now.</p> : (
+          <PanelHeading icon={History} title="حسابات مستهدفة" description="أرقام الحسابات اللي عليها محاولات فاشلة متكررة في هذه المدة." />
+          {accountGroups.length === 0 ? <p className="text-xs leading-5 text-slate-500">لا يوجد حساب مستهدف بشكل متكرر حاليًا.</p> : (
             <ul className="space-y-2">
               {accountGroups.map(([accountId, count]) => (
                 <li key={accountId} className="flex items-center justify-between rounded-xl border border-white/[.07] bg-white/[.02] px-3.5 py-2.5">
-                  <span className="mono text-xs text-slate-300">{accountId}</span>
-                  <span className={`mono text-xs font-semibold ${count >= 5 ? 'text-rose-300' : 'text-amber-300'}`}>{count} failed attempts</span>
+                  <span className="ltr-island mono text-xs text-slate-300">{accountId}</span>
+                  <span className={`mono text-xs font-semibold ${count >= 5 ? 'text-rose-300' : 'text-amber-300'}`}>{count} محاولات فاشلة</span>
                 </li>
               ))}
             </ul>
@@ -200,20 +199,20 @@ export function SecurityAlertsPage({ admin }: { admin: AdminProfile }) {
         </section>
 
         <section className="panel">
-          <PanelHeading icon={Radar} title="Detection thresholds" description="Applied server-side to every recorded event." />
+          <PanelHeading icon={Radar} title="حدود الاكتشاف" description="بيطبقها الخادم على كل حدث مسجل." />
           <ul className="space-y-2 text-xs leading-5 text-slate-400">
-            <li><span className="font-semibold text-slate-300">Warning</span> — 2–3 failed attempts by one visitor, or 3+ against one account, within 15 minutes.</li>
-            <li><span className="font-semibold text-slate-300">Suspicious</span> — 4–9 visitor failures, 5+ against one account, 20+ authentication events in 15 minutes, or 30+ requests in 5 minutes.</li>
-            <li><span className="font-semibold text-slate-300">High risk</span> — 10+ visitor failures, 10+ against one account, 40+ auth events in 15 minutes, or 60+ requests in 5 minutes.</li>
-            <li className="text-slate-500">A single failed login always stays “Normal”. No automatic bans are issued; responses remain a human decision using the existing Game Access revocation and admin tools.</li>
+            <li><span className="font-semibold text-slate-300">تحذير</span> — 2–3 محاولات فاشلة من زائر واحد، أو 3+ محاولات على حساب واحد، خلال 15 دقيقة.</li>
+            <li><span className="font-semibold text-slate-300">مريب</span> — 4–9 محاولات فاشلة من زائر، أو 5+ على حساب واحد، أو 20+ حدث دخول خلال 15 دقيقة، أو 30+ طلبًا خلال 5 دقائق.</li>
+            <li><span className="font-semibold text-slate-300">خطورة عالية</span> — 10+ محاولات فاشلة من زائر، أو 10+ على حساب واحد، أو 40+ حدث دخول خلال 15 دقيقة، أو 60+ طلبًا خلال 5 دقائق.</li>
+            <li className="text-slate-500">المحاولة الفاشلة الواحدة بتفضل دايمًا «طبيعي». لا يوجد حظر تلقائي — القرار بيبقى بمراجعة بشرية باستخدام أدوات إلغاء الأكواد الموجودة.</li>
           </ul>
         </section>
 
         <section className="panel">
-          <PanelHeading icon={DatabaseZap} title="Retention" description="Minimal data, bounded lifetime." />
-          <p className="text-xs leading-5 text-slate-500">Monitoring data is kept for operational security only. The cleanup below deletes events and visitor profiles that have been inactive for more than 90 days. The action is audited in the existing activity log.</p>
+          <PanelHeading icon={DatabaseZap} title="الاحتفاظ بالبيانات" description="بيانات قليلة وعمر تخزين محدد." />
+          <p className="text-xs leading-5 text-slate-500">بيانات المراقبة محفوظة للأمن التشغيلي فقط. التنظيف بالأسفل بيحذف الأحداث وملفات الزوار غير النشطة منذ أكثر من 90 يومًا، وبيتسجل الإجراء في سجل النشاط.</p>
           <button type="button" className="btn-secondary mt-4" disabled={pruning} onClick={() => setConfirmPrune(true)}>
-            {pruning ? 'Cleaning up…' : 'Run 90-day cleanup'}
+            {pruning ? 'جارٍ التنظيف…' : 'تنظيف البيانات الأقدم من 90 يوم'}
           </button>
         </section>
       </div>
@@ -221,9 +220,9 @@ export function SecurityAlertsPage({ admin }: { admin: AdminProfile }) {
 
     <ConfirmDialog
       open={confirmPrune}
-      title="Delete monitoring data older than 90 days?"
-      message="Events and visitor profiles whose last activity is more than 90 days old are permanently deleted. Recent data used for active security review is kept."
-      confirmLabel="Delete old data"
+      title="حذف بيانات المراقبة الأقدم من 90 يوم؟"
+      message="الأحداث وملفات الزوار اللي آخر نشاط لها أقدم من 90 يوم هتتحذف نهائيًا. البيانات الحديثة المستخدمة في المراجعة الأمنية هتبقى كما هي."
+      confirmLabel="حذف البيانات القديمة"
       danger
       onConfirm={() => { void runPrune() }}
       onCancel={() => setConfirmPrune(false)}
@@ -234,15 +233,15 @@ export function SecurityAlertsPage({ admin }: { admin: AdminProfile }) {
 function AlertGroupRow({ group, expanded, onToggle }: { group: VisitorAlertGroup; expanded: boolean; onToggle: () => void }) {
   return (
     <div>
-      <button type="button" className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.03] sm:px-5" onClick={onToggle} aria-expanded={expanded}>
+      <button type="button" className="flex w-full items-center gap-3 px-4 py-3.5 text-right transition hover:bg-white/[.03] sm:px-5" onClick={onToggle} aria-expanded={expanded}>
         <StatusBadge label={SEVERITY_LABELS[group.severity]} tone={severityTone(group.severity)} pulse={group.severity === 'high_risk'} />
-        <span className="mono text-xs font-semibold text-emerald-200">Visitor {visitorShortLabel(group.visitorKey)}</span>
+        <span className="ltr-island mono text-xs font-semibold text-emerald-200">الزائر {visitorShortLabel(group.visitorKey)}</span>
         <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
-          {group.failureCount} failed / {group.events.length} flagged events
-          {group.latestReason ? ` · last: ${reasonLabel(group.latestReason)}` : ''}
-          {group.targetedAccounts.length > 0 ? ` · account${group.targetedAccounts.length > 1 ? 's' : ''} ${group.targetedAccounts.join(', ')}` : ''}
+          {group.failureCount} فاشلة / {group.events.length} حدث مُبلّغ
+          {group.latestReason ? ` · آخر سبب: ${reasonLabel(group.latestReason)}` : ''}
+          {group.targetedAccounts.length > 0 ? ` · ${group.targetedAccounts.length > 1 ? 'الحسابات' : 'الحساب'} ${group.targetedAccounts.join('، ')}` : ''}
         </span>
-        <span className="whitespace-nowrap text-[11px] text-slate-600">{formatRelativeTime(group.lastAt)}</span>
+        <span className="whitespace-nowrap text-[11px] text-slate-600">{relativeTimeArabic(group.lastAt)}</span>
       </button>
       {expanded && <ExpandedTimeline visitorKey={group.visitorKey} />}
     </div>
@@ -266,16 +265,16 @@ function ExpandedTimeline({ visitorKey }: { visitorKey: string }) {
     return () => { mounted = false }
   }, [visitorKey])
 
-  if (failed) return <p className="px-4 pb-4 text-xs text-amber-200 sm:px-5">The timeline could not be loaded right now.</p>
+  if (failed) return <p className="px-4 pb-4 text-xs text-amber-200 sm:px-5">تعذر تحميل سجل النشاط الآن. حاول مرة أخرى.</p>
   if (timeline === null) return <div className="px-4 pb-4 sm:px-5"><LoadingRows count={2} /></div>
 
   return (
     <ol className="space-y-1 border-t border-white/[.05] bg-black/10 px-4 py-3 sm:px-5">
       {timeline.map((event) => (
         <li key={event.id} className="flex items-center gap-3 text-xs">
-          <span className="mono w-14 shrink-0 text-[11px] text-slate-500">{new Date(event.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+          <span className="ltr-island mono w-14 shrink-0 text-[11px] text-slate-500">{formatTimeArabic(event.created_at)}</span>
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${event.result === 'success' ? 'bg-emerald-300' : event.result === 'failure' ? 'bg-rose-300' : 'bg-slate-500'}`} aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate text-slate-300">{securityEventLabel(event)}{event.reason ? <span className="ml-2 text-[10px] text-slate-600">({reasonLabel(event.reason)})</span> : null}</span>
+          <span className="min-w-0 flex-1 truncate text-slate-300">{securityEventLabel(event)}{event.reason ? <span className="ms-2 text-[10px] text-slate-600">({reasonLabel(event.reason)})</span> : null}</span>
           {event.severity !== 'normal' && <StatusBadge label={SEVERITY_LABELS[event.severity]} tone={severityTone(event.severity)} />}
         </li>
       ))}

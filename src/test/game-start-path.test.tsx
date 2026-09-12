@@ -102,9 +102,13 @@ function revealedBoard(): Record<string, string> {
   expect(cells).toHaveLength(50)
   for (const cell of cells) {
     const label = cell.getAttribute('aria-label') ?? ''
-    const match = label.match(/^Position (m\d+) — (safe|bomb)$/)
+    // Public board keeps its English labels; the Arabic admin console uses
+    // localized cell labels with the same meaning (آمن = safe, قنبلة = bomb).
+    const english = label.match(/^Position (m\d+) — (safe|bomb)$/)
+    const arabic = label.match(/^الموضع (m\d+) — (آمن|قنبلة)$/)
+    const match = english ?? arabic
     expect(match, `unexpected board cell label "${label}"`).not.toBeNull()
-    board[match![1]] = match![2]
+    board[match![1]] = match![2] === 'safe' || match![2] === 'آمن' ? 'safe' : 'bomb'
   }
   return board
 }
@@ -236,7 +240,7 @@ describe('ADMIN NEW GAME — real execution path (Console "New Game")', () => {
   it('uses the same single generation + single /m11 write and shows the same values', async () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /new game/i }))
+    fireEvent.click(screen.getByRole('button', { name: /إنشاء جولة جديدة/ }))
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
 
     expect(generatorSpy).toBeCalledTimes(1)
@@ -246,7 +250,7 @@ describe('ADMIN NEW GAME — real execution path (Console "New Game")', () => {
     expectContractShape(payload)
     expectPayloadFollowsConfig(payload)
 
-    fireEvent.click(screen.getByRole('button', { name: /^show$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^عرض الجولة$/ }))
     advanceReveal()
 
     // Admin grid vocabulary keeps the backend meaning ("1" → safe); the board

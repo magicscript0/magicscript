@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DEFAULT_CONTROL_SETTINGS, loadControlSettings } from '../services/control'
-import { friendlyControlError } from '../services/supabase'
+import { adminErrorMessage } from '../i18n/dashboard'
 import type { ControlSettings } from '../types/supabase'
 
 export function useControlSettings() {
@@ -18,7 +18,7 @@ export function useControlSettings() {
       setError(null)
     } catch (cause) {
       setAvailable(false)
-      setError(friendlyControlError(cause, 'Supabase control data could not be loaded.'))
+      setError(adminErrorMessage(cause, 'تعذر تحميل بيانات التحكم. حاول مرة أخرى.'))
     } finally {
       setLoading(false)
     }

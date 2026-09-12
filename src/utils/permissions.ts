@@ -49,14 +49,15 @@ export function can(role: AdminRole, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role].includes(permission)
 }
 
+/** Arabic presentation of the role — the stored role values never change. */
 export function roleLabel(role: AdminRole): string {
-  if (role === 'super_admin') return 'SUPER ADMIN'
-  if (role === 'admin') return 'ADMIN'
-  return 'OPERATOR'
+  if (role === 'super_admin') return 'المدير الرئيسي'
+  if (role === 'admin') return 'المدير'
+  return 'المشغّل'
 }
 
 export function roleDescription(role: AdminRole): string {
-  if (role === 'super_admin') return 'Full control across the command center.'
-  if (role === 'admin') return 'Manage operational settings and access codes.'
-  return 'Run the game console and review operational history.'
+  if (role === 'super_admin') return 'تحكم كامل في كل أقسام مركز التحكم.'
+  if (role === 'admin') return 'إدارة الإعدادات التشغيلية وأكواد الدخول.'
+  return 'تشغيل وحدة التحكم باللعبة ومتابعة سجل العمليات.'
 }

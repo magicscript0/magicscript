@@ -2686,3 +2686,37 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-intro__shutter { animation: none; }
   .pg-pill--timer.is-low { animation: none; }
 }
+
+/* ================================================================== */
+/* Arabic control center — RTL polish                                  */
+/*                                                                     */
+/* The admin dashboard is a native Arabic (RTL) experience. The public */
+/* game area resets <html> to dir="ltr", so every rule below is        */
+/* scoped to [dir="rtl"] and can never touch the public screens.      */
+/* These rules are intentionally un-layered so they win over Tailwind  */
+/* utility layers where mirroring is required.                        */
+/* ================================================================== */
+
+/* Arabic letterforms must never be tracked or uppercased. */
+[dir="rtl"] [class*="tracking-"] { letter-spacing: 0; }
+
+/* Keep the MAGIC SCRIPT wordmark and technical tokens LTR & tracked. */
+.brand-latin { direction: ltr; unicode-bidi: isolate; }
+[dir="rtl"] .brand-latin[class*="tracking-"] { letter-spacing: .14em; }
+
+/* LTR islands for codes, ids, and other Latin-only technical tokens. */
+.ltr-island { direction: ltr; unicode-bidi: isolate; text-align: left; }
+
+/* Mirror physical text alignment utilities in RTL (tables, columns). */
+[dir="rtl"] .text-left { text-align: right; }
+[dir="rtl"] .text-right { text-align: left; }
+
+/* Keep number inputs and URL fields readable while the page is RTL. */
+[dir="rtl"] input[type="number"],
+[dir="rtl"] input[type="url"],
+[dir="rtl"] input[type="datetime-local"],
+[dir="rtl"] input[dir="ltr"] { text-align: left; direction: ltr; }
+
+/* Thin scrollbars stay subtle in the RTL sidebar. */
+[dir="rtl"] nav::-webkit-scrollbar { width: 6px; }
+[dir="rtl"] nav::-webkit-scrollbar-thumb { background: rgba(148, 163, 164, .18); border-radius: 999px; }

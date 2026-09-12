@@ -92,9 +92,9 @@ afterEach(() => {
 describe('Visitor Activity page', () => {
   it('renders the privacy-safe summary cards', async () => {
     render(<VisitorsPage />)
-    await waitFor(() => expect(screen.getByText('Visitors online')).toBeInTheDocument())
-    expect(screen.getByText('Active sessions')).toBeInTheDocument()
-    expect(screen.getByText('Visitors today')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('الزوار المتصلون')).toBeInTheDocument())
+    expect(screen.getByText('الجلسات النشطة')).toBeInTheDocument()
+    expect(screen.getByText('زوار اليوم')).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByText('41')).toBeInTheDocument()
       expect(screen.getByText('42')).toBeInTheDocument()
@@ -106,12 +106,12 @@ describe('Visitor Activity page', () => {
     render(<VisitorsPage />)
     await waitFor(() => expect(screen.getByText('#A82F')).toBeInTheDocument())
     // The status badge (plus the same word in the status filter options).
-    expect(screen.getAllByText('Online').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('متصل الآن').length).toBeGreaterThanOrEqual(1)
     // The country cell (plus the derived country filter option).
     expect(screen.getAllByText('DE').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Acct 123456789')).toBeInTheDocument()
-    expect(screen.getByText('Game console')).toBeInTheDocument() // last_path '/play'
-    expect(screen.getByText('via t.me')).toBeInTheDocument()
+    expect(screen.getByText('حساب 123456789')).toBeInTheDocument()
+    expect(screen.getByText('وحدة التحكم باللعبة')).toBeInTheDocument() // last_path '/play'
+    expect(screen.getByText('عبر t.me')).toBeInTheDocument()
     // The raw visitor key is never rendered in full in the table cell text.
     expect(screen.queryByText(VISITOR_KEY)).toBeNull()
   })
@@ -121,17 +121,17 @@ describe('Visitor Activity page', () => {
     await waitFor(() => expect(listVisitorsMock).toHaveBeenCalledTimes(1))
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Filter by period'), { target: { value: '7d' } })
+      fireEvent.change(screen.getByLabelText('التصفية حسب المدة'), { target: { value: '7d' } })
     })
     await waitFor(() => expect(listVisitorsMock).toHaveBeenLastCalledWith(expect.objectContaining({ range: '7d' })))
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Filter by session status'), { target: { value: 'online' } })
+      fireEvent.change(screen.getByLabelText('التصفية حسب حالة الجلسة'), { target: { value: 'online' } })
     })
     await waitFor(() => expect(listVisitorsMock).toHaveBeenLastCalledWith(expect.objectContaining({ presence: 'online' })))
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Search visitors'), { target: { value: 'a82f' } })
+      fireEvent.change(screen.getByLabelText('البحث في الزوار'), { target: { value: 'a82f' } })
     })
     await waitFor(() => expect(listVisitorsMock).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'a82f' })))
   })
@@ -149,12 +149,12 @@ describe('Visitor Activity page', () => {
     fireEvent.click(screen.getByText('#A82F'))
 
     await waitFor(() => expect(timelineMock).toHaveBeenCalledWith(VISITOR_KEY, 150))
-    await waitFor(() => expect(screen.getByText('Entered website')).toBeInTheDocument())
-    expect(screen.getAllByText('Failed game login').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Successful game login')).toBeInTheDocument()
-    expect(screen.getAllByText(/\(invalid code\)/).length).toBeGreaterThanOrEqual(1)
-    // The timeline header shows the pseudonym, matching "Visitor #A82F".
-    expect(screen.getByText(/Visitor #A82F — activity timeline/i)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('دخل الموقع')).toBeInTheDocument())
+    expect(screen.getAllByText('دخول فاشل للعبة').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('دخول ناجح للعبة')).toBeInTheDocument()
+    expect(screen.getAllByText(/\(كود غير صحيح\)/).length).toBeGreaterThanOrEqual(1)
+    // The timeline header shows the pseudonym, matching "الزائر #A82F".
+    expect(screen.getByText(/الزائر #A82F — سجل النشاط/)).toBeInTheDocument()
   })
 
   it('shows a retryable inline error when monitoring reads fail', async () => {
@@ -167,7 +167,7 @@ describe('Visitor Activity page', () => {
     summaryMock.mockResolvedValue(SUMMARY)
     const callsBefore = listVisitorsMock.mock.calls.length
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+      fireEvent.click(screen.getByRole('button', { name: /إعادة المحاولة/ }))
     })
     await waitFor(() => expect(listVisitorsMock.mock.calls.length).toBeGreaterThan(callsBefore))
   })
@@ -177,7 +177,7 @@ describe('Visitor Activity page', () => {
     subscribeMock.mockReturnValue(unsubscribe)
     render(<VisitorsPage />)
     await waitFor(() => expect(subscribeMock).toHaveBeenCalled())
-    expect(screen.getByText('Live')).toBeInTheDocument()
+    expect(screen.getByText('مباشر')).toBeInTheDocument()
     cleanup()
     expect(unsubscribe).toHaveBeenCalled()
   })

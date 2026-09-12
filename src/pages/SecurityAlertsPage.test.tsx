@@ -89,36 +89,36 @@ afterEach(() => {
 describe('Security Alerts page', () => {
   it('renders the severity counters for the window', async () => {
     renderPage()
-    await waitFor(() => expect(screen.getByText('Visitor #B111')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('الزائر #B111')).toBeInTheDocument())
     // Card labels plus the matching severity badges on the group rows.
-    expect(screen.getAllByText('Warning').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Suspicious').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('High risk').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Visitors flagged')).toBeInTheDocument()
+    expect(screen.getAllByText('تحذير').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('مريب').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('خطورة عالية').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('زوار مُبلّغ عنهم')).toBeInTheDocument()
   })
 
   it('groups flagged events per pseudonymous visitor, worst severity first', async () => {
     renderPage()
-    await waitFor(() => expect(screen.getByText('Visitor #B111')).toBeInTheDocument())
-    expect(screen.getByText('Visitor #A82F')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('الزائر #B111')).toBeInTheDocument())
+    expect(screen.getByText('الزائر #A82F')).toBeInTheDocument()
     const rows = screen.getAllByRole('button', { expanded: false })
     expect(rows[0]).toHaveTextContent('#B111')
-    expect(rows[0]).toHaveTextContent('2 failed / 2 flagged events')
+    expect(rows[0]).toHaveTextContent('2 فاشلة / 2 حدث مُبلّغ')
     expect(rows[1]).toHaveTextContent('#A82F')
-    expect(screen.getByText(/accounts? 444555666/)).toBeInTheDocument()
+    expect(screen.getByText(/الحساب 444555666/)).toBeInTheDocument()
   })
 
   it('narrows the list with the minimum-severity filter without refetching', async () => {
     renderPage()
-    await waitFor(() => expect(screen.getByText('Visitor #B111')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('الزائر #B111')).toBeInTheDocument())
     const callsBefore = listEventsMock.mock.calls.length
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Minimum severity'), { target: { value: 'high_risk' } })
+      fireEvent.change(screen.getByLabelText('الحد الأدنى للدرجة'), { target: { value: 'high_risk' } })
     })
 
-    expect(screen.getByText('Visitor #B111')).toBeInTheDocument()
-    expect(screen.queryByText('Visitor #A82F')).toBeNull()
+    expect(screen.getByText('الزائر #B111')).toBeInTheDocument()
+    expect(screen.queryByText('الزائر #A82F')).toBeNull()
     expect(listEventsMock.mock.calls.length).toBe(callsBefore)
   })
 
@@ -129,40 +129,40 @@ describe('Security Alerts page', () => {
       flaggedEvent({ id: 't3', event_type: 'game_login_success', result: 'success', reason: null, severity: 'suspicious', created_at: '2026-09-12T20:45:00.000Z' }),
     ])
     renderPage()
-    await waitFor(() => expect(screen.getByText('Visitor #B111')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('الزائر #B111')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByText('Visitor #B111'))
+    fireEvent.click(screen.getByText('الزائر #B111'))
 
     await waitFor(() => expect(timelineMock).toHaveBeenCalledWith(VISITOR_B, 100))
-    await waitFor(() => expect(screen.getByText('Entered website')).toBeInTheDocument())
-    expect(screen.getByText('Successful game login')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('دخل الموقع')).toBeInTheDocument())
+    expect(screen.getByText('دخول ناجح للعبة')).toBeInTheDocument()
   })
 
   it('lists accounts targeted by repeated failed attempts', async () => {
     renderPage()
-    await waitFor(() => expect(screen.getByText('Targeted accounts')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('حسابات مستهدفة')).toBeInTheDocument())
     expect(screen.getByText('444555666')).toBeInTheDocument()
-    expect(screen.getByText('2 failed attempts')).toBeInTheDocument()
+    expect(screen.getByText('2 محاولات فاشلة')).toBeInTheDocument()
     // A single-failure account is not presented as targeted.
     expect(screen.queryByText('777888999')).toBeNull()
   })
 
   it('documents the detection thresholds and the no-single-failure rule', () => {
     renderPage()
-    expect(screen.getByText(/A single failed login always stays/i)).toBeInTheDocument()
-    expect(screen.getByText(/No automatic bans/i)).toBeInTheDocument()
+    expect(screen.getByText(/المحاولة الفاشلة الواحدة بتفضل دايمًا/)).toBeInTheDocument()
+    expect(screen.getAllByText(/لا يوجد حظر تلقائي/).length).toBeGreaterThanOrEqual(1)
   })
 
   it('runs the audited 90-day retention cleanup behind a confirmation', async () => {
     renderPage()
-    await waitFor(() => expect(screen.getByText('Visitor #B111')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('الزائر #B111')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: /run 90-day cleanup/i }))
-    expect(screen.getByText(/Delete monitoring data older than 90 days\?/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /تنظيف البيانات الأقدم من 90 يوم/ }))
+    expect(screen.getByText(/حذف بيانات المراقبة الأقدم من 90 يوم/)).toBeInTheDocument()
     expect(pruneMock).not.toHaveBeenCalled()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /delete old data/i }))
+      fireEvent.click(screen.getByRole('button', { name: /حذف البيانات القديمة/ }))
       await Promise.resolve()
     })
 
@@ -177,14 +177,14 @@ describe('Security Alerts page', () => {
   it('surfaces a friendly error when the cleanup is denied', async () => {
     pruneMock.mockRejectedValue(new Error('Supabase denied this operation.'))
     renderPage()
-    await waitFor(() => expect(screen.getByText('Visitor #B111')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('الزائر #B111')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: /run 90-day cleanup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /تنظيف البيانات الأقدم من 90 يوم/ }))
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /delete old data/i }))
+      fireEvent.click(screen.getByRole('button', { name: /حذف البيانات القديمة/ }))
       await Promise.resolve()
     })
 
-    await waitFor(() => expect(screen.getByText(/could not be pruned|denied/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/تعذر تنظيف بيانات المراقبة/)).toBeInTheDocument())
   })
 })

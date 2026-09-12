@@ -25,10 +25,10 @@ describe('role permissions', () => {
     expect(can('operator', 'security.view')).toBe(false)
   })
 
-  it('labels each supported role clearly', () => {
-    expect(roleLabel('super_admin')).toBe('SUPER ADMIN')
-    expect(roleLabel('admin')).toBe('ADMIN')
-    expect(roleLabel('operator')).toBe('OPERATOR')
-    expect(roleDescription('operator')).toMatch(/game console/i)
+  it('labels each supported role clearly in Arabic (values unchanged)', () => {
+    expect(roleLabel('super_admin')).toBe('المدير الرئيسي')
+    expect(roleLabel('admin')).toBe('المدير')
+    expect(roleLabel('operator')).toBe('المشغّل')
+    expect(roleDescription('operator')).toMatch(/وحدة التحكم باللعبة/)
   })
 })

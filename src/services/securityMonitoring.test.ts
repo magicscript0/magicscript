@@ -115,9 +115,9 @@ describe('range and search helpers', () => {
 
   it('renders short visitor labels and event labels', () => {
     expect(visitorShortLabel('a82f0f0f-1234-4abc-8def-000000000000')).toBe('#A82F')
-    expect(securityEventLabel({ event_type: 'session_start', path: '/' })).toBe('Entered website')
-    expect(securityEventLabel({ event_type: 'page_view', path: '/play' })).toBe('Opened Game console')
-    expect(securityEventLabel({ event_type: 'game_login_failure', path: '/' })).toBe('Failed game login')
+    expect(securityEventLabel({ event_type: 'session_start', path: '/' })).toBe('دخل الموقع')
+    expect(securityEventLabel({ event_type: 'page_view', path: '/play' })).toBe('فتح وحدة التحكم باللعبة')
+    expect(securityEventLabel({ event_type: 'game_login_failure', path: '/' })).toBe('دخول فاشل للعبة')
   })
 })
 

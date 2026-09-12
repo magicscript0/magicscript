@@ -39,7 +39,7 @@ afterEach(() => {
 })
 
 function startRound() {
-  fireEvent.click(screen.getByRole('button', { name: /new demo round/i }))
+  fireEvent.click(screen.getByRole('button', { name: /جولة محلية/ }))
   act(() => {
     vi.advanceTimersByTime(START_SIMULATION_MS)
   })
@@ -76,20 +76,20 @@ describe('Console screen', () => {
 
   it('shows the persistent non-real-money disclaimer and publishing boundary', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
-    expect(screen.getByText(/no real money · no wagering/i)).toBeInTheDocument()
-    expect(screen.getByText('Local generation')).toBeInTheDocument()
-    expect(screen.getByText('Publishing')).toBeInTheDocument()
-    expect(screen.getByText(/NEW GAME only \(guarded\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/لا أموال حقيقية · لا رهانات/)).toBeInTheDocument()
+    expect(screen.getByText('توليد محلي')).toBeInTheDocument()
+    expect(screen.getByText('جولة جديدة فقط')).toBeInTheDocument()
+    expect(screen.getByText(/مسار واحد محمي/)).toBeInTheDocument()
   })
 
   it('SHOW is disabled before a round exists; LOAD LIVE ROUND is disabled offline', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /show/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /new demo round/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /عرض الجولة/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /جولة محلية/ })).toBeEnabled()
     // Offline: there is no live round to load and no Firebase to publish to.
-    expect(screen.getByRole('button', { name: /load live round/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /new game/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /new demo round/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /تحميل الجولة/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /إنشاء جولة جديدة/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /جولة محلية/ })).toBeEnabled()
     expect(publishMock).not.toHaveBeenCalled()
   })
 
@@ -99,54 +99,54 @@ describe('Console screen', () => {
     startRound()
 
     // Ready state: 50 grid cells render with their position labels.
-    expect(screen.getByText(/Round ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/الجولة المحلية جاهزة/)).toBeInTheDocument()
     const cells = screen.getAllByRole('img')
     expect(cells).toHaveLength(50)
-    expect(screen.getByRole('button', { name: /show/i })).toBeEnabled()
-    expect(screen.getByRole('button', { name: /new demo round/i })).toBeEnabled()
-    expect(screen.getByTestId('data-source-badge')).toHaveTextContent('Local generation')
+    expect(screen.getByRole('button', { name: /عرض الجولة/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /جولة محلية/ })).toBeEnabled()
+    expect(screen.getByTestId('data-source-badge')).toHaveTextContent('توليد محلي')
   })
 
   it('NEW DEMO ROUND keeps SHOW disabled while the round is being prepared', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /new demo round/i }))
-    expect(screen.getByRole('button', { name: /show/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /preparing/i })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /جولة محلية/ }))
+    expect(screen.getByRole('button', { name: /عرض الجولة/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /جارٍ تجهيز جولة محلية/ })).toBeDisabled()
 
     act(() => {
       vi.advanceTimersByTime(START_SIMULATION_MS)
     })
-    expect(screen.getByRole('button', { name: /show/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /عرض الجولة/ })).toBeEnabled()
   })
 
   it('SHOW reveals the grid row by row and completes after 10 rows', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
 
     startRound()
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
-    expect(screen.getByRole('button', { name: /revealing/i })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
+    expect(screen.getByRole('button', { name: /جارٍ كشف النتيجة/ })).toBeDisabled()
 
     // Row 1
     advanceRevealTicks(1)
-    expect(screen.getByText(/Row 1 of 10 revealed/i)).toBeInTheDocument()
+    expect(screen.getByText(/تم كشف صف 1 من 10/)).toBeInTheDocument()
 
     // Rows 2–10
     advanceRevealTicks(GRID_ROWS - 1)
-    expect(screen.getByText(/Row 10 of 10 revealed/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /result shown/i })).toBeInTheDocument()
-    expect(screen.getByText(/20 safe cells/i)).toBeInTheDocument() // curve total
+    expect(screen.getByText(/تم كشف صف 10 من 10/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /تم عرض الجولة/ })).toBeInTheDocument()
+    expect(screen.getByText(/20 خلية آمنة/)).toBeInTheDocument() // curve total
   })
 
   it('reveals exactly one additional row per reveal tick', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
 
     startRound()
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
 
     for (let row = 1; row <= GRID_ROWS; row += 1) {
       advanceRevealTicks(1)
-      expect(screen.getByText(new RegExp(`Row ${row} of 10 revealed`, 'i'))).toBeInTheDocument()
+      expect(screen.getByText(new RegExp(`تم كشف صف ${row} من 10`))).toBeInTheDocument()
     }
   })
 
@@ -154,7 +154,7 @@ describe('Console screen', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
 
     startRound()
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
 
     advanceRevealTicks(3)
     const afterThreeRows = screen
@@ -163,16 +163,16 @@ describe('Console screen', () => {
       .join('|')
     const labelCount = (needle: string) =>
       afterThreeRows.split('|').filter((label) => label?.includes(needle)).length
-    const safeAtThree = labelCount('safe')
-    const bombAtThree = labelCount('bomb')
+    const safeAtThree = labelCount('آمن')
+    const bombAtThree = labelCount('قنبلة')
 
     advanceRevealTicks(GRID_ROWS)
     const finalLabels = screen
       .getAllByRole('img')
       .map((cell) => cell.getAttribute('aria-label'))
       .join('|')
-    const safeFinal = finalLabels.split('|').filter((label) => label?.includes('safe')).length
-    const bombFinal = finalLabels.split('|').filter((label) => label?.includes('bomb')).length
+    const safeFinal = finalLabels.split('|').filter((label) => label?.includes('آمن')).length
+    const bombFinal = finalLabels.split('|').filter((label) => label?.includes('قنبلة')).length
 
     // Already-revealed rows keep their values; the totals only grow.
     expect(safeFinal).toBeGreaterThanOrEqual(safeAtThree)
@@ -185,39 +185,39 @@ describe('Console screen', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
 
     startRound()
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     advanceRevealTicks(GRID_ROWS)
-    expect(screen.getByRole('button', { name: /result shown/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /تم عرض الجولة/ })).toBeInTheDocument()
 
     startRound()
-    expect(screen.getByText(/Round ready/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show/i })).toBeEnabled()
+    expect(screen.getByText(/الجولة المحلية جاهزة/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /عرض الجولة/ })).toBeEnabled()
     // New round starts fully hidden again.
-    expect(screen.queryByText(/revealed/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/تم كشف صف/)).not.toBeInTheDocument()
   })
 
   it('SHOW reveals EXACTLY the generated demo round, cell by cell (seed read from the UI)', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /new demo round/i }))
+    fireEvent.click(screen.getByRole('button', { name: /جولة محلية/ }))
     act(() => {
       vi.advanceTimersByTime(START_SIMULATION_MS)
     })
 
     // The console displays the round's seed — use it to rebuild the exact
     // expected round via the real generator (no mocks involved).
-    const meta = screen.getByText(/seed \d+/).textContent ?? ''
-    const seed = Number(meta.match(/seed (\d+)/)?.[1])
+    const meta = screen.getByText(/بذرة \d+/).textContent ?? ''
+    const seed = Number(meta.match(/بذرة (\d+)/)?.[1])
     expect(Number.isFinite(seed)).toBe(true)
     const expected = generateDemoRound(seed)
     const expectedNode = expected.node as unknown as Record<string, Record<string, '0' | '1'>>
 
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     advanceRevealTicks(GRID_ROWS)
 
     const revealed: Record<string, string> = {}
     for (const cell of screen.getAllByRole('img')) {
-      const match = (cell.getAttribute('aria-label') ?? '').match(/^Position (m\d+) — (safe|bomb)$/)
+      const match = (cell.getAttribute('aria-label') ?? '').match(/^الموضع (m\d+) — (آمن|قنبلة)$/)
       if (match) revealed[match[1]] = match[2]
     }
     expect(Object.keys(revealed)).toHaveLength(50)
@@ -225,33 +225,33 @@ describe('Console screen', () => {
       const key = `m${n}`
       const expectedCell = expectedNode[key][key]
       expect(revealed[key], `${key} must match the generated round`).toBe(
-        expectedCell === '1' ? 'safe' : 'bomb',
+        expectedCell === '1' ? 'آمن' : 'قنبلة',
       )
     }
-    expect(screen.getByText(/20 safe cells/i)).toBeInTheDocument()
+    expect(screen.getByText(/20 خلية آمنة/)).toBeInTheDocument()
   })
 
   it('offline mode never publishes and keeps the local demo generator as fallback', () => {
     render(<Console operatorId="op-1" onLogout={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /new demo round/i }))
+    fireEvent.click(screen.getByRole('button', { name: /جولة محلية/ }))
     act(() => {
       vi.advanceTimersByTime(START_SIMULATION_MS)
     })
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     for (let i = 0; i < 12; i += 1) {
       act(() => {
         vi.advanceTimersByTime(REVEAL_ROW_DELAY_MS)
       })
     }
     expect(publishMock).not.toHaveBeenCalled()
-    expect(screen.getByText(/20 safe cells/i)).toBeInTheDocument()
+    expect(screen.getByText(/20 خلية آمنة/)).toBeInTheDocument()
   })
 
   it('logout button calls onLogout', () => {
     const onLogout = vi.fn()
     render(<Console operatorId="op-1" onLogout={onLogout} />)
-    fireEvent.click(screen.getByRole('button', { name: /log out/i }))
+    fireEvent.click(screen.getByRole('button', { name: /تسجيل الخروج/ }))
     expect(onLogout).toHaveBeenCalledTimes(1)
   })
 

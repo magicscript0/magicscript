@@ -11,6 +11,7 @@
  * families, app paths, event categories, and server-computed severities.
  */
 
+import { reasonLabelArabic } from '../i18n/dashboard'
 import { classifySupabaseRequestError, getSupabaseClient, requireClient } from './supabase'
 import type {
   SecurityEventResult,
@@ -25,10 +26,10 @@ import type {
 export type MonitoringRange = 'today' | '24h' | '7d' | '30d'
 
 export const MONITORING_RANGE_OPTIONS: ReadonlyArray<{ value: MonitoringRange; label: string }> = [
-  { value: 'today', label: 'Today' },
-  { value: '24h', label: 'Last 24 hours' },
-  { value: '7d', label: 'Last 7 days' },
-  { value: '30d', label: 'Last 30 days' },
+  { value: 'today', label: 'اليوم' },
+  { value: '24h', label: 'آخر 24 ساعة' },
+  { value: '7d', label: 'آخر 7 أيام' },
+  { value: '30d', label: 'آخر 30 يوم' },
 ]
 
 /** Session presence thresholds shared by the UI (server stores raw times). */
@@ -246,29 +247,29 @@ export function visitorShortLabel(visitorKey: string): string {
 }
 
 export const SECURITY_EVENT_LABELS: Record<SecurityEventType, string> = {
-  session_start: 'Entered website',
-  page_view: 'Opened page',
-  game_login_success: 'Successful game login',
-  game_login_failure: 'Failed game login',
-  game_access_expired: 'Expired game access attempt',
-  game_access_revoked: 'Revoked game access attempt',
-  game_logout: 'Left the game',
-  admin_login_success: 'Successful admin login',
-  admin_login_failure: 'Failed admin login',
-  admin_logout: 'Admin signed out',
+  session_start: 'دخل الموقع',
+  page_view: 'فتح صفحة',
+  game_login_success: 'دخول ناجح للعبة',
+  game_login_failure: 'دخول فاشل للعبة',
+  game_access_expired: 'محاولة دخول بكود منتهي',
+  game_access_revoked: 'محاولة دخول بكود ملغي',
+  game_logout: 'خروج من اللعبة',
+  admin_login_success: 'دخول ناجح للوحة التحكم',
+  admin_login_failure: 'دخول فاشل للوحة التحكم',
+  admin_logout: 'خروج من لوحة التحكم',
 }
 
 export const TRACKED_PATH_LABELS: Record<string, string> = {
-  '/': 'Game Login',
-  '/play': 'Game console',
-  '/admin': 'Admin Dashboard',
-  '/login/admin': 'Admin sign-in',
+  '/': 'شاشة دخول اللعبة',
+  '/play': 'وحدة التحكم باللعبة',
+  '/admin': 'لوحة التحكم',
+  '/login/admin': 'تسجيل دخول الإدارة',
 }
 
 export function securityEventLabel(event: Pick<SecurityEventRow, 'event_type' | 'path'>): string {
   if (event.event_type === 'page_view' && event.path) {
     const pageLabel = TRACKED_PATH_LABELS[event.path]
-    return pageLabel ? `Opened ${pageLabel}` : 'Opened page'
+    return pageLabel ? `فتح ${pageLabel}` : 'فتح صفحة'
   }
   return SECURITY_EVENT_LABELS[event.event_type]
 }
@@ -281,13 +282,12 @@ export function severityTone(severity: SecuritySeverity): 'success' | 'warning' 
 }
 
 export const SEVERITY_LABELS: Record<SecuritySeverity, string> = {
-  normal: 'Normal',
-  warning: 'Warning',
-  suspicious: 'Suspicious',
-  high_risk: 'High risk',
+  normal: 'طبيعي',
+  warning: 'تحذير',
+  suspicious: 'مريب',
+  high_risk: 'خطورة عالية',
 }
 
 export function reasonLabel(reason: string | null): string | null {
-  if (!reason) return null
-  return reason.replace(/_/g, ' ')
+  return reasonLabelArabic(reason)
 }

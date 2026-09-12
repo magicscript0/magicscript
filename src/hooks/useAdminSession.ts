@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   getCurrentAdmin,
-  friendlyControlError,
   isControlSystemConfigured,
   signInAdmin,
   signOutAdmin,
   subscribeToAuthChanges,
 } from '../services/supabase'
+import { adminErrorMessage } from '../i18n/dashboard'
 import { recordAdminLoginFailure, recordAdminLoginSuccess, recordAdminLogout } from '../services/visitorTracking'
 import type { AdminProfile } from '../types/supabase'
 
@@ -28,7 +28,7 @@ export function useAdminSession(): AdminSessionState {
     let refreshSequence = 0
 
     if (!isControlSystemConfigured()) {
-      setError('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, then rebuild the site.')
+      setError('نظام التحكم غير مُهيأ بعد. راجع إعدادات النظام ثم أعد بناء الموقع.')
       setLoading(false)
       return () => { mounted = false }
     }
@@ -45,7 +45,7 @@ export function useAdminSession(): AdminSessionState {
         .catch((cause) => {
           if (mounted && sequence === refreshSequence) {
             setAdmin(null)
-            setError(friendlyControlError(cause, 'The authenticated workspace could not be loaded.'))
+            setError(adminErrorMessage(cause, 'تعذر تحميل مساحة العمل. حاول مرة أخرى.'))
           }
         })
         .finally(() => {
@@ -93,7 +93,7 @@ export function useAdminSession(): AdminSessionState {
     } catch (cause) {
       // Only the classified error KIND is recorded — never credentials.
       recordAdminLoginFailure(cause)
-      const message = friendlyControlError(cause, 'Supabase authentication could not be completed.')
+      const message = adminErrorMessage(cause, 'تعذر إتمام عملية تسجيل الدخول. حاول مرة أخرى.')
       setError(message)
       if (cause instanceof Error) throw cause
       throw new Error(message)
@@ -107,7 +107,7 @@ export function useAdminSession(): AdminSessionState {
       recordAdminLogout()
       setAdmin(null)
     } catch (cause) {
-      setError(friendlyControlError(cause, 'The Supabase session could not be closed.'))
+      setError(adminErrorMessage(cause, 'تعذر إغلاق جلسة الدخول. حاول مرة أخرى.'))
     }
   }, [])
 

@@ -27,11 +27,11 @@ function mirrorState(overrides: Partial<M11MirrorState>): M11MirrorState {
 
 describe('MirrorPanel — connection states', () => {
   it.each<[FirebaseConnectionState, RegExp]>([
-    ['unconfigured', /Not configured \(offline demo mode\)/i],
-    ['connecting', /Connecting…/i],
-    ['connected', /Connected \(read-only\)/i],
-    ['disconnected', /Disconnected/i],
-    ['error', /Connection error/i],
+    ['unconfigured', /غير مهيأ \(وضع تجريبي محلي\)/],
+    ['connecting', /جارٍ الاتصال…/],
+    ['connected', /متصل/],
+    ['disconnected', /غير متصل/],
+    ['error', /خطأ في الاتصال/],
   ])('displays connection state "%s"', (connection, pattern) => {
     render(
       <MirrorPanel
@@ -44,8 +44,8 @@ describe('MirrorPanel — connection states', () => {
 
   it('always shows publishing as guarded (NEW GAME only)', () => {
     render(<MirrorPanel connection="connected" mirror={mirrorState({})} />)
-    expect(screen.getByText('Publishing')).toBeInTheDocument()
-    expect(screen.getByText(/NEW GAME only \(guarded\)/i)).toBeInTheDocument()
+    expect(screen.getByText('جولة جديدة فقط')).toBeInTheDocument()
+    expect(screen.getByText(/إنشاء جولة جديدة» فقط — مسار واحد محمي/)).toBeInTheDocument()
   })
 })
 
@@ -54,15 +54,15 @@ describe('MirrorPanel — /m11 sync states', () => {
     render(
       <MirrorPanel connection="unconfigured" mirror={mirrorState({ active: false, status: 'idle' })} />,
     )
-    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/Not attached/i)
-    expect(screen.getByText(/local demo generator remains fully functional/i)).toBeInTheDocument()
-    expect(screen.getByText(/\.env\.example/i)).toBeInTheDocument()
+    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/غير مرتبط/)
+    expect(screen.getByText(/المولد المحلي يعمل بشكل كامل/)).toBeInTheDocument()
+    expect(screen.getByText(/\.env\.example/)).toBeInTheDocument()
   })
 
   it('shows the syncing note while waiting for the first snapshot', () => {
     render(<MirrorPanel connection="connected" mirror={mirrorState({ status: 'syncing' })} />)
-    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/Syncing…/i)
-    expect(screen.getByText(/waiting for the first snapshot/i)).toBeInTheDocument()
+    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/جارٍ المزامنة…/)
+    expect(screen.getByText(/في انتظار أول نسخة/)).toBeInTheDocument()
   })
 
   it('warns clearly (and non-destructively) when /m11 is empty while connected', () => {
@@ -73,8 +73,8 @@ describe('MirrorPanel — /m11 sync states', () => {
       />,
     )
     const alert = screen.getByRole('alert')
-    expect(alert).toHaveTextContent(/\/m11 is currently empty/i)
-    expect(alert).toHaveTextContent(/Nothing is created, repaired, or overwritten/i)
+    expect(alert).toHaveTextContent(/\/m11 فارغ حاليًا/)
+    expect(alert).toHaveTextContent(/لا يتم إنشاء أي شيء أو إصلاحه أو الكتابة فوقه/)
   })
 
   it('shows an informational (non-alarm) message when empty but still connecting', () => {
@@ -85,7 +85,7 @@ describe('MirrorPanel — /m11 sync states', () => {
       />,
     )
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByText(/waiting for a database connection/i)).toBeInTheDocument()
+    expect(screen.getByText(/في انتظار اتصال قاعدة البيانات/)).toBeInTheDocument()
   })
 
   it('warns with the missing key list when /m11 is incomplete', () => {
@@ -99,11 +99,11 @@ describe('MirrorPanel — /m11 sync states', () => {
       />,
     )
     const alert = screen.getByRole('alert')
-    expect(alert).toHaveTextContent(/48 of 50 keys present/i)
-    expect(alert).toHaveTextContent(/m17, m42/i)
-    expect(alert).toHaveTextContent(/Nothing is created, repaired, or overwritten/i)
-    expect(alert).toHaveTextContent(/crash/i)
-    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/Incomplete — 48\/50 keys/i)
+    expect(alert).toHaveTextContent(/48 من 50 مفتاحًا موجودة/)
+    expect(alert).toHaveTextContent(/m17, m42/)
+    expect(alert).toHaveTextContent(/لا يتم إنشاء أي شيء أو إصلاحه أو الكتابة فوقه/)
+    expect(alert).toHaveTextContent(/خطر توقف/)
+    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/غير مكتمل — 48\/50 مفتاحًا/)
   })
 
   it('warns naming the invalid keys when /m11 contains malformed data', () => {
@@ -116,9 +116,9 @@ describe('MirrorPanel — /m11 sync states', () => {
       />,
     )
     const alert = screen.getByRole('alert')
-    expect(alert).toHaveTextContent(/malformed data/i)
-    expect(alert).toHaveTextContent(/m5/i)
-    expect(alert).toHaveTextContent(/must be exactly \{ mN: "0" \| "1" \}/i)
+    expect(alert).toHaveTextContent(/بيانات تالفة/)
+    expect(alert).toHaveTextContent(/m5/)
+    expect(alert).toHaveTextContent(/يجب أن يكون بالضبط \{ mN: "0" \| "1" \}/)
   })
 
   it('shows the green in-sync summary for a fully valid node', () => {
@@ -134,9 +134,9 @@ describe('MirrorPanel — /m11 sync states', () => {
         }}
       />,
     )
-    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/In sync — 50\/50 keys valid/i)
-    expect(screen.getByText(/50\/50 keys valid · 20 safe · 30 bomb cells/i)).toBeInTheDocument()
-    expect(screen.getByText(/Observation only/i)).toBeInTheDocument()
+    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/متزامن — 50\/50 مفتاحًا صالحًا/)
+    expect(screen.getByText(/50 \/ 50 مفتاحًا صالحًا · 20 آمنة · 30 محمية/)).toBeInTheDocument()
+    expect(screen.getByText(/مراقبة فقط/)).toBeInTheDocument()
   })
 
   it('renders the sync error message with a generator-available note', () => {
@@ -146,7 +146,7 @@ describe('MirrorPanel — /m11 sync states', () => {
         mirror={mirrorState({ status: 'error', error: 'Live /m11 observation failed.' })}
       />,
     )
-    expect(screen.getByRole('alert')).toHaveTextContent(/observation failed/i)
-    expect(screen.getByRole('alert')).toHaveTextContent(/generator below remains fully functional/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/فشل رصد \/m11/)
+    expect(screen.getByRole('alert')).toHaveTextContent(/المولد المحلي يعمل بشكل كامل/)
   })
 })

@@ -62,7 +62,7 @@ function Workspace({ admin, route, navigate, onLogout, sessionError }: { admin: 
 function WorkspacePage({ admin, route, onLogout }: { admin: NonNullable<ReturnType<typeof useAdminSession>['admin']>; route: PageRoute; onLogout: () => void }) {
   const { settings } = useSharedControlSettings()
   useEffect(() => {
-    document.title = settings.general.browserTitle || 'MAGIC SCRIPT Admin Console'
+    document.title = settings.general.browserTitle || 'MAGIC SCRIPT — لوحة التحكم'
   }, [settings.general.browserTitle])
 
   if (!can(admin.role, ROUTE_PERMISSIONS[route])) return <NotAuthorizedPage role={admin.role} />
@@ -89,6 +89,19 @@ function WorkspacePage({ admin, route, onLogout }: { admin: NonNullable<ReturnTy
 function AdminArea({ initialPath }: { initialPath: '/admin' | '/login/admin' }) {
   const session = useAdminSession()
   const { navigate, replace } = usePathRoute()
+
+  // The control center is a native Arabic/RTL experience — login, loading,
+  // and workspace alike. The public game area resets the document back to
+  // LTR when it mounts.
+  useEffect(() => {
+    const root = document.documentElement
+    root.setAttribute('dir', 'rtl')
+    root.setAttribute('lang', 'ar')
+    return () => {
+      root.setAttribute('dir', 'ltr')
+      root.setAttribute('lang', 'en')
+    }
+  }, [])
 
   // Supabase is the single source of truth. An authorized session moves the
   // browser to /admin; anything else canonicalizes to /login/admin. Both hops
@@ -127,6 +140,14 @@ function GameArea({ path }: { path: '/' | '/play' }) {
   const settings = usePublicGameSettings()
   const { replace, navigate } = usePathRoute()
   const authorized = access.status === 'active'
+
+  // The public game keeps its existing LTR presentation — the admin area is
+  // the only RTL experience (it flips the document back on unmount).
+  useEffect(() => {
+    const root = document.documentElement
+    root.setAttribute('dir', 'ltr')
+    root.setAttribute('lang', 'en')
+  }, [])
   /**
    * The premium loading screen curtains the login until its sequence has
    * played. It runs once per page load (never again after a sign-out), stays

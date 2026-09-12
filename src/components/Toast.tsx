@@ -16,8 +16,8 @@ export function ToastViewport({
   return (
     <div
       aria-live="polite"
-      aria-label="Notifications"
-      className="fixed bottom-4 right-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 sm:bottom-6 sm:right-6"
+      aria-label="الإشعارات"
+      className="fixed bottom-4 end-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 sm:bottom-6 sm:end-6"
     >
       {messages.map((toast) => (
         <div
@@ -38,7 +38,7 @@ export function ToastViewport({
           <button
             type="button"
             className="rounded-md p-0.5 text-slate-500 hover:text-slate-200"
-            aria-label="Dismiss notification"
+            aria-label="إخفاء الإشعار"
             onClick={() => onDismiss(toast.id)}
           >
             <X className="h-4 w-4" />

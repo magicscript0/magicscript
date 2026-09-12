@@ -85,8 +85,8 @@ function revealedCellMap(): Record<string, string> {
   const map: Record<string, string> = {}
   for (const cell of screen.getAllByRole('img')) {
     const label = cell.getAttribute('aria-label') ?? ''
-    const match = label.match(/^Position (m\d+) — (safe|bomb)$/)
-    if (match) map[match[1]] = match[2]
+    const match = label.match(/^الموضع (m\d+) — (آمن|قنبلة)$/)
+    if (match) map[match[1]] = match[2] === 'آمن' ? 'safe' : 'bomb'
   }
   return map
 }
@@ -109,7 +109,7 @@ function revealAll() {
 
 async function clickNewGame() {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: /new game/i }))
+    fireEvent.click(screen.getByRole('button', { name: /إنشاء جولة جديدة/ }))
   })
 }
 
@@ -140,11 +140,11 @@ describe('Console — live Firebase mirror mode', () => {
       listeners.current?.onUpdate(snapshotWithSafe(SAFE, 1_700_000_000_000))
     })
 
-    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/Firebase — Read Only/i)
-    fireEvent.click(screen.getByRole('button', { name: /load live round/i }))
-    expect(screen.getByText(/Live \/m11 round loaded/i)).toBeInTheDocument()
+    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/مباشرة من Firebase/)
+    fireEvent.click(screen.getByRole('button', { name: /تحميل الجولة/ }))
+    expect(screen.getByText(/تم تحميل الجولة المباشرة/)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
     expectCellsMatch(revealedCellMap(), SAFE)
     expect(publishMock).not.toHaveBeenCalled()
@@ -156,8 +156,8 @@ describe('Console — live Firebase mirror mode', () => {
     act(() => {
       listeners.current?.onUpdate(snapshotWithSafe(['m3'], 1))
     })
-    fireEvent.click(screen.getByRole('button', { name: /load live round/i }))
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /تحميل الجولة/ }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
     expect(generateMock).not.toHaveBeenCalled()
     expect(publishMock).not.toHaveBeenCalled()
@@ -168,11 +168,11 @@ describe('Console — live Firebase mirror mode', () => {
     act(() => {
       listeners.current?.onUpdate(snapshotWithSafe(['m1'], 1_000))
     })
-    fireEvent.click(screen.getByRole('button', { name: /load live round/i }))
+    fireEvent.click(screen.getByRole('button', { name: /تحميل الجولة/ }))
     act(() => {
       listeners.current?.onUpdate(snapshotWithSafe(['m2', 'm50'], 2_000))
     })
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
     expectCellsMatch(revealedCellMap(), ['m2', 'm50'])
   })
@@ -182,8 +182,8 @@ describe('Console — live Firebase mirror mode', () => {
     act(() => {
       listeners.current?.onUpdate(snapshotWithSafe(['m1'], 1_000))
     })
-    fireEvent.click(screen.getByRole('button', { name: /load live round/i }))
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /تحميل الجولة/ }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     for (let i = 0; i < 3; i += 1) {
       act(() => {
         vi.advanceTimersByTime(REVEAL_ROW_DELAY_MS)
@@ -195,7 +195,7 @@ describe('Console — live Firebase mirror mode', () => {
     })
     revealAll()
     expectCellsMatch(revealedCellMap(), ['m1'])
-    expect(screen.getByText(/Newer \/m11 snapshot received/i)).toBeInTheDocument()
+    expect(screen.getByText(/وصلت نسخة أحدث من \/m11/)).toBeInTheDocument()
   })
 
   it('shows the guarded-publishing state and sync status', () => {
@@ -203,8 +203,8 @@ describe('Console — live Firebase mirror mode', () => {
     act(() => {
       listeners.current?.onUpdate(snapshotWithSafe(['m1'], 1))
     })
-    expect(screen.getByText(/NEW GAME only \(guarded\)/i)).toBeInTheDocument()
-    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/In sync/i)
+    expect(screen.getByText(/مسار واحد محمي/)).toBeInTheDocument()
+    expect(screen.getByTestId('m11-sync-status')).toHaveTextContent(/متزامن/)
   })
 })
 
@@ -214,8 +214,8 @@ describe('Console — NEW GAME publishing flow', () => {
     act(() => {
       listeners.current?.onUpdate(snapshotWithSafe(['m1'], 1))
     })
-    fireEvent.click(screen.getByRole('button', { name: /load live round/i }))
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /تحميل الجولة/ }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
     expect(publishMock).not.toHaveBeenCalled()
   })
@@ -230,15 +230,15 @@ describe('Console — NEW GAME publishing flow', () => {
 
     expect(generateMock).toHaveBeenCalledTimes(1)
     expect(publishMock).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/Firebase — Published/i)
-    expect(screen.getAllByText(/New game published successfully/i).length).toBeGreaterThan(0)
+    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/منشورة عبر Firebase/)
+    expect(screen.getAllByText(/تم نشر جولة جديدة بنجاح/).length).toBeGreaterThan(0)
 
     // The published payload is contract-valid and is the SAME round shown.
     const published = publishMock.mock.calls[0][0] as M11Node
     expect(validateM11Node(published)).toEqual({ valid: true })
     expect(Object.keys(published)).toHaveLength(50)
 
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
     expectCellsMatch(revealedCellMap(), safeKeysOf(published))
   })
@@ -251,10 +251,10 @@ describe('Console — NEW GAME publishing flow', () => {
       listeners.current?.onUpdate({ evaluation: evaluateM11Snapshot(invalid), receivedAt: 1 })
     })
 
-    expect(screen.getByRole('button', { name: /new game/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /إنشاء جولة جديدة/ })).toBeEnabled()
     await clickNewGame()
     expect(publishMock).toHaveBeenCalledTimes(1)
-    expect(screen.getAllByText(/New game published successfully/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/تم نشر جولة جديدة بنجاح/).length).toBeGreaterThan(0)
   })
 
   it('publish failure keeps the previous confirmed round and never auto-retries', async () => {
@@ -262,19 +262,19 @@ describe('Console — NEW GAME publishing flow', () => {
     act(() => {
       listeners.current?.onUpdate(snapshotWithSafe(['m1'], 1_000))
     })
-    fireEvent.click(screen.getByRole('button', { name: /load live round/i }))
+    fireEvent.click(screen.getByRole('button', { name: /تحميل الجولة/ }))
 
     publishMock.mockImplementationOnce(() => Promise.reject(new Error('permission denied')))
     await clickNewGame()
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      /Publish failed — current round was not replaced/i,
+      /فشل النشر — الجولة الحالية لم تُستبدل/,
     )
     expect(publishMock).toHaveBeenCalledTimes(1) // exactly one attempt, no retry loop
 
     // The previously confirmed LIVE round is still the held round.
-    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/Firebase — Read Only/i)
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/مباشرة من Firebase/)
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
     expectCellsMatch(revealedCellMap(), ['m1'])
   })
@@ -284,7 +284,7 @@ describe('Console — NEW GAME publishing flow', () => {
     await clickNewGame()
     const published = publishMock.mock.calls[0][0] as M11Node
 
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     for (let i = 0; i < 3; i += 1) {
       act(() => {
         vi.advanceTimersByTime(REVEAL_ROW_DELAY_MS)
@@ -296,8 +296,8 @@ describe('Console — NEW GAME publishing flow', () => {
     revealAll()
 
     expectCellsMatch(revealedCellMap(), safeKeysOf(published))
-    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/Firebase — Published/i)
-    expect(screen.getByText(/Newer \/m11 snapshot received/i)).toBeInTheDocument()
+    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/منشورة عبر Firebase/)
+    expect(screen.getByText(/وصلت نسخة أحدث من \/m11/)).toBeInTheDocument()
   })
 
   it('a second NEW GAME publishes a fresh round that fully replaces the first', async () => {
@@ -305,14 +305,14 @@ describe('Console — NEW GAME publishing flow', () => {
 
     await clickNewGame()
     const first = publishMock.mock.calls[0][0] as M11Node
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
 
     await clickNewGame()
     const second = publishMock.mock.calls[1][0] as M11Node
     expect(safeKeysOf(second)).not.toEqual(safeKeysOf(first))
 
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
     expectCellsMatch(revealedCellMap(), safeKeysOf(second))
   })
@@ -324,12 +324,12 @@ describe('Console — NEW GAME publishing flow', () => {
     })
 
     await clickNewGame()
-    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/Firebase — Published/i)
+    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/منشورة عبر Firebase/)
 
-    fireEvent.click(screen.getByRole('button', { name: /load live round/i }))
-    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/Firebase — Read Only/i)
+    fireEvent.click(screen.getByRole('button', { name: /تحميل الجولة/ }))
+    expect(screen.getByTestId('data-source-badge')).toHaveTextContent(/مباشرة من Firebase/)
 
-    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    fireEvent.click(screen.getByRole('button', { name: /عرض الجولة/ }))
     revealAll()
     expectCellsMatch(revealedCellMap(), ['m2', 'm3'])
   })

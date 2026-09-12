@@ -50,9 +50,9 @@ function url() {
 
 /** Which screen is actually on the page right now. */
 function screenName(): string {
-  if (screen.queryByLabelText('Work email')) return 'ADMIN_LOGIN'
+  if (screen.queryByLabelText('البريد الإلكتروني للعمل')) return 'ADMIN_LOGIN'
   if (screen.queryByLabelText('Account ID')) return 'GAME_LOGIN'
-  if (screen.queryAllByText('System overview').length > 0) return 'ADMIN_DASHBOARD'
+  if (screen.queryAllByText('نظرة عامة').length > 0) return 'ADMIN_DASHBOARD'
   if (screen.queryByText(/checking your access/i)) return 'GAME_LOADING'
   if (document.body.textContent?.includes('Apple of Fortune')) return 'GAME_CONSOLE'
   return 'UNKNOWN:' + (document.body.textContent ?? '').slice(0, 60)

@@ -32,36 +32,36 @@ interface NavigationItem {
 }
 
 /**
- * Control-center navigation, grouped by responsibility:
- * - PUBLIC GAME: everything an operator uses to shape the public experience.
- * - OPERATIONS: the game console, round history, and the two access systems.
- * - MONITORING: the Visitor & Security Monitoring Center (admin roles).
- * - WORKSPACE: identity/notices and the signed-in account.
+ * تنقل مركز التحكم — نفس التقسيم الوظيفي السابق بأسماء عربية واضحة:
+ * - لوحة التحكم: تشكيل التجربة العامة للزوار.
+ * - التشغيل: وحدة اللعبة وسجل الجولات ونظاما الأكواد.
+ * - المراقبة: مركز مراقبة الزوار والأمان (أدوار الإدارة فقط).
+ * - الإعدادات: الهوية العامة والحساب الحالي.
  */
 const PUBLIC_GAME: readonly NavigationItem[] = [
-  { route: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
-  { route: 'public', label: 'Login & appearance', icon: MonitorSmartphone, permission: 'display.manage' },
-  { route: 'display', label: 'Online & time', icon: SlidersHorizontal, permission: 'display.manage' },
-  { route: 'social', label: 'Social links', icon: Cable, permission: 'social.manage' },
+  { route: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard, permission: 'dashboard.view' },
+  { route: 'public', label: 'الدخول والمظهر', icon: MonitorSmartphone, permission: 'display.manage' },
+  { route: 'display', label: 'المتصلون والوقت', icon: SlidersHorizontal, permission: 'display.manage' },
+  { route: 'social', label: 'روابط التواصل', icon: Cable, permission: 'social.manage' },
 ]
 
 const OPERATIONS: readonly NavigationItem[] = [
-  { route: 'game', label: 'Game console', icon: Gauge, permission: 'game.use' },
-  { route: 'history', label: 'Round history', icon: ClipboardList, permission: 'history.view' },
-  { route: 'access', label: 'Game access', icon: Ticket, permission: 'access.manage' },
-  { route: 'codes', label: 'Admin codes', icon: FileKey2, permission: 'codes.manage' },
-  { route: 'logs', label: 'Activity logs', icon: Activity, permission: 'logs.view' },
+  { route: 'game', label: 'وحدة التحكم باللعبة', icon: Gauge, permission: 'game.use' },
+  { route: 'history', label: 'سجل الجولات', icon: ClipboardList, permission: 'history.view' },
+  { route: 'access', label: 'أكواد دخول اللعبة', icon: Ticket, permission: 'access.manage' },
+  { route: 'codes', label: 'أكواد الإدارة', icon: FileKey2, permission: 'codes.manage' },
+  { route: 'logs', label: 'سجل النشاط', icon: Activity, permission: 'logs.view' },
 ]
 
 const MONITORING: readonly NavigationItem[] = [
-  { route: 'visitors', label: 'Visitor activity', icon: Radar, permission: 'security.view' },
-  { route: 'auth', label: 'Authentication activity', icon: KeyRound, permission: 'security.view' },
-  { route: 'alerts', label: 'Security alerts', icon: ShieldAlert, permission: 'security.view' },
+  { route: 'visitors', label: 'الزوار', icon: Radar, permission: 'security.view' },
+  { route: 'auth', label: 'نشاط تسجيل الدخول', icon: KeyRound, permission: 'security.view' },
+  { route: 'alerts', label: 'التنبيهات الأمنية', icon: ShieldAlert, permission: 'security.view' },
 ]
 
 const WORKSPACE: readonly NavigationItem[] = [
-  { route: 'general', label: 'General settings', icon: Settings2, permission: 'general.manage' },
-  { route: 'profile', label: 'Profile', icon: UserRound, permission: 'profile.view' },
+  { route: 'general', label: 'الإعدادات العامة', icon: Settings2, permission: 'general.manage' },
+  { route: 'profile', label: 'حسابي', icon: UserRound, permission: 'profile.view' },
 ]
 
 export interface AdminSidebarProps {
@@ -94,7 +94,7 @@ export function AdminSidebar({ role, route, open, username, onNavigate, onLogout
       type="button"
       key={itemRoute}
       onClick={() => { onNavigate(itemRoute); onClose() }}
-      className={`group flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition ${route === itemRoute ? 'bg-emerald-300/12 text-emerald-200 shadow-[inset_2px_0_0_#46e3a1]' : 'text-slate-400 hover:bg-white/[.045] hover:text-slate-100'}`}
+      className={`group flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-right text-sm font-medium transition ${route === itemRoute ? 'bg-emerald-300/12 text-emerald-200 shadow-[inset_-2px_0_0_#46e3a1]' : 'text-slate-400 hover:bg-white/[.045] hover:text-slate-100'}`}
       aria-current={route === itemRoute ? 'page' : undefined}
     >
       <Icon className={`h-[17px] w-[17px] shrink-0 ${route === itemRoute ? 'text-emerald-300' : 'text-slate-500 group-hover:text-slate-300'}`} />
@@ -109,41 +109,41 @@ export function AdminSidebar({ role, route, open, username, onNavigate, onLogout
         onClick={onClose}
         aria-hidden="true"
       />
-      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[272px] flex-col border-r border-white/[.08] bg-[#0a1011]/95 px-3 py-4 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 right-0 z-40 flex w-[272px] flex-col border-l border-white/[.08] bg-[#0a1011]/95 px-3 py-4 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 ${open ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-center justify-between px-2 pb-7">
           <div className="flex items-center gap-3">
             <BrandMark compact />
             <div className="leading-none">
-              <p className="text-sm font-bold tracking-[.14em] text-slate-100">MAGIC SCRIPT</p>
-              <p className="mt-1.5 text-[9px] font-bold uppercase tracking-[.18em] text-emerald-400/75">Control center</p>
+              <p className="brand-latin text-sm font-bold tracking-[.14em] text-slate-100">MAGIC SCRIPT</p>
+              <p className="mt-1.5 text-[10px] font-bold text-emerald-400/75">مركز التحكم</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:text-slate-200 lg:hidden" aria-label="Close navigation">
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:text-slate-200 lg:hidden" aria-label="إغلاق القائمة">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav aria-label="Primary navigation" className="flex-1 overflow-y-auto">
-          <p className="eyebrow px-3 pb-2">Public Game</p>
+        <nav aria-label="التنقل الرئيسي" className="flex-1 overflow-y-auto">
+          <p className="eyebrow px-3 pb-2">لوحة التحكم</p>
           <div className="space-y-1">{links(visiblePublic)}</div>
 
           {visibleOperations.length > 0 && (
             <>
-              <p className="eyebrow mt-7 px-3 pb-2">Operations</p>
+              <p className="eyebrow mt-7 px-3 pb-2">التشغيل</p>
               <div className="space-y-1">{links(visibleOperations)}</div>
             </>
           )}
 
           {visibleMonitoring.length > 0 && (
             <>
-              <p className="eyebrow mt-7 px-3 pb-2">Monitoring</p>
+              <p className="eyebrow mt-7 px-3 pb-2">المراقبة</p>
               <div className="space-y-1">{links(visibleMonitoring)}</div>
             </>
           )}
 
           {visibleWorkspace.length > 0 && (
             <>
-              <p className="eyebrow mt-7 px-3 pb-2">Workspace</p>
+              <p className="eyebrow mt-7 px-3 pb-2">الإعدادات</p>
               <div className="space-y-1">{links(visibleWorkspace)}</div>
             </>
           )}
@@ -153,13 +153,13 @@ export function AdminSidebar({ role, route, open, username, onNavigate, onLogout
           <div className="mb-3 flex items-center gap-3 rounded-xl bg-white/[.03] px-3 py-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-300/10 text-cyan-200"><Command className="h-4 w-4" /></span>
             <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-slate-200">{username || 'Workspace admin'}</p>
-              <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{roleLabel(role)}</p>
+              <p className="truncate text-xs font-semibold text-slate-200">{username || 'مدير مساحة العمل'}</p>
+              <p className="mt-0.5 text-[10px] font-semibold text-slate-500">{roleLabel(role)}</p>
             </div>
           </div>
           <button type="button" onClick={onLogout} className="flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-500 transition hover:bg-rose-400/10 hover:text-rose-200">
             <LogOut className="h-[17px] w-[17px]" />
-            Sign out
+            تسجيل الخروج
           </button>
         </div>
       </aside>

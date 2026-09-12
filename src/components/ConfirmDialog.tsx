@@ -15,7 +15,7 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
+  confirmLabel = 'تأكيد',
   danger = false,
   onConfirm,
   onCancel,
@@ -46,13 +46,13 @@ export function ConfirmDialog({
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
               <h2 id="confirm-title" className="text-base font-semibold text-slate-100">{title}</h2>
-              <button type="button" onClick={onCancel} aria-label="Close dialog" className="rounded-lg p-1 text-slate-500 hover:text-slate-200">
+              <button type="button" onClick={onCancel} aria-label="إغلاق النافذة" className="rounded-lg p-1 text-slate-500 hover:text-slate-200">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <p className="mt-2 text-sm leading-6 text-slate-400">{message}</p>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
+              <button type="button" className="btn-ghost" onClick={onCancel}>إلغاء</button>
               <button type="button" className={danger ? 'btn-danger' : 'btn-primary'} onClick={onConfirm}>{confirmLabel}</button>
             </div>
           </div>

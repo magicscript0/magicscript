@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { subscribeToMonitoringChanges } from '../services/securityMonitoring'
-import { friendlyControlError } from '../services/supabase'
+import { adminErrorMessage } from '../i18n/dashboard'
 
 /**
  * Gentle fallback cadence. Realtime pushes cover the normal case; this poll
@@ -44,7 +44,7 @@ export function useMonitoringFeed<T>(loader: () => Promise<T>, refreshKey: strin
       setError(null)
     } catch (cause) {
       if (!mountedRef.current) return
-      setError(friendlyControlError(cause, 'Monitoring data could not be loaded.'))
+      setError(adminErrorMessage(cause, 'تعذر تحميل بيانات المراقبة. حاول مرة أخرى.'))
     } finally {
       if (mountedRef.current && !silent) setLoading(false)
     }
