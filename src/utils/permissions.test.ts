@@ -19,6 +19,12 @@ describe('role permissions', () => {
     expect(can('super_admin', 'access.manage')).toBe(true)
   })
 
+  it('restricts the monitoring center to administrator roles', () => {
+    expect(can('super_admin', 'security.view')).toBe(true)
+    expect(can('admin', 'security.view')).toBe(true)
+    expect(can('operator', 'security.view')).toBe(false)
+  })
+
   it('labels each supported role clearly', () => {
     expect(roleLabel('super_admin')).toBe('SUPER ADMIN')
     expect(roleLabel('admin')).toBe('ADMIN')

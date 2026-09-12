@@ -7,6 +7,7 @@ import {
   signOutAdmin,
   subscribeToAuthChanges,
 } from '../services/supabase'
+import { recordAdminLoginFailure, recordAdminLoginSuccess, recordAdminLogout } from '../services/visitorTracking'
 import type { AdminProfile } from '../types/supabase'
 
 export interface AdminSessionState {
@@ -84,9 +85,14 @@ export function useAdminSession(): AdminSessionState {
     setError(null)
     try {
       const profile = await signInAdmin(email, password)
+      // Security monitoring (fire-and-forget, fail-safe): records the
+      // outcome only. The email and password never reach the tracker.
+      recordAdminLoginSuccess(profile.id)
       setAdmin(profile)
       return profile
     } catch (cause) {
+      // Only the classified error KIND is recorded — never credentials.
+      recordAdminLoginFailure(cause)
       const message = friendlyControlError(cause, 'Supabase authentication could not be completed.')
       setError(message)
       if (cause instanceof Error) throw cause
@@ -98,6 +104,7 @@ export function useAdminSession(): AdminSessionState {
     setError(null)
     try {
       await signOutAdmin()
+      recordAdminLogout()
       setAdmin(null)
     } catch (cause) {
       setError(friendlyControlError(cause, 'The Supabase session could not be closed.'))

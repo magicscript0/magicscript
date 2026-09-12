@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { checkGameAccess, redeemGameAccess } from '../services/gameAccess'
 import { clearGameSession, readStoredGameSession, storeGameSession, type StoredGameSession } from '../services/gameSession'
+import { recordGameAccessAttempt, recordGameLogout } from '../services/visitorTracking'
 
 export type GameAccessStatus = 'checking' | 'none' | 'active'
 
@@ -117,11 +118,15 @@ export function useGameAccess(): GameAccessState {
       const check = await checkGameAccess(stored.token)
       if (!aliveRef.current) return
       if (!check) {
+        // An unknown/rejected token is an expired-access ATTEMPT: recorded
+        // for security monitoring (fail-safe) before the session closes.
+        recordGameAccessAttempt('access_expired', stored.accountId)
         failClosed('expired')
         return
       }
       if (!check.valid) {
         const expiredOnServer = Date.parse(check.expiresAt) <= Date.parse(check.serverNow)
+        recordGameAccessAttempt(expiredOnServer ? 'access_expired' : 'access_revoked', stored.accountId)
         failClosed(expiredOnServer ? 'expired' : 'revoked')
         return
       }
@@ -147,17 +152,21 @@ export function useGameAccess(): GameAccessState {
       const check = await checkGameAccess(stored.token)
       if (!aliveRef.current) return
       if (!check) {
+        // Restore attempt with an unknown/rejected token → security event.
+        recordGameAccessAttempt('access_expired', stored.accountId)
         failClosed('expired')
         return
       }
       if (!check.valid) {
         const expiredOnServer = Date.parse(check.expiresAt) <= Date.parse(check.serverNow)
+        recordGameAccessAttempt(expiredOnServer ? 'access_expired' : 'access_revoked', stored.accountId)
         failClosed(expiredOnServer ? 'expired' : 'revoked')
         return
       }
       activate(stored, check.expiresAt, check.serverNow)
     } catch {
       // Access could not be verified server-side at all → do not grant it.
+      // A network failure is not an attack signal: nothing is recorded.
       failClosed('unverified')
     }
   }, [activate, failClosed])
@@ -193,6 +202,8 @@ export function useGameAccess(): GameAccessState {
   }, [activate])
 
   const exit = useCallback(() => {
+    // Voluntary sign-out: capture the Account ID before storage is cleared.
+    recordGameLogout(readStoredGameSession()?.accountId ?? null)
     failClosed('ended')
   }, [failClosed])
 

@@ -6,10 +6,13 @@ import {
   Command,
   FileKey2,
   Gauge,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   MonitorSmartphone,
+  Radar,
   Settings2,
+  ShieldAlert,
   SlidersHorizontal,
   Ticket,
   UserRound,
@@ -32,6 +35,7 @@ interface NavigationItem {
  * Control-center navigation, grouped by responsibility:
  * - PUBLIC GAME: everything an operator uses to shape the public experience.
  * - OPERATIONS: the game console, round history, and the two access systems.
+ * - MONITORING: the Visitor & Security Monitoring Center (admin roles).
  * - WORKSPACE: identity/notices and the signed-in account.
  */
 const PUBLIC_GAME: readonly NavigationItem[] = [
@@ -47,6 +51,12 @@ const OPERATIONS: readonly NavigationItem[] = [
   { route: 'access', label: 'Game access', icon: Ticket, permission: 'access.manage' },
   { route: 'codes', label: 'Admin codes', icon: FileKey2, permission: 'codes.manage' },
   { route: 'logs', label: 'Activity logs', icon: Activity, permission: 'logs.view' },
+]
+
+const MONITORING: readonly NavigationItem[] = [
+  { route: 'visitors', label: 'Visitor activity', icon: Radar, permission: 'security.view' },
+  { route: 'auth', label: 'Authentication activity', icon: KeyRound, permission: 'security.view' },
+  { route: 'alerts', label: 'Security alerts', icon: ShieldAlert, permission: 'security.view' },
 ]
 
 const WORKSPACE: readonly NavigationItem[] = [
@@ -67,6 +77,7 @@ export interface AdminSidebarProps {
 export function AdminSidebar({ role, route, open, username, onNavigate, onLogout, onClose }: AdminSidebarProps) {
   const visiblePublic = PUBLIC_GAME.filter((item) => can(role, item.permission))
   const visibleOperations = OPERATIONS.filter((item) => can(role, item.permission))
+  const visibleMonitoring = MONITORING.filter((item) => can(role, item.permission))
   const visibleWorkspace = WORKSPACE.filter((item) => can(role, item.permission))
 
   useEffect(() => {
@@ -123,6 +134,13 @@ export function AdminSidebar({ role, route, open, username, onNavigate, onLogout
             </>
           )}
 
+          {visibleMonitoring.length > 0 && (
+            <>
+              <p className="eyebrow mt-7 px-3 pb-2">Monitoring</p>
+              <div className="space-y-1">{links(visibleMonitoring)}</div>
+            </>
+          )}
+
           {visibleWorkspace.length > 0 && (
             <>
               <p className="eyebrow mt-7 px-3 pb-2">Workspace</p>
@@ -149,4 +167,4 @@ export function AdminSidebar({ role, route, open, username, onNavigate, onLogout
   )
 }
 
-export { OPERATIONS, PUBLIC_GAME, WORKSPACE }
+export { MONITORING, OPERATIONS, PUBLIC_GAME, WORKSPACE }
