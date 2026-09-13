@@ -47,8 +47,8 @@ function createParticles(count: number, width: number, height: number): Particle
       swaySpeed: 0.002 + Math.random() * 0.008,
       phase: Math.random() * Math.PI * 2,
       twinkleSpeed: 0.008 + Math.random() * 0.03,
-      alpha: 0.1 + depth * 0.5,
-      tone: roll < 0.72 ? 0 : roll < 0.93 ? 1 : 2,
+      alpha: 0.08 + depth * 0.42,
+      tone: roll < 0.74 ? 0 : roll < 0.95 ? 1 : 2,
       depth,
     })
   }
@@ -66,7 +66,7 @@ function paintFrame(ctx: CanvasRenderingContext2D, particles: Particle[], width:
     // Far dust is a single cheap arc.
     if (particle.depth > 0.55) {
       const halo = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, particle.radius * 4)
-      halo.addColorStop(0, `rgba(${color},${(alpha * 0.5).toFixed(3)})`)
+      halo.addColorStop(0, `rgba(${color},${(alpha * 0.42).toFixed(3)})`)
       halo.addColorStop(1, `rgba(${color},0)`)
       ctx.fillStyle = halo
       ctx.beginPath()

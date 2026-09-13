@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpRight, Eye, Sparkles } from 'lucide-react'
+import { ArrowUpRight, Eye, EyeOff, Sparkles } from 'lucide-react'
 import { InlineError, PageHeader, PanelHeading, SaveButton } from '../components/AdminPrimitives'
 import { GameBrandLockup } from '../components/GameBrand'
 import { GameSocialLinks } from '../components/GameSocialLinks'
@@ -94,10 +94,10 @@ export function PublicGamePage({ admin }: { admin: AdminProfile }) {
           <PanelHeading icon={Eye} title="Live preview" description="Approximately how the public login looks with the current settings." />
           <div className="pg-preview rounded-2xl px-6 py-8">
             <PublicGameHud display={settings.display} />
-            <GameBrandLockup title={form.title || 'Apple of Fortune'} caption={form.caption || undefined} />
+            <GameBrandLockup title={form.title || 'Apple of Fortune'} caption={form.caption || undefined} status="System operational" />
             <div className="mx-auto mt-6 max-w-[380px] rounded-2xl border border-white/[.08] bg-[#0a1215]/80 px-6 py-5 backdrop-blur">
               <div className="flex items-center gap-2">
-                <p className="pg-eyebrow">Session access</p>
+                <p className="pg-eyebrow">Secure access</p>
                 <span className="h-px flex-1 bg-white/[.1]" aria-hidden="true" />
                 {form.showStatus && (
                   <span className="pg-panel__state">
@@ -108,11 +108,22 @@ export function PublicGamePage({ admin }: { admin: AdminProfile }) {
               </div>
               <div className="mt-6 space-y-4">
                 <div className="pg-slot"><input className="pg-input mono" placeholder="Account ID" disabled aria-label="Account ID preview" /></div>
-                <div className="pg-slot"><input className="pg-input mono uppercase" placeholder="ACCESS CODE" disabled aria-label="Access Code preview" /></div>
+                <div className="pg-slot">
+                  <input className="pg-input mono uppercase" type="password" placeholder="ACCESS CODE" disabled aria-label="Access Code preview" />
+                  <EyeOff className="h-4 w-4 self-center text-slate-600" aria-hidden="true" />
+                </div>
               </div>
               <div className="pg-btn pg-btn--primary mt-6 opacity-70"><span>Enter game</span></div>
             </div>
             <div className="mx-auto mt-6 max-w-[380px]"><GameSocialLinks links={settings.social} /></div>
+            <div className="pg-login__meta mx-auto mt-5 max-w-[380px]" aria-hidden="true">
+              <span>Game session</span>
+              <span className="pg-login__meta-sep" />
+              <span>Access control</span>
+              <span className="pg-login__meta-sep" />
+              <span>System ready</span>
+            </div>
+            <p className="pg-login__brand-foot">© MAGIC SCRIPT</p>
           </div>
           <div className="mt-5 grid gap-2 border-t border-white/[.07] pt-4 text-xs text-slate-500 sm:grid-cols-2">
             <a href="#/display" className="inline-flex items-center gap-1.5 rounded-lg border border-white/[.08] px-3 py-2.5 text-slate-300 transition hover:border-emerald-300/30 hover:text-emerald-200">

@@ -38,9 +38,15 @@ export interface GameBrandLockupProps {
   caption?: string
   /** Public product heading, admin-controlled on the login screen. */
   title?: string
+  /**
+   * Optional live system status line between the heading and the caption
+   * (login screen only). A plain presentational readout — no role, so the
+   * login's real status regions (session notices) stay unambiguous.
+   */
+  status?: string
 }
 
-export function GameBrandLockup({ variant = 'full', caption, title = 'Apple of Fortune' }: GameBrandLockupProps) {
+export function GameBrandLockup({ variant = 'full', caption, title = 'Apple of Fortune', status }: GameBrandLockupProps) {
   const wordmark = <span className="pg-brand__word pg-glitch" data-text="MAGIC SCRIPT">MAGIC SCRIPT</span>
   const heading = <h1 className="pg-brand__title">{title}</h1>
 
@@ -63,6 +69,12 @@ export function GameBrandLockup({ variant = 'full', caption, title = 'Apple of F
       </div>
       {wordmark}
       {heading}
+      {status ? (
+        <p className="pg-brand__status">
+          <span className="pg-brand__status-dot" aria-hidden="true" />
+          {status}
+        </p>
+      ) : null}
       {caption ? <p className="pg-brand__caption">{caption}</p> : null}
     </div>
   )

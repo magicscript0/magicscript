@@ -175,6 +175,16 @@ describe('flow 2 — a redeemed session opens the premium board', () => {
       await Promise.resolve()
     })
 
+    // The server accepted the code: the terminal shows the verified beat and
+    // dissolves while the (presentation-only) hand-off hold runs. The session
+    // is already granted — nothing below the line re-authorizes it.
+    expect(screen.getByRole('button', { name: /access verified/i })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+
+    act(() => {
+      vi.advanceTimersByTime(700)
+    })
+
     expect(window.location.pathname).toBe('/play')
     expect(container().textContent).toContain('Apple of Fortune')
     expect(screen.getByLabelText('Prediction board')).toBeInTheDocument()

@@ -121,6 +121,64 @@ describe('Apple of Fortune login screen', () => {
     expect(screen.queryByText(/demo experience/i)).toBeNull()
   })
 
+  it('masks the access code by default and offers an elegant show/hide control', () => {
+    render(<GameLogin onLogin={vi.fn()} />)
+    const code = screen.getByLabelText('Access Code') as HTMLInputElement
+    expect(code.type).toBe('password')
+
+    fireEvent.click(screen.getByRole('button', { name: /show access code/i }))
+    expect(code.type).toBe('text')
+    const hide = screen.getByRole('button', { name: /hide access code/i })
+    expect(hide).toHaveAttribute('aria-pressed', 'true')
+
+    // Toggling never alters the entered value.
+    fireEvent.change(code, { target: { value: 'MS-ABCDE-FGHIJ-KLMNP-QRSTU' } })
+    expect(code.value).toBe('MS-ABCDE-FGHIJ-KLMNP-QRSTU')
+    fireEvent.click(hide)
+    expect((screen.getByLabelText('Access Code') as HTMLInputElement).type).toBe('password')
+    expect((screen.getByLabelText('Access Code') as HTMLInputElement).value).toBe('MS-ABCDE-FGHIJ-KLMNP-QRSTU')
+  })
+
+  it('mirrors the real verification states: verifying, then verified', async () => {
+    let resolveLogin!: () => void
+    const onGrant = vi.fn()
+    const onLogin = vi.fn(() => new Promise<void>((resolve) => { resolveLogin = resolve }))
+    render(<GameLogin onLogin={onLogin} onGrant={onGrant} />)
+    fillField('Account ID', '123456789')
+    fillField('Access Code', 'MS-ABCDE-FGHIJ-KLMNP-QRSTU')
+    fireEvent.click(screen.getByRole('button', { name: /enter game/i }))
+
+    // While the server check is genuinely in flight, the action reports it.
+    const verifying = screen.getByRole('button', { name: /verifying access/i })
+    expect(verifying).toBeDisabled()
+    expect(onGrant).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveLogin()
+      await Promise.resolve()
+    })
+
+    // Real success: the terminal shows the verified state before the hand-off.
+    expect(onGrant).toHaveBeenCalledTimes(1)
+    const verified = screen.getByRole('button', { name: /access verified/i })
+    expect(verified).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /enter game/i })).toBeNull()
+  })
+
+  it('locks the terminal once access is verified', async () => {
+    const onLogin = vi.fn().mockResolvedValue(undefined)
+    render(<GameLogin onLogin={onLogin} />)
+    fillField('Account ID', '123456789')
+    fillField('Access Code', 'MS-ABCDE-FGHIJ-KLMNP-QRSTU')
+    await act(async () => {
+      submit()
+      await Promise.resolve()
+    })
+    expect(screen.getByLabelText('Account ID')).toBeDisabled()
+    expect(screen.getByLabelText('Access Code')).toBeDisabled()
+    expect(screen.getByRole('button', { name: /show access code/i })).toBeDisabled()
+  })
+
   it('links to the Telegram and YouTube channels in new tabs', () => {
     render(<GameLogin onLogin={vi.fn()} />)
     const telegram = screen.getByRole('link', { name: /telegram/i })

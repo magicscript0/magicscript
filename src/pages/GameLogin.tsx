@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { AlertCircle, ArrowRight, Clock3, Hash, KeyRound, LogOut, ShieldBan } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, Clock3, Eye, EyeOff, Hash, KeyRound, LogOut, ShieldBan } from 'lucide-react'
 import { CyberBackdrop } from '../components/CyberBackdrop'
 import { GameBrandLockup } from '../components/GameBrand'
 import { GameSocialLinks } from '../components/GameSocialLinks'
@@ -21,6 +21,14 @@ export interface GameLoginProps {
   ambient?: boolean
   /** Admin-controlled public presentation settings (title, caption, links, HUD). */
   settings?: ControlSettings
+  /**
+   * Fired the instant `onLogin` RESOLVES — i.e. after the server has accepted
+   * the code — so the terminal can show ACCESS VERIFIED and begin its
+   * dissolve. The caller owns the hand-off: it schedules the short cinematic
+   * hold and then navigates, which keeps the authentication sequence itself
+   * exactly the same.
+   */
+  onGrant?: () => void
 }
 
 function endReasonNotice(reason: GameAccessEndReason): { icon: typeof Clock3; message: string } | null {
@@ -39,11 +47,26 @@ function endReasonNotice(reason: GameAccessEndReason): { icon: typeof Clock3; me
  * admin-controlled public settings (title, caption, status label, social
  * links, live-activity estimate and local time) with safe defaults when none
  * are supplied.
+ *
+ * Presentation additions (this redesign): the access code is masked with an
+ * elegant show/hide control, the button mirrors the real verification states
+ * (ENTER GAME → VERIFYING ACCESS → ACCESS VERIFIED), and on success the
+ * terminal dissolves while the caller schedules the hand-off into the game.
+ * No animation here decides whether access is granted — the verdict is still
+ * the server's, delivered through `onLogin` exactly as before.
  */
-export function GameLogin({ onLogin, endReason = null, ambient = true, settings = DEFAULT_CONTROL_SETTINGS }: GameLoginProps) {
+export function GameLogin({
+  onLogin,
+  endReason = null,
+  ambient = true,
+  settings = DEFAULT_CONTROL_SETTINGS,
+  onGrant,
+}: GameLoginProps) {
   const [accountId, setAccountId] = useState('')
   const [accessCode, setAccessCode] = useState('')
   const [checking, setChecking] = useState(false)
+  const [verified, setVerified] = useState(false)
+  const [showCode, setShowCode] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -51,6 +74,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
   }, [])
 
   const notice = endReasonNotice(endReason)
+  const locked = checking || verified
 
   function handleAccountIdChange(value: string) {
     // The Account ID is a plain numeric identifier — keep digits only. The
@@ -61,7 +85,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (checking) return
+    if (locked) return
     setError(null)
 
     const cleanAccountId = normalizeAccountId(accountId)
@@ -78,6 +102,14 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
 
     setChecking(true)
     void onLogin(cleanAccountId, accessCode.trim())
+      .then(() => {
+        // Real success — the server already accepted this code. Show the
+        // verified beat and let the caller schedule the transition; the
+        // session is already granted, this is presentation timing only.
+        setChecking(false)
+        setVerified(true)
+        onGrant?.()
+      })
       .catch((cause: unknown) => {
         setChecking(false)
         if (cause instanceof GameAccessError) {
@@ -89,13 +121,24 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
   }
 
   return (
-    <main className={`pg-login relative flex items-center justify-center overflow-x-hidden${ambient ? ' pg-login--solo' : ''}`}>
+    <main
+      className={`pg-login relative flex items-center justify-center overflow-x-hidden${ambient ? ' pg-login--solo' : ''}${verified ? ' pg-login--granted' : ''}`}
+    >
       {ambient ? <CyberBackdrop /> : null}
+
+      {/* Faint system lines framing the terminal — decorative depth only. */}
+      <div className="pg-login__frame" aria-hidden="true" />
+      {/* Light bloom that plays once as the terminal dissolves into the game. */}
+      <span className="pg-login__bloom" aria-hidden="true" />
 
       <PublicGameHud display={settings.display} className="pg-hud--login" />
 
       <div className="pg-login__stack relative z-10 w-full max-w-[452px]">
-        <GameBrandLockup title={settings.login.title} caption={settings.login.caption || undefined} />
+        <GameBrandLockup
+          title={settings.login.title}
+          caption={settings.login.caption || undefined}
+          status="System operational"
+        />
 
         <div className="pg-panel">
           <span className="pg-panel__corner pg-panel__corner--tl" aria-hidden="true" />
@@ -105,7 +148,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
 
           <div className="pg-panel__body">
             <div className="pg-panel__head">
-              <p className="pg-eyebrow">Session access</p>
+              <p className="pg-eyebrow">Secure access</p>
               <span className="pg-panel__rule" aria-hidden="true" />
               {settings.login.showStatus && (
                 <span className="pg-panel__state">
@@ -136,7 +179,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
                       autoComplete="off"
                       value={accountId}
                       onChange={(event) => handleAccountIdChange(event.target.value)}
-                      disabled={checking}
+                      disabled={locked}
                       className="pg-input mono"
                     />
                   </div>
@@ -149,16 +192,26 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
                     <input
                       id="access-code"
                       name="accessCode"
-                      type="text"
+                      type={showCode ? 'text' : 'password'}
                       autoComplete="off"
                       autoCapitalize="characters"
                       spellCheck={false}
                       placeholder="Enter the code you received"
                       value={accessCode}
                       onChange={(event) => setAccessCode(event.target.value)}
-                      disabled={checking}
+                      disabled={locked}
                       className="pg-input mono uppercase"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowCode((value) => !value)}
+                      disabled={locked}
+                      aria-label={showCode ? 'Hide access code' : 'Show access code'}
+                      aria-pressed={showCode}
+                      className="pg-code-toggle"
+                    >
+                      {showCode ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -172,14 +225,19 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
 
               <button
                 type="submit"
-                disabled={checking}
-                aria-label={checking ? 'Checking access' : 'Enter game'}
-                className={`pg-btn pg-btn--primary${checking ? ' is-busy' : ''}`}
+                disabled={locked}
+                aria-label={checking ? 'Verifying access' : verified ? 'Access verified' : 'Enter game'}
+                className={`pg-btn pg-btn--primary${checking ? ' is-busy' : ''}${verified ? ' is-verified' : ''}`}
               >
                 {checking ? (
                   <>
                     <span className="pg-btn__spinner" />
-                    <span>Checking access…</span>
+                    <span>Verifying access</span>
+                  </>
+                ) : verified ? (
+                  <>
+                    <Check className="pg-btn__check" aria-hidden="true" />
+                    <span>Access verified</span>
                   </>
                 ) : (
                   <>
@@ -199,6 +257,17 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
             <GameSocialLinks links={settings.social} />
           </div>
         </div>
+
+        {/* Secondary system readouts — presentational, never data. */}
+        <div className="pg-login__meta" aria-hidden="true">
+          <span>Game session</span>
+          <span className="pg-login__meta-sep" />
+          <span>Access control</span>
+          <span className="pg-login__meta-sep" />
+          <span>System ready</span>
+        </div>
+
+        <p className="pg-login__brand-foot">© MAGIC SCRIPT</p>
       </div>
     </main>
   )

@@ -1,4 +1,4 @@
-import { Clock3, Users } from 'lucide-react'
+import { Clock3 } from 'lucide-react'
 import { useConfiguredOnlineUsers } from '../hooks/useConfiguredOnlineUsers'
 import { useLocalClock } from '../hooks/useLocalClock'
 import { DEFAULT_CONTROL_SETTINGS } from '../services/control'
@@ -24,9 +24,11 @@ export function OnlineActivityChip({ display = DEFAULT_CONTROL_SETTINGS.display 
       className="pg-pill pg-pill--activity"
       title="Estimated activity — a presentation value, not a live measurement."
     >
-      <Users className="pg-pill__icon" aria-hidden="true" />
+      <span className="pg-pill__live" aria-hidden="true" />
       <span className="pg-pill__key">Live activity</span>
-      <span className="pg-pill__value mono">{online.toLocaleString()}</span>
+      {/* Keyed on the value: each new number mounts fresh and plays a short
+          settle — a live-system tick instead of an in-place rewrite. */}
+      <span key={online} className="pg-pill__value mono pg-num">{online.toLocaleString()}</span>
     </span>
   )
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from './App'
 import type { AdminProfile } from './types/supabase'
 
@@ -107,7 +107,10 @@ describe('root route — the game experience is the default product', () => {
       await Promise.resolve()
     })
 
-    expect(window.location.pathname).toBe('/play')
+    // The session is granted immediately, but the route change follows a short
+    // presentation-only verified beat (see the hand-off in App.tsx). Real
+    // timers are in effect here, so wait for that hold to elapse.
+    await waitFor(() => expect(window.location.pathname).toBe('/play'), { timeout: 2000 })
     expect(screen.getByRole('heading', { name: 'Apple of Fortune' })).toBeInTheDocument()
   })
 })

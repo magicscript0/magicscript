@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CyberBackdrop } from './components/CyberBackdrop'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { GameIntro, hasGameIntroCompleted } from './components/GameIntro'
@@ -9,6 +9,7 @@ import { useGameAccess } from './hooks/useGameAccess'
 import { usePageRoute } from './hooks/usePageRoute'
 import { usePublicGameSettings } from './hooks/usePublicGameSettings'
 import { isAppPath, usePathRoute } from './hooks/usePathRoute'
+import { prefersReducedMotion } from './utils/random'
 import { AdminLayout, useSharedControlSettings } from './layouts/AdminLayout'
 import { ActivityLogsPage } from './pages/ActivityLogsPage'
 import { AdminCodesPage } from './pages/AdminCodesPage'
@@ -122,6 +123,16 @@ function AdminWorkspace({ admin, onLogout, sessionError }: { admin: NonNullable<
 /** Boot-curtain lifecycle for the public flow (presentation only). */
 type GameBootPhase = 'playing' | 'dissolving' | 'done'
 
+/**
+ * The cinematic hand-off hold, in ms. This is pure presentation timing: by the
+ * time it starts the session is ALREADY server-validated and granted, so a
+ * short beat lets the login terminal show ACCESS VERIFIED and dissolve before
+ * the route changes to the game. Kept well under a second on purpose. Reduced
+ * motion collapses it to a near-instant hand-off.
+ */
+const GRANT_HOLD_MS = 620
+const GRANT_HOLD_REDUCED_MS = 160
+
 function GameArea({ path }: { path: '/' | '/play' }) {
   const access = useGameAccess()
   const settings = usePublicGameSettings()
@@ -152,7 +163,12 @@ function GameArea({ path }: { path: '/' | '/play' }) {
     if (path === '/play' && access.status !== 'checking' && !authorized) replace('/')
   }, [path, access.status, authorized, replace])
 
-  /** Successful redemption at the login screen opens the game console. */
+  /**
+   * Successful redemption at the login screen. The authentication sequence is
+   * exactly the existing one — server-side redemption, fail-safe monitoring
+   * of the attempt and its error category only (never the code), success
+   * recording — and resolves once the session is genuinely granted.
+   */
   const handleLogin = useCallback(
     async (accountId: string, code: string) => {
       try {
@@ -165,10 +181,27 @@ function GameArea({ path }: { path: '/' | '/play' }) {
         throw cause
       }
       recordGameLoginSuccess(accountId)
-      navigate('/play')
     },
-    [access, navigate],
+    [access],
   )
+
+  /**
+   * The hand-off into the game. Fires only after a REAL success (see
+   * `handleLogin`), schedules the short verified-beat hold, then opens the
+   * console. Presentation timing only — nothing here authorizes access.
+   */
+  const grantTimerRef = useRef<number | null>(null)
+  const handleGrant = useCallback(() => {
+    if (grantTimerRef.current !== null) window.clearTimeout(grantTimerRef.current)
+    grantTimerRef.current = window.setTimeout(() => {
+      grantTimerRef.current = null
+      navigate('/play')
+    }, prefersReducedMotion() ? GRANT_HOLD_REDUCED_MS : GRANT_HOLD_MS)
+  }, [navigate])
+
+  useEffect(() => () => {
+    if (grantTimerRef.current !== null) window.clearTimeout(grantTimerRef.current)
+  }, [])
 
   if (path === '/play') {
     // Same gate as before, now wearing the boot screen's identity and the same
@@ -191,7 +224,13 @@ function GameArea({ path }: { path: '/' | '/play' }) {
       <CyberBackdrop />
       {boot !== 'done' ? <GameIntro onReveal={() => setBoot('dissolving')} onFinish={() => setBoot('done')} /> : null}
       <div className={`pg-veil${boot === 'playing' ? '' : ' pg-veil--open'}`}>
-        <GameLogin onLogin={handleLogin} endReason={access.reason} ambient={false} settings={settings} />
+        <GameLogin
+          onLogin={handleLogin}
+          onGrant={handleGrant}
+          endReason={access.reason}
+          ambient={false}
+          settings={settings}
+        />
       </div>
     </div>
   )

@@ -286,11 +286,14 @@
 .cyber-base {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(1200px 700px at 50% -12%, rgba(23, 191, 127, .1), transparent 60%),
-    radial-gradient(900px 620px at 88% 112%, rgba(244, 63, 94, .05), transparent 62%),
-    radial-gradient(760px 520px at 8% 108%, rgba(36, 118, 142, .06), transparent 60%),
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .013) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .013) 1px, transparent 1px),
+    radial-gradient(1200px 700px at 50% -12%, rgba(23, 191, 127, .09), transparent 60%),
+    radial-gradient(900px 620px at 88% 112%, rgba(244, 63, 94, .045), transparent 62%),
+    radial-gradient(760px 520px at 8% 108%, rgba(36, 118, 142, .055), transparent 60%),
     linear-gradient(#04070a, #060c0e 52%, #04070a);
+  background-size: 56px 56px, 56px 56px, auto, auto, auto, auto;
 }
 
 .cyber-glow {
@@ -533,6 +536,16 @@
   animation-delay: 110ms;
 }
 
+.pg-veil--open .pg-login__stack > *:nth-child(3),
+.pg-login--solo .pg-login__stack > *:nth-child(3) {
+  animation-delay: 190ms;
+}
+
+.pg-veil--open .pg-login__stack > *:nth-child(4),
+.pg-login--solo .pg-login__stack > *:nth-child(4) {
+  animation-delay: 240ms;
+}
+
 @keyframes pg-rise {
   from { opacity: 0; transform: translate3d(0, 14px, 0); }
   to { opacity: 1; transform: none; }
@@ -554,11 +567,14 @@
  */
 .cyber-base {
   background-image:
-    radial-gradient(1300px 760px at 50% -14%, rgba(23, 191, 127, .13), transparent 62%),
-    radial-gradient(1000px 700px at 92% 116%, rgba(244, 63, 94, .055), transparent 64%),
-    radial-gradient(820px 560px at 4% 112%, rgba(36, 118, 142, .09), transparent 62%),
+    linear-gradient(rgba(255, 255, 255, .014) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .014) 1px, transparent 1px),
+    radial-gradient(1300px 760px at 50% -14%, rgba(23, 191, 127, .11), transparent 62%),
+    radial-gradient(1000px 700px at 92% 116%, rgba(244, 63, 94, .05), transparent 64%),
+    radial-gradient(820px 560px at 4% 112%, rgba(36, 118, 142, .08), transparent 62%),
     radial-gradient(62% 42% at 50% 64%, rgba(7, 22, 20, .9), transparent 72%),
     linear-gradient(180deg, #04070a 0%, #061015 46%, #030608 100%);
+  background-size: 56px 56px, 56px 56px, auto, auto, auto, auto, auto;
 }
 
 /* Volumetric light. Soft gradient falloff, never a blur filter. */
@@ -597,9 +613,9 @@
   top: -46%;
   bottom: -12%;
   background-image:
-    linear-gradient(rgba(70, 227, 161, .1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(70, 227, 161, .065) 1px, transparent 1px),
-    linear-gradient(rgba(99, 216, 232, .04) 1px, transparent 1px);
+    linear-gradient(rgba(70, 227, 161, .075) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(70, 227, 161, .05) 1px, transparent 1px),
+    linear-gradient(rgba(99, 216, 232, .03) 1px, transparent 1px);
   background-size:
     44px 44px,
     44px 44px,
@@ -895,13 +911,48 @@
 
 .pg-btn--primary {
   color: #03150f;
-  background-image: linear-gradient(135deg, #9df7d2 0%, #46e3a1 46%, #10a375 100%);
-  box-shadow: 0 12px 30px rgba(23, 191, 127, .22), inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -6px 14px rgba(4, 40, 28, .18);
+  background-image: linear-gradient(135deg, #8df3c9 0%, #3bdfa2 46%, #0f9c70 100%);
+  box-shadow: 0 12px 30px rgba(23, 191, 127, .2), inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -6px 14px rgba(4, 40, 28, .2);
 }
 
 .pg-btn--primary:not(:disabled):hover {
-  box-shadow: 0 16px 38px rgba(23, 191, 127, .3), inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -6px 14px rgba(4, 40, 28, .18);
+  box-shadow: 0 16px 38px rgba(23, 191, 127, .28), inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -6px 14px rgba(4, 40, 28, .18);
   transform: translate3d(0, -1px, 0);
+}
+
+/*
+ * The button mirrors the REAL verification state of the access check:
+ * ENTER GAME (idle) → VERIFYING ACCESS (server check in flight) →
+ * ACCESS VERIFIED (server accepted the code). It stays lit while busy so the
+ * action reads as "working", and the verified state settles with a single
+ * quiet contraction — no celebratory effects.
+ */
+.pg-btn.is-busy:disabled {
+  opacity: .85;
+  filter: saturate(.9);
+}
+
+.pg-btn.is-verified {
+  animation: pg-verified-in 260ms var(--pg-ease-out) both;
+}
+
+.pg-btn--primary.is-verified {
+  background-image: linear-gradient(135deg, #a9f9db 0%, #52e6ac 48%, #17b986 100%);
+  box-shadow:
+    0 0 0 1px rgb(var(--pg-accent) / .55),
+    0 14px 44px rgba(23, 191, 127, .36),
+    inset 0 1px 0 rgba(255, 255, 255, .55);
+}
+
+.pg-btn--primary.is-verified:disabled {
+  opacity: 1;
+  filter: none;
+  cursor: default;
+}
+
+@keyframes pg-verified-in {
+  from { transform: scale(.978); }
+  to { transform: scale(1); }
 }
 
 .pg-btn--amber {
@@ -957,6 +1008,12 @@
 .pg-btn__spinner--dark {
   border-color: rgba(3, 21, 15, .26);
   border-top-color: #03150f;
+}
+
+.pg-btn__check {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 
 @keyframes pg-spin {
@@ -1041,7 +1098,7 @@
   letter-spacing: .44em;
   text-indent: .44em;
   text-transform: uppercase;
-  color: rgb(var(--pg-accent) / .82);
+  color: rgb(var(--pg-accent) / .78);
 }
 
 .pg-brand__title {
@@ -1063,6 +1120,29 @@
   font-size: 12.5px;
   line-height: 1.5;
   color: rgb(var(--pg-ink-dim) / .72);
+}
+
+/* Live system status readout under the product name. A plain presentational
+   line — the only motion is a slow, controlled pulse on the dot. */
+.pg-brand__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: rgb(var(--pg-ink-dim) / .6);
+}
+
+.pg-brand__status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgb(var(--pg-accent) / .9);
+  box-shadow: 0 0 9px rgb(var(--pg-accent) / .5);
+  animation: pg-live-pulse 3.4s ease-in-out infinite;
 }
 
 .pg-brand--compact {
@@ -1493,12 +1573,53 @@
   letter-spacing: .02em;
 }
 
+/* The clock's key label is presentation-only (CSS content, not a text node),
+   so the chip's exposed value stays exactly the formatted local time. */
+.pg-pill--clock::before {
+  content: "Local time";
+  margin-right: 2px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: rgb(var(--pg-ink-mute) / .58);
+}
+
+/* The activity indicator's live dot — the pulse that says "system, awake". */
+.pg-pill__live {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgb(var(--pg-accent) / .95);
+  box-shadow: 0 0 8px rgb(var(--pg-accent) / .7);
+  animation: pg-live-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes pg-live-pulse {
+  0%, 100% { opacity: .5; box-shadow: 0 0 5px rgb(var(--pg-accent) / .35); }
+  50% { opacity: 1; box-shadow: 0 0 10px rgb(var(--pg-accent) / .75); }
+}
+
+/* Value tick: each new estimate mounts fresh and settles in quietly. */
+.pg-num {
+  display: inline-block;
+  animation: pg-num-in 300ms var(--pg-ease) both;
+}
+
+@keyframes pg-num-in {
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
 @media (max-width: 379px) {
   .pg-hud .pg-pill__key { display: none; }
   .pg-hud .pg-pill { padding: 0 var(--pg-s-1); }
   /* Compact the activity count on tiny screens, but never cap the clock
      value — the complete date + time stays visible. */
   .pg-hud .pg-pill:not(.pg-pill--clock) .pg-pill__value { max-width: 130px; }
+  /* Shed the decorative key labels on tiny screens; the values stay full. */
+  .pg-hud .pg-pill--clock::before { content: none; }
 }
 
 /* Admin-side preview surface (reuses the public design tokens only). */
@@ -1576,12 +1697,113 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   overflow: hidden;
 }
 
+/*
+ * Faint system lines framing the gateway: one hairline per viewport edge.
+ * Pure depth — they are barely there by design (≤7% alpha) and never touch
+ * the terminal's own borders.
+ */
+.pg-login__frame {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, rgba(148, 163, 184, .06), transparent 1px),
+    linear-gradient(270deg, rgba(148, 163, 184, .06), transparent 1px),
+    linear-gradient(0deg, rgba(148, 163, 184, .045), transparent 1px);
+}
+
+/*
+ * One light bloom that plays as the terminal dissolves into the game. It
+ * rests at opacity 0, so with reduced motion it is simply never seen.
+ */
+.pg-login__bloom {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(52% 36% at 50% 45%, rgb(var(--pg-accent) / .14), transparent 70%);
+  opacity: 0;
+}
+
+/*
+ * Access granted — the terminal bows out. One dissolve + one bloom on the
+ * SAME shared ambient field the game opens onto, so the hand-off is a
+ * continuous scene rather than a page change. Kept deliberately fast: the
+ * route changes while the dissolve is still finishing.
+ */
+.pg-login--granted { pointer-events: none; }
+
+.pg-login--granted .pg-login__stack {
+  animation: pg-granted-out 500ms var(--pg-ease) 80ms both;
+}
+
+@keyframes pg-granted-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  to { opacity: 0; transform: translate3d(0, -18px, 0) scale(1.018); }
+}
+
+.pg-login--granted .pg-login__bloom {
+  animation: pg-granted-bloom 640ms var(--pg-ease-out) 40ms both;
+}
+
+@keyframes pg-granted-bloom {
+  0% { opacity: 0; transform: scale(.94); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
 .pg-login__stack { position: relative; }
+
+/*
+ * Secondary system readouts under the terminal. Presentational only (the
+ * values are static by design — there is no fake telemetry here), so the row
+ * is hidden from assistive tech and stays out of the way of real content.
+ */
+.pg-login__meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  margin-top: var(--pg-s-5);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: rgb(var(--pg-ink-mute) / .38);
+}
+
+.pg-login__meta-sep {
+  width: 1px;
+  height: 10px;
+  background: rgba(255, 255, 255, .08);
+}
+
+/* Small phones keep two readouts; the middle one sheds first. */
+@media (max-width: 479px) {
+  .pg-login__meta span:nth-child(3),
+  .pg-login__meta span:nth-child(4) { display: none; }
+}
+
+/* Quiet product branding at the base of the experience — restrained, but
+   still a real line of content, so it stays legible (≈4:1) and readable. */
+.pg-login__brand-foot {
+  margin-top: var(--pg-s-4);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .34em;
+  text-indent: .34em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgb(var(--pg-ink-mute) / .48);
+}
 
 .pg-panel {
   margin-top: var(--pg-s-6);
   overflow: hidden;
   border-radius: var(--pg-r-xl);
+  border-color: rgba(255, 255, 255, .1);
+  box-shadow: var(--pg-shadow-card), 0 0 90px rgb(var(--pg-accent) / .05);
   -webkit-backdrop-filter: saturate(126%) blur(20px);
   backdrop-filter: saturate(126%) blur(20px);
 }
@@ -1651,7 +1873,9 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   color: rgb(var(--pg-ink-dim) / .6);
 }
 
-.pg-panel__state .pg-dot { width: 4px; height: 4px; }
+/* Session-ready state: steady, not pulsing — the live pulse belongs to the
+   system status line, so the two indicators never shout at once. */
+.pg-panel__state .pg-dot { width: 4px; height: 4px; animation: none; opacity: .85; }
 
 /* Fields */
 .pg-fields {
@@ -1674,7 +1898,11 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   letter-spacing: .2em;
   text-transform: uppercase;
   color: rgb(var(--pg-ink-dim) / .74);
+  transition: color var(--pg-t-2) ease;
 }
+
+/* The label "attends" its field: a quiet brighten on focus, no layout shift. */
+.pg-field:focus-within .pg-label { color: rgb(var(--pg-ink) / .92); }
 
 .pg-slot {
   position: relative;
@@ -1740,6 +1968,35 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 .pg-input:focus-visible { outline: none; }
 .pg-input:disabled { opacity: .5; }
 .pg-input::placeholder { color: rgb(var(--pg-ink-mute) / .34); letter-spacing: .01em; text-transform: none; }
+
+/* Masked access code: wider tracking so the dots read as a considered secret
+   rather than a dense blob. */
+.pg-input[type="password"] { letter-spacing: .22em; }
+
+/* The show/hide control — a quiet, secondary affordance inside the slot. */
+.pg-code-toggle {
+  display: grid;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin: 3px;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgb(var(--pg-ink-mute) / .6);
+  cursor: pointer;
+  transition: color var(--pg-t-1) ease, background-color var(--pg-t-2) ease, transform var(--pg-t-1) ease;
+}
+
+.pg-code-toggle:hover {
+  color: rgb(var(--pg-ink) / .9);
+  background: rgba(255, 255, 255, .055);
+}
+
+.pg-code-toggle:active { transform: scale(.94); }
+.pg-code-toggle:disabled { opacity: .4; cursor: not-allowed; }
+.pg-code-toggle:focus-visible { outline: 2px solid rgb(var(--pg-ice) / .7); outline-offset: 2px; }
 
 /* Keep the dark treatment through browser autofill. */
 .pg-input:-webkit-autofill,
@@ -2680,9 +2937,16 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-intro__floor-grid,
   .pg-intro__sweep,
   .pg-dot,
+  .pg-brand__status-dot,
+  .pg-pill__live,
   .pg-pill--state.is-live .pg-pill__dot,
   .pg-intro__pulse,
   .pg-intro__corner,
   .pg-intro__shutter { animation: none; }
   .pg-pill--timer.is-low { animation: none; }
+  /* Login hand-off: the dissolve and bloom collapse to instant (the global
+     rule flattens their duration), and the value tick never replays. */
+  .pg-num,
+  .pg-login__bloom,
+  .pg-btn.is-verified { animation: none; }
 }
