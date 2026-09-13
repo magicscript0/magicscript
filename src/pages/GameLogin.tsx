@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { AlertCircle, ArrowRight, Clock3, Hash, KeyRound, LogOut, ShieldBan } from 'lucide-react'
+import { AlertCircle, ArrowRight, Clock3, Eye, EyeOff, Hash, KeyRound, LogOut, ShieldBan } from 'lucide-react'
 import { CyberBackdrop } from '../components/CyberBackdrop'
 import { GameBrandLockup } from '../components/GameBrand'
 import { GameSocialLinks } from '../components/GameSocialLinks'
@@ -43,6 +43,7 @@ function endReasonNotice(reason: GameAccessEndReason): { icon: typeof Clock3; me
 export function GameLogin({ onLogin, endReason = null, ambient = true, settings = DEFAULT_CONTROL_SETTINGS }: GameLoginProps) {
   const [accountId, setAccountId] = useState('')
   const [accessCode, setAccessCode] = useState('')
+  const [showAccessCode, setShowAccessCode] = useState(false)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -105,12 +106,15 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
 
           <div className="pg-panel__body">
             <div className="pg-panel__head">
-              <p className="pg-eyebrow">Session access</p>
+              <div className="pg-panel__identity">
+                <span className="pg-eyebrow">Secure access</span>
+                <span className="pg-panel__code mono">MS / 01</span>
+              </div>
               <span className="pg-panel__rule" aria-hidden="true" />
               {settings.login.showStatus && (
-                <span className="pg-panel__state">
+                <span className="pg-panel__state" aria-live="polite">
                   <span className="pg-dot" aria-hidden="true" />
-                  {settings.login.statusLabel || 'Ready'}
+                  {checking ? 'Verifying' : settings.login.statusLabel || 'Operational'}
                 </span>
               )}
             </div>
@@ -149,7 +153,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
                     <input
                       id="access-code"
                       name="accessCode"
-                      type="text"
+                      type={showAccessCode ? 'text' : 'password'}
                       autoComplete="off"
                       autoCapitalize="characters"
                       spellCheck={false}
@@ -159,6 +163,15 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
                       disabled={checking}
                       className="pg-input mono uppercase"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowAccessCode((visible) => !visible)}
+                      aria-label={showAccessCode ? 'Hide access code' : 'Show access code'}
+                      disabled={checking}
+                      className="pg-input-toggle"
+                    >
+                      {showAccessCode ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -173,13 +186,13 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
               <button
                 type="submit"
                 disabled={checking}
-                aria-label={checking ? 'Checking access' : 'Enter game'}
+                aria-label={checking ? 'Verifying access' : 'Enter game'}
                 className={`pg-btn pg-btn--primary${checking ? ' is-busy' : ''}`}
               >
                 {checking ? (
                   <>
                     <span className="pg-btn__spinner" />
-                    <span>Checking access…</span>
+                    <span>Verifying access…</span>
                   </>
                 ) : (
                   <>
@@ -198,6 +211,11 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
 
             <GameSocialLinks links={settings.social} />
           </div>
+        </div>
+        <div className="pg-login__system-row" aria-hidden="true">
+          <span>Game session</span>
+          <span className="pg-login__system-line" />
+          <span>System ready</span>
         </div>
       </div>
     </main>

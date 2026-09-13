@@ -121,6 +121,15 @@ describe('Apple of Fortune login screen', () => {
     expect(screen.queryByText(/demo experience/i)).toBeNull()
   })
 
+  it('keeps the access code masked until the user toggles visibility', () => {
+    render(<GameLogin onLogin={vi.fn()} />)
+    const accessCode = screen.getByLabelText('Access Code') as HTMLInputElement
+    expect(accessCode.type).toBe('password')
+    fireEvent.click(screen.getByRole('button', { name: /show access code/i }))
+    expect(accessCode.type).toBe('text')
+    expect(screen.getByRole('button', { name: /hide access code/i })).toBeInTheDocument()
+  })
+
   it('links to the Telegram and YouTube channels in new tabs', () => {
     render(<GameLogin onLogin={vi.fn()} />)
     const telegram = screen.getByRole('link', { name: /telegram/i })

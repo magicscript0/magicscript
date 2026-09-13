@@ -156,8 +156,8 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
   function statusLine(): string {
     if (phase === 'publishing') return 'Starting a new game…'
     if (phase === 'revealing') return 'Revealing the current game…'
-    if (phase === 'ready') return 'Current game loaded.'
-    if (phase === 'revealed') return 'Current game loaded.'
+    if (phase === 'ready') return 'Round ready · live data synced.'
+    if (phase === 'revealed') return 'Round complete · result settled.'
     return syncLabel()
   }
 
@@ -167,6 +167,10 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
 
       <header className="pg-bar">
         <GameBrandLockup variant="compact" />
+        <div className="pg-bar__mission" aria-label="Current game status">
+          <span className="pg-dot" aria-hidden="true" />
+          <span className="pg-bar__mission-label">System operational</span>
+        </div>
         <div className="pg-bar__side">
           {displaySettings && (
             <div className="hidden items-center gap-2 lg:flex" data-testid="game-hud">
@@ -209,7 +213,10 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
           <span className="pg-board__corner pg-board__corner--br" aria-hidden="true" />
 
           <div className="pg-board__head">
-            <span className="pg-eyebrow">Multiplier</span>
+            <div className="pg-board__title">
+              <span className="pg-eyebrow">Apple of Fortune</span>
+              <span className="pg-board__subtitle">Live prediction board</span>
+            </div>
             <span className="pg-board__rule" aria-hidden="true" />
             <span className="pg-board__ladder mono">{LADDER_RANGE}</span>
             <span className="pg-board__split" aria-hidden="true" />
@@ -245,6 +252,10 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
       </div>
 
       <footer className="pg-dock">
+        <div className="pg-dock__identity">
+          <span className="pg-dock__eyebrow">Game session</span>
+          <span className="pg-dock__caption">Verified access · live board</span>
+        </div>
         <div aria-live="polite" className="pg-dock__status">
           {phase === 'publishing' || phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" aria-hidden="true" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" aria-hidden="true" />}
           <span>{statusLine()}</span>

@@ -1,7 +1,8 @@
 import { readdir, readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { join, relative } from 'node:path'
 
-const root = new URL('..', import.meta.url).pathname
+const root = fileURLToPath(new URL('..', import.meta.url))
 const sourceRoot = join(root, 'src')
 const approvedWriter = join(sourceRoot, 'services', 'm11.ts')
 const sourceFiles = []
