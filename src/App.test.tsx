@@ -100,6 +100,15 @@ describe('root route — the game experience is the default product', () => {
     }))
 
     render(<App />)
+    // The boot curtain lifts into the public landing; ENTER EXPERIENCE opens
+    // the access gateway. Real timers are in effect, so give the boot its
+    // wall-clock run (it may already be completed from an earlier render).
+    await waitFor(
+      () => expect(screen.getByRole('button', { name: /enter experience/i })).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
+    fireEvent.click(screen.getByRole('button', { name: /enter experience/i }))
+
     fireEvent.change(screen.getByLabelText('Account ID'), { target: { value: '123456789' } })
     fireEvent.change(screen.getByLabelText('Access Code'), { target: { value: 'MS-ABCDE-FGHIJ-KLMNP-QRSTU' } })
     await act(async () => {

@@ -2116,6 +2116,276 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 .pg-social__out { flex: 0 0 auto; width: 15px; height: 15px; color: rgb(var(--pg-ink-mute) / .6); transition: transform 220ms var(--pg-ease), color var(--pg-t-2) ease; }
 .pg-social__link:hover .pg-social__out { color: #dfeeea; transform: translate3d(2px, -2px, 0); }
 
+/* ------------------------- public landing scene ------------------------- */
+/*
+ * The discovery layer of the public journey. The flow mounts it once the
+ * boot curtain has lifted; it is the ONLY front face of MAGIC SCRIPT. The
+ * login terminal stays mounted underneath (see .pg-veil), so ENTER
+ * EXPERIENCE does not "load" anything — it reveals the gateway that was
+ * already there.
+ *
+ * Composition (one column, one job per line):
+ *   crest · wordmark · title · one line of positioning · system status ·
+ *   the single primary action · community links · copyright.
+ *
+ * The live system chips in the corners are owned by the flow (one shared
+ * HUD), so the landing, the gateway and the board read the same system.
+ */
+
+.pg-landing {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pg-landing__stack {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: min(560px, calc(100vw - 40px));
+  padding:
+    max(78px, calc(env(safe-area-inset-top, 0px) + 52px)) 20px
+    max(44px, calc(env(safe-area-inset-bottom, 0px) + 28px));
+}
+
+/* The landing arrives in one staggered breath as the curtain lifts. */
+.pg-landing__stack > * {
+  animation: pg-rise var(--pg-t-4) var(--pg-ease) both;
+}
+.pg-landing__stack > *:nth-child(1) { animation-delay: 40ms; }
+.pg-landing__stack > *:nth-child(2) { animation-delay: 100ms; }
+.pg-landing__stack > *:nth-child(3) { animation-delay: 160ms; }
+.pg-landing__stack > *:nth-child(4) { animation-delay: 250ms; }
+.pg-landing__stack > *:nth-child(5) { animation-delay: 330ms; }
+.pg-landing__stack > *:nth-child(6) { animation-delay: 410ms; }
+.pg-landing__stack > *:nth-child(7) { animation-delay: 490ms; }
+.pg-landing__stack > *:nth-child(8) { animation-delay: 560ms; }
+
+/* Exit: the whole stack settles up and out while the portal plays. */
+.pg-landing--exiting { pointer-events: none; }
+.pg-landing--exiting .pg-landing__stack {
+  animation: pg-landing-out 480ms var(--pg-ease-out) both;
+}
+
+@keyframes pg-landing-out {
+  to { opacity: 0; transform: translate3d(0, -14px, 0) scale(.985); }
+}
+
+/*
+ * The signature moment: one ring opens out from the crest and one bloom
+ * breathes — that is the whole effect. Transform/opacity only, transform
+ * centred by translate so the keyframes never fight the positioning.
+ */
+.pg-landing__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(76vmin, 620px);
+  height: min(76vmin, 620px);
+  border-radius: 50%;
+  border: 1px solid rgb(var(--pg-accent) / .3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pg-landing--exiting .pg-landing__ring {
+  animation: pg-portal-ring 640ms var(--pg-ease-out) both;
+}
+
+@keyframes pg-portal-ring {
+  from { opacity: .75; transform: translate(-50%, -50%) scale(.5); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(1.18); }
+}
+
+.pg-landing__bloom {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 84vmin;
+  height: 84vmin;
+  background: radial-gradient(circle, rgb(var(--pg-accent) / .14), transparent 62%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pg-landing--exiting .pg-landing__bloom {
+  animation: pg-portal-bloom 700ms var(--pg-ease-out) 40ms both;
+}
+
+@keyframes pg-portal-bloom {
+  0% { opacity: 0; }
+  35% { opacity: .85; }
+  100% { opacity: 0; }
+}
+
+/* --- composition --------------------------------------------------------- */
+
+.pg-landing__crest {
+  margin-bottom: 26px;
+}
+
+/* The landing crest sits a step above the login crest — the largest mark on
+   the public journey. */
+.pg-landing__crest .pg-mark--full {
+  width: 64px;
+  height: 64px;
+}
+
+.pg-landing__crest .pg-mark--full .pg-mark__ring {
+  border-radius: 24px;
+}
+
+.pg-landing__word {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .56em;
+  text-indent: .56em; /* optically re-centres the trailing tracking */
+  color: rgb(var(--pg-ink) / .88);
+}
+
+.pg-landing__title {
+  margin: 0 0 18px;
+  font-size: clamp(30px, 7.4vw, 46px);
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: .005em;
+  background: linear-gradient(180deg, rgb(var(--pg-ink)) 30%, rgb(var(--pg-ink) / .45) 130%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.pg-landing__tagline {
+  margin: 0 0 28px;
+  max-width: 44ch;
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--pg-ink-mute);
+}
+
+.pg-landing__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 30px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: rgb(var(--pg-ink-dim) / .72);
+}
+
+.pg-landing__social {
+  width: min(392px, 100%);
+  margin-bottom: 30px;
+  opacity: .94;
+}
+
+.pg-landing__foot {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: .3em;
+  color: rgb(var(--pg-ink-mute) / .6);
+}
+
+/* --- the single primary action ------------------------------------------ */
+/*
+ * ENTER EXPERIENCE. One action on the public page: it reveals the gateway.
+ * Dark glass with an accent hairline — deliberately distinct from the
+ * terminal's primary green ENTER GAME, which belongs to the access act.
+ */
+.pg-btn--portal {
+  width: min(340px, 100%);
+  min-height: 58px;
+  border-radius: var(--pg-r-lg);
+  border: 1px solid rgb(var(--pg-accent) / .36);
+  background:
+    linear-gradient(180deg, rgb(var(--pg-accent) / .1), transparent 58%),
+    rgb(10 15 18 / .78);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--pg-accent) / .2),
+    0 18px 44px -22px rgba(0, 0, 0, .85);
+  color: rgb(var(--pg-ink) / .92);
+  font-size: 13px;
+  letter-spacing: .26em;
+}
+
+.pg-btn--portal:hover:not(:disabled),
+.pg-btn--portal:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgb(var(--pg-accent) / .62);
+  background:
+    linear-gradient(180deg, rgb(var(--pg-accent) / .16), transparent 60%),
+    rgb(12 18 21 / .84);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--pg-accent) / .3),
+    0 22px 52px -22px rgba(0, 0, 0, .9),
+    0 0 44px -14px rgb(var(--pg-accent) / .38);
+}
+
+.pg-btn--portal:focus-visible {
+  outline: 2px solid rgb(var(--pg-accent) / .7);
+  outline-offset: 3px;
+}
+
+/* --- gateway: the quiet way back ----------------------------------------- */
+
+.pg-login__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 20px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: rgb(var(--pg-ink-mute) / .72);
+  transition: color var(--pg-t-1) ease, transform var(--pg-t-1) var(--pg-ease-out);
+}
+
+.pg-login__back:hover {
+  color: rgb(var(--pg-ink) / .8);
+  transform: translateX(-2px);
+}
+
+.pg-login__back:active {
+  transform: translateX(-2px) scale(.98);
+}
+
+.pg-login__back:focus-visible {
+  outline: 2px solid var(--pg-line-strong);
+  outline-offset: 2px;
+}
+
+/* Short viewports (landscape phones): the composition tightens so nothing
+   clips — every line keeps its job, only the breathing room shrinks. */
+@media (max-height: 700px) {
+  .pg-landing__stack {
+    padding-top: max(64px, calc(env(safe-area-inset-top, 0px) + 40px));
+    padding-bottom: max(36px, calc(env(safe-area-inset-bottom, 0px) + 20px));
+  }
+
+  .pg-landing__crest { margin-bottom: 16px; }
+  .pg-landing__word { margin-bottom: 10px; }
+  .pg-landing__title { margin-bottom: 12px; }
+  .pg-landing__tagline { margin-bottom: 20px; }
+  .pg-landing__status { margin-bottom: 22px; }
+  .pg-landing__social { margin-bottom: 20px; }
+}
+
 /* ------------------------------ game arena ------------------------------ */
 
 /*
@@ -2402,6 +2672,45 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 .pg-board.is-revealed .pg-board__shine { animation: pg-shine 950ms var(--pg-ease-out) both; }
 .pg-board.is-revealed .pg-board__corner { border-color: rgb(var(--pg-accent) / .45); box-shadow: 0 0 14px rgb(var(--pg-accent) / .22); }
 .pg-board.is-revealed::after { opacity: .8; }
+
+/*
+ * Board wake — the one-shot activation the arena plays the moment a NEW live
+ * round arms: a single scan pass down through the frame, the corner marks
+ * lighting up, and a soft accent pulse on the frame edge. It runs once per
+ * new round and reads no data; the round itself still renders purely from
+ * the live mirror.
+ */
+.pg-board.is-awake {
+  animation: pg-awake-frame 1050ms var(--pg-ease-out) both;
+}
+
+.pg-board.is-awake .pg-board__scan {
+  opacity: 1;
+  animation: pg-awake-scan 1050ms var(--pg-ease-out) both;
+}
+
+.pg-board.is-awake .pg-board__corner {
+  animation: pg-awake-corner 1050ms var(--pg-ease-out) both;
+}
+
+@keyframes pg-awake-scan {
+  from { transform: translate3d(0, -76px, 0); opacity: 0; }
+  12% { opacity: 1; }
+  82% { opacity: 1; }
+  to { transform: translate3d(0, 100cqh, 0); opacity: 0; }
+}
+
+@keyframes pg-awake-corner {
+  0% { border-color: rgb(var(--pg-line) / 1); box-shadow: none; }
+  42% { border-color: rgb(var(--pg-accent) / .55); box-shadow: 0 0 16px rgb(var(--pg-accent) / .26); }
+  100% { border-color: rgb(var(--pg-line) / 1); box-shadow: none; }
+}
+
+@keyframes pg-awake-frame {
+  0% { border-color: rgba(255, 255, 255, .05); }
+  42% { border-color: rgb(var(--pg-accent) / .32); }
+  100% { border-color: rgba(255, 255, 255, .05); }
+}
 
 @keyframes pg-shine {
   from { opacity: 0; transform: translate3d(-26%, 0, 0); }
@@ -2823,6 +3132,17 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   color: rgb(var(--pg-ink-dim) / .8);
 }
 
+/* The idle status dot: a slow, gentle breath — "the system is alive",
+   never a strobe. */
+.animate-pulse-soft {
+  animation: pg-pulse-soft 2.8s ease-in-out infinite;
+}
+
+@keyframes pg-pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .45; }
+}
+
 .pg-dock__alert { max-width: 440px; margin: var(--pg-s-1) auto 0; }
 
 /* The primary action dominates through weight and light, not size. */
@@ -2949,4 +3269,17 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-num,
   .pg-login__bloom,
   .pg-btn.is-verified { animation: none; }
+  /* Landing hand-off: no ring, no bloom, no stagger — a quiet, instant
+     crossfade instead. */
+  .pg-landing__stack > *,
+  .pg-landing--exiting .pg-landing__stack,
+  .pg-landing__ring,
+  .pg-landing__bloom { animation: none; }
+  .pg-landing__ring,
+  .pg-landing__bloom { opacity: 0; }
+  /* Board wake: the arena never re-lights; the round simply appears. */
+  .pg-board.is-awake,
+  .pg-board.is-awake .pg-board__scan,
+  .pg-board.is-awake .pg-board__corner { animation: none; }
+  .animate-pulse-soft { animation: none; }
 }

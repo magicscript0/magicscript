@@ -326,4 +326,17 @@ describe('Apple of Fortune login HUD placement and clock', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('Access could not be verified right now. Try again shortly.')
     })
   })
+
+  it('offers a quiet return to the public experience only when the flow provides one', () => {
+    const onBack = vi.fn()
+    render(<GameLogin onLogin={vi.fn()} onBack={onBack} />)
+    const back = screen.getByRole('button', { name: /public experience/i })
+    fireEvent.click(back)
+    expect(onBack).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the public-experience return when the flow does not provide one', () => {
+    render(<GameLogin onLogin={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: /public experience/i })).toBeNull()
+  })
 })

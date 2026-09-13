@@ -37,16 +37,16 @@ interface BootStage {
 
 /** Scripted boot curve — each stage eases into its own target percentage. */
 const BOOT_STAGES: readonly BootStage[] = [
-  { label: 'Initializing secure session', target: 34 },
-  { label: 'Authorizing access channel', target: 62 },
-  { label: 'Loading prediction table', target: 87 },
-  { label: 'Calibrating interface', target: 100 },
+  { label: 'Waking the system', target: 34 },
+  { label: 'Securing the channel', target: 62 },
+  { label: 'Preparing the board', target: 87 },
+  { label: 'System online', target: 100 },
 ]
 
 const BOOT_TICK_MS = 30
-const BOOT_DURATION_MS = 1_500
+const BOOT_DURATION_MS = 1_150
 /** A beat on the finished frame before the curtain lifts. */
-const BOOT_HOLD_MS = 180
+const BOOT_HOLD_MS = 120
 /** Dissolve duration; keep in sync with the .pg-intro transition. */
 const BOOT_EXIT_MS = 520
 /** Reduced motion: one lit frame, then straight to the login. */
@@ -205,7 +205,7 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
           </div>
       </div>
 
-      <p className="pg-intro__foot">Time-limited access · verified on the server</p>
+      <p className="pg-intro__foot">Time-limited access · secure verification</p>
     </div>
   )
 }

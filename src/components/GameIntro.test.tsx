@@ -39,7 +39,7 @@ describe('GameIntro — premium boot screen', () => {
     expect(screen.getByRole('progressbar', { name: /loading magic script/i })).toBeInTheDocument()
     expect(screen.getByText('MAGIC SCRIPT')).toBeInTheDocument()
     expect(screen.getByText('Apple of Fortune')).toBeInTheDocument()
-    expect(screen.getByText('Initializing secure session')).toBeInTheDocument()
+    expect(screen.getByText('Waking the system')).toBeInTheDocument()
     expect(screen.getByText('0%')).toBeInTheDocument()
     // It is an overlay: no heading competing with the login screen's own.
     expect(screen.queryByRole('heading')).toBeNull()
@@ -87,7 +87,8 @@ describe('GameIntro — premium boot screen', () => {
     const onFinish = vi.fn()
     render(<GameIntro onFinish={onFinish} />)
     expect(screen.getByText('100%')).toBeInTheDocument()
-    expect(screen.queryByText('Initializing secure session')).toBeNull()
+    expect(screen.queryByText('Waking the system')).toBeNull()
+    expect(screen.getByText('System online')).toBeInTheDocument()
     expect(onFinish).not.toHaveBeenCalled()
     act(() => {
       vi.advanceTimersByTime(260)

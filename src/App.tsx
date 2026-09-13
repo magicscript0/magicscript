@@ -3,6 +3,8 @@ import { CyberBackdrop } from './components/CyberBackdrop'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { GameIntro, hasGameIntroCompleted } from './components/GameIntro'
 import { LoadingScreen } from './components/LoadingScreen'
+import { PublicGameHud } from './components/PublicGameHud'
+import { PublicLanding } from './components/PublicLanding'
 import { VisitorTracker } from './components/VisitorTracker'
 import { useAdminSession } from './hooks/useAdminSession'
 import { useGameAccess } from './hooks/useGameAccess'
@@ -123,6 +125,13 @@ function AdminWorkspace({ admin, onLogout, sessionError }: { admin: NonNullable<
 /** Boot-curtain lifecycle for the public flow (presentation only). */
 type GameBootPhase = 'playing' | 'dissolving' | 'done'
 
+/** The public journey on `/`: the discovery landing, then the gateway. */
+type PublicStage = 'landing' | 'gateway'
+
+/** How long the landing lingers after its exit dissolve starts (presentation). */
+const LANDING_EXIT_MS = 680
+const LANDING_EXIT_REDUCED_MS = 140
+
 /**
  * The cinematic hand-off hold, in ms. This is pure presentation timing: by the
  * time it starts the session is ALREADY server-validated and granted, so a
@@ -203,6 +212,60 @@ function GameArea({ path }: { path: '/' | '/play' }) {
     if (grantTimerRef.current !== null) window.clearTimeout(grantTimerRef.current)
   }, [])
 
+  /**
+   * The public journey has two stages on the same screen: the discovery
+   * landing, then the access gateway behind it. The login terminal is
+   * mounted from the first frame in both stages — only which one the visitor
+   * sees changes — so the game genuinely feels like it was always behind the
+   * login. No session, routing, or verification behaviour moves: stage is
+   * presentation state.
+   *
+   * A visitor who arrives carrying a session-end notice (expired, revoked,
+   * signed out, unverified) is taken straight to the gateway, because that
+   * notice belongs to the terminal, not the public page.
+   */
+  const [stage, setStage] = useState<PublicStage>(() => (access.reason !== null ? 'gateway' : 'landing'))
+  const [landingGone, setLandingGone] = useState(false)
+  /** True only while the CTA-initiated portal dissolve is running. */
+  const [landingExiting, setLandingExiting] = useState(false)
+  const landingExitRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (access.reason !== null) setStage('gateway')
+  }, [access.reason])
+
+  useEffect(() => () => {
+    if (landingExitRef.current !== null) window.clearTimeout(landingExitRef.current)
+  }, [])
+
+  /**
+   * ENTER EXPERIENCE. Opens the gateway (the login rises through the veil)
+   * and plays the quiet portal dissolve, then unmounts the landing.
+   * Presentation only — the request is what starts the reveal, nothing here
+   * authorizes anything.
+   */
+  const handleEnter = useCallback(() => {
+    if (stage !== 'landing' || landingExiting) return
+    setStage('gateway')
+    setLandingExiting(true)
+    setLandingGone(false)
+    if (landingExitRef.current !== null) window.clearTimeout(landingExitRef.current)
+    landingExitRef.current = window.setTimeout(
+      () => setLandingGone(true),
+      prefersReducedMotion() ? LANDING_EXIT_REDUCED_MS : LANDING_EXIT_MS,
+    )
+  }, [stage, landingExiting])
+
+  const handleBack = useCallback(() => {
+    if (landingExitRef.current !== null) {
+      window.clearTimeout(landingExitRef.current)
+      landingExitRef.current = null
+    }
+    setLandingExiting(false)
+    setLandingGone(false)
+    setStage('landing')
+  }, [])
+
   if (path === '/play') {
     // Same gate as before, now wearing the boot screen's identity and the same
     // ambient shell, so reloading /play never shows an unstyled frame.
@@ -219,17 +282,41 @@ function GameArea({ path }: { path: '/' | '/play' }) {
     }
     // Brief fall-through while the URL redirect above settles.
   }
+  // The landing is the front face once the boot curtain has lifted. It waits
+  // for the session CHECK to settle (a returning visitor with a stored
+  // session resolves to the gateway, not the public page) — a fresh visitor
+  // is 'none' from the first frame, so nothing delays the discovery moment.
+  // Note it stays mounted for one beat after the CTA, even though the stage
+  // is already 'gateway' — that lingering IS the portal beat. A visitor who
+  // was sent straight to the gateway (session-end notice) never sees it.
+  const showLanding =
+    boot !== 'playing' &&
+    !landingGone &&
+    access.status !== 'checking' &&
+    (stage === 'landing' || landingExiting)
+
   return (
     <div className="pg-flow">
       <CyberBackdrop />
       {boot !== 'done' ? <GameIntro onReveal={() => setBoot('dissolving')} onFinish={() => setBoot('done')} /> : null}
-      <div className={`pg-veil${boot === 'playing' ? '' : ' pg-veil--open'}`}>
+      {/* One shared system chrome: the live corner chips live at flow level,
+          so the landing, the gateway and the board all read the same
+          system — never a duplicated or competing set per screen. */}
+      <PublicGameHud display={settings.display} className="pg-hud--login" />
+      {showLanding ? (
+        <PublicLanding onEnter={handleEnter} settings={settings} exiting={landingExiting} />
+      ) : null}
+      <div className={`pg-veil${stage === 'gateway' ? ' pg-veil--open' : ''}`}>
         <GameLogin
           onLogin={handleLogin}
           onGrant={handleGrant}
           endReason={access.reason}
           ambient={false}
           settings={settings}
+          hud={false}
+          // A visitor carrying a session-end notice stays in the terminal —
+          // the notice is part of the gateway, not the public page.
+          onBack={access.reason === null ? handleBack : undefined}
         />
       </div>
     </div>

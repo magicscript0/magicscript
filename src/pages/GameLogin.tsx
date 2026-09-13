@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { AlertCircle, ArrowRight, Check, Clock3, Eye, EyeOff, Hash, KeyRound, LogOut, ShieldBan } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, Check, Clock3, Eye, EyeOff, Hash, KeyRound, LogOut, ShieldBan } from 'lucide-react'
 import { CyberBackdrop } from '../components/CyberBackdrop'
 import { GameBrandLockup } from '../components/GameBrand'
 import { GameSocialLinks } from '../components/GameSocialLinks'
@@ -29,6 +29,15 @@ export interface GameLoginProps {
    * exactly the same.
    */
   onGrant?: () => void
+  /**
+   * Whether the terminal renders its own live corner chips. The game flow
+   * owns one shared HUD at flow level so the landing, the gateway and the
+   * board all read the same system — passing `false` there keeps the pair
+   * from ever duplicating.
+   */
+  hud?: boolean
+  /** When provided, a quiet return to the public experience is shown. */
+  onBack?: () => void
 }
 
 function endReasonNotice(reason: GameAccessEndReason): { icon: typeof Clock3; message: string } | null {
@@ -61,6 +70,8 @@ export function GameLogin({
   ambient = true,
   settings = DEFAULT_CONTROL_SETTINGS,
   onGrant,
+  hud = true,
+  onBack,
 }: GameLoginProps) {
   const [accountId, setAccountId] = useState('')
   const [accessCode, setAccessCode] = useState('')
@@ -131,7 +142,7 @@ export function GameLogin({
       {/* Light bloom that plays once as the terminal dissolves into the game. */}
       <span className="pg-login__bloom" aria-hidden="true" />
 
-      <PublicGameHud display={settings.display} className="pg-hud--login" />
+      {hud ? <PublicGameHud display={settings.display} className="pg-hud--login" /> : null}
 
       <div className="pg-login__stack relative z-10 w-full max-w-[452px]">
         <GameBrandLockup
@@ -268,6 +279,13 @@ export function GameLogin({
         </div>
 
         <p className="pg-login__brand-foot">© MAGIC SCRIPT</p>
+
+        {onBack ? (
+          <button type="button" onClick={onBack} className="pg-login__back">
+            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+            Public experience
+          </button>
+        ) : null}
       </div>
     </main>
   )

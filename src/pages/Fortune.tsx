@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, CircleDot, Eye, LogOut, Play, Sparkles, Timer } from 'lucide-react'
 import {
   GRID_ROWS,
@@ -67,6 +67,29 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
   const busy = phase === 'publishing' || phase === 'revealing'
   const lowTime = remainingMs < 120_000
   const tableState = !mirror.active ? 'OFFLINE' : liveReady ? 'LIVE' : 'STANDBY'
+
+  /**
+   * Board wake — the one-shot activation the board plays the moment a NEW
+   * live round arms: a scan pass, the corner marks lighting, and a soft
+   * frame pulse. Keyed on the round's identity, so live cell updates within
+   * the same round never re-trigger it. Pure presentation; it reads and
+   * changes no game data.
+   */
+  const [boardAwake, setBoardAwake] = useState(false)
+  const awakeTimerRef = useRef<number | null>(null)
+  const roundKey = round?.createdAt ?? null
+  useEffect(() => {
+    if (phase !== 'ready' || roundKey === null) {
+      setBoardAwake(false)
+      return
+    }
+    setBoardAwake(true)
+    if (awakeTimerRef.current !== null) window.clearTimeout(awakeTimerRef.current)
+    awakeTimerRef.current = window.setTimeout(() => setBoardAwake(false), 1_300)
+    return () => {
+      if (awakeTimerRef.current !== null) window.clearTimeout(awakeTimerRef.current)
+    }
+  }, [phase, roundKey])
 
   useEffect(() => {
     document.title = 'Apple of Fortune'
@@ -154,10 +177,10 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
   }
 
   function statusLine(): string {
-    if (phase === 'publishing') return 'Starting a new game…'
-    if (phase === 'revealing') return 'Revealing the current game…'
-    if (phase === 'ready') return 'Current game loaded.'
-    if (phase === 'revealed') return 'Current game loaded.'
+    if (phase === 'publishing') return 'Starting a new round…'
+    if (phase === 'revealing') return 'Revealing the round…'
+    if (phase === 'ready') return 'Round ready.'
+    if (phase === 'revealed') return 'Round revealed.'
     return syncLabel()
   }
 
@@ -202,7 +225,7 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
       </header>
 
       <div className="fortune-stage">
-        <div className={`pg-board${phase === 'revealing' ? ' is-revealing' : ''}${phase === 'revealed' ? ' is-revealed' : ''}${busy ? ' is-busy' : ''}`}>
+        <div className={`pg-board${phase === 'revealing' ? ' is-revealing' : ''}${phase === 'revealed' ? ' is-revealed' : ''}${busy ? ' is-busy' : ''}${boardAwake ? ' is-awake' : ''}`}>
           <span className="pg-board__corner pg-board__corner--tl" aria-hidden="true" />
           <span className="pg-board__corner pg-board__corner--tr" aria-hidden="true" />
           <span className="pg-board__corner pg-board__corner--bl" aria-hidden="true" />

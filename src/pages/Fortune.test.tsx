@@ -229,6 +229,26 @@ describe('Apple of Fortune public board — Firebase /m11 live mirror', () => {
     expect(source).not.toContain('START_SIMULATION_MS')
   })
 
+  it('arms the one-shot board wake when a new round lands, and lets it settle', () => {
+    render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
+    // No round, no wake.
+    expect(document.querySelector('.pg-board.is-awake')).toBeNull()
+
+    emitSnapshot(deterministicSafeKeys())
+
+    // The round is real and ready: the status beats it, and the board lights
+    // once — the signature activation, keyed on this round's identity.
+    expect(screen.getByText('Round ready.')).toBeInTheDocument()
+    expect(document.querySelector('.pg-board.is-awake')).not.toBeNull()
+
+    // The wake is a one-shot: it settles back to the resting frame.
+    act(() => {
+      vi.advanceTimersByTime(1_400)
+    })
+    expect(document.querySelector('.pg-board.is-awake')).toBeNull()
+    expect(screen.getByText('Round ready.')).toBeInTheDocument()
+  })
+
   it('shows an explicit loading state instead of inventing a local round', () => {
     render(<Fortune accountId="123456789" remainingMs={600_000} onExit={vi.fn()} />)
     expect(screen.getAllByText(/Loading the current game/i).length).toBeGreaterThan(0)

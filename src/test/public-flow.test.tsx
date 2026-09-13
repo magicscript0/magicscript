@@ -1,12 +1,15 @@
 /**
- * PUBLIC GAME FLOW — Loading screen → Game Login → Apple of Fortune board.
+ * PUBLIC GAME FLOW — boot curtain → public landing → access gateway → Apple
+ * of Fortune board.
  *
  * The presentation redesign must not disturb the flow or the data path, so
  * this suite drives the real App at `/` through the whole sequence:
  *
- *   boot curtain plays → dissolves into the login → a code redeems (session
- *   hook stubbed, jsdom has no Supabase) → `/play` renders the board, which
- *   still mirrors whatever the REAL /m11 read path hands it.
+ *   boot curtain plays → dissolves into the PUBLIC LANDING → ENTER
+ *   EXPERIENCE reveals the access gateway (the login was mounted underneath
+ *   all along) → a code redeems (session hook stubbed, jsdom has no Supabase)
+ *   → `/play` renders the board, which still mirrors whatever the REAL /m11
+ *   read path hands it.
  *
  * Only `firebase/database` is mocked, and only to feed a known snapshot
  * through the existing `onValue` listener — the same technique the Firebase
@@ -106,27 +109,60 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('flow 1 — the boot curtain hands the stage to the login', () => {
-  it('loads over the login, then dissolves without touching the form', () => {
+/** The public front face the boot curtain hands the stage to. */
+function landingCta() {
+  return screen.getByRole('button', { name: /enter experience/i })
+}
+
+/** Drives the real first act: boot curtain up → public landing visible. */
+function reachLanding() {
+  // Curtain up: the boot screen owns the viewport…
+  expect(screen.getByRole('progressbar', { name: /loading magic script/i })).toBeInTheDocument()
+  // …and the login is already mounted underneath, held closed.
+  expect(veil()?.className).toContain('pg-veil')
+  expect(veil()?.className).not.toContain('pg-veil--open')
+  expect(screen.getByLabelText('Account ID')).toBeInTheDocument()
+
+  // The curtain lifts: the public landing takes the stage while the boot
+  // screen finishes dissolving.
+  act(() => {
+    vi.advanceTimersByTime(1_800)
+  })
+  expect(screen.getByRole('button', { name: /enter experience/i })).toBeInTheDocument()
+  expect(veil()?.className).not.toContain('pg-veil--open')
+
+  act(() => {
+    vi.advanceTimersByTime(600)
+  })
+  expect(screen.queryByRole('progressbar')).toBeNull()
+  expect(veil()?.className).not.toContain('pg-veil--open')
+}
+
+describe('flow 1 — the boot curtain hands the stage to the public landing', () => {
+  it('discovers the brand, then ENTER EXPERIENCE reveals the gateway', () => {
     render(<App />)
+    reachLanding()
 
-    // Curtain up: the loading screen owns the viewport…
-    expect(screen.getByRole('progressbar', { name: /loading magic script/i })).toBeInTheDocument()
-    // …and the login is already mounted underneath, held closed.
-    expect(veil()?.className).toContain('pg-veil')
-    expect(veil()?.className).not.toContain('pg-veil--open')
-    expect(screen.getByLabelText('Account ID')).toBeInTheDocument()
+    // The landing is the discovery layer: brand, promise, system status,
+    // one action — and the login is still not open.
+    expect(screen.getAllByText('MAGIC SCRIPT').length).toBeGreaterThan(1)
+    expect(screen.getAllByText('Apple of Fortune').length).toBeGreaterThan(0)
+    // Both the landing and the gateway behind it report the same system
+    // status — one system, read from one place.
+    expect(screen.getAllByText(/system operational/i).length).toBeGreaterThan(1)
+    expect(screen.getByRole('button', { name: /enter game/i })).toBeInTheDocument()
 
-    act(() => {
-      vi.advanceTimersByTime(1_800)
-    })
-    // Reveal begins: the login rises while the curtain dissolves.
+    // ENTER EXPERIENCE: the gateway rises through the veil…
+    fireEvent.click(landingCta())
     expect(veil()?.className).toContain('pg-veil--open')
+    // …while the landing plays its one quiet portal beat.
+    expect(document.querySelector('.pg-landing--exiting')).not.toBeNull()
 
+    // …and the stage is fully handed over: the gateway is live and usable.
     act(() => {
-      vi.advanceTimersByTime(600)
+      vi.advanceTimersByTime(700)
     })
-    expect(screen.queryByRole('progressbar')).toBeNull()
+    expect(screen.queryByRole('button', { name: /enter experience/i })).toBeNull()
     expect(screen.getByRole('button', { name: /enter game/i })).toBeEnabled()
     expect(screen.getByRole('heading', { name: 'Apple of Fortune' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/')
@@ -134,8 +170,11 @@ describe('flow 1 — the boot curtain hands the stage to the login', () => {
 
   it('keeps validation untouched behind the new surface', () => {
     render(<App />)
+    reachLanding()
+
+    fireEvent.click(landingCta())
     act(() => {
-      vi.advanceTimersByTime(2_400)
+      vi.advanceTimersByTime(700)
     })
 
     fireEvent.change(screen.getByLabelText('Account ID'), { target: { value: '12345678' } })
@@ -166,6 +205,12 @@ describe('flow 2 — a redeemed session opens the premium board', () => {
     render(<App />)
     act(() => {
       vi.advanceTimersByTime(2_400)
+    })
+    // The public landing takes the stage; ENTER EXPERIENCE opens the gateway.
+    expect(screen.getByRole('button', { name: /enter experience/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /enter experience/i }))
+    act(() => {
+      vi.advanceTimersByTime(700)
     })
 
     fireEvent.change(screen.getByLabelText('Account ID'), { target: { value: '123456789' } })
