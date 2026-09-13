@@ -1582,6 +1582,9 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   margin-top: var(--pg-s-6);
   overflow: hidden;
   border-radius: var(--pg-r-xl);
+  background-image:
+    linear-gradient(145deg, rgba(255, 255, 255, .045), transparent 30%),
+    var(--pg-glass);
   -webkit-backdrop-filter: saturate(126%) blur(20px);
   backdrop-filter: saturate(126%) blur(20px);
 }
@@ -1635,6 +1638,19 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   align-items: center;
   gap: var(--pg-s-2);
   margin-bottom: var(--pg-s-5);
+}
+
+.pg-panel__identity {
+  display: inline-flex;
+  min-width: max-content;
+  align-items: center;
+  gap: 8px;
+}
+
+.pg-panel__code {
+  font-size: 9px;
+  color: rgb(var(--pg-ink-mute) / .42);
+  letter-spacing: .12em;
 }
 
 .pg-panel__rule {
@@ -1741,6 +1757,30 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 .pg-input:disabled { opacity: .5; }
 .pg-input::placeholder { color: rgb(var(--pg-ink-mute) / .34); letter-spacing: .01em; text-transform: none; }
 
+.pg-input-toggle {
+  display: grid;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 10px;
+  color: rgb(var(--pg-ink-mute) / .7);
+  transition: color var(--pg-t-2) ease, background-color var(--pg-t-2) ease, transform var(--pg-t-2) ease;
+}
+
+.pg-input-toggle:hover {
+  background: rgb(var(--pg-ice) / .08);
+  color: rgb(var(--pg-ice) / .95);
+}
+
+.pg-input-toggle:focus-visible {
+  outline: 2px solid rgb(var(--pg-ice) / .75);
+  outline-offset: 2px;
+}
+
+.pg-input-toggle:active { transform: scale(.94); }
+.pg-input-toggle:disabled { cursor: not-allowed; opacity: .45; }
+
 /* Keep the dark treatment through browser autofill. */
 .pg-input:-webkit-autofill,
 .pg-input:-webkit-autofill:hover,
@@ -1768,6 +1808,25 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
 }
 
 .pg-login__foot svg { width: 12px; height: 12px; }
+
+.pg-login__system-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 13px 4px 0;
+  color: rgb(var(--pg-ink-mute) / .42);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.pg-login__system-line {
+  height: 1px;
+  flex: 1 1 auto;
+  background: linear-gradient(90deg, rgb(var(--pg-accent) / .3), transparent);
+}
 
 /* Community links */
 .pg-social__head {
