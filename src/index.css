@@ -1289,6 +1289,20 @@
   text-shadow: 0 0 32px rgb(var(--pg-accent) / .18);
 }
 
+.pg-intro__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: -2px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: rgb(var(--pg-ink-dim) / .62);
+}
+
+.pg-intro__state .pg-dot { width: 4px; height: 4px; }
+
 .pg-intro__foot {
   position: absolute;
   left: 0;
@@ -1973,6 +1987,20 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   margin-left: auto;
 }
 
+.pg-bar__mission {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: clamp(12px, 3vw, 36px);
+  color: rgb(var(--pg-ink-mute) / .56);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.pg-bar__mission .pg-dot { width: 4px; height: 4px; }
+
 .fortune-stage {
   position: relative;
   display: flex;
@@ -2123,6 +2151,20 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   gap: var(--pg-s-2);
   min-height: var(--pg-frame-head);
   padding-inline: 2px;
+}
+
+.pg-board__title {
+  display: inline-flex;
+  min-width: max-content;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pg-board__subtitle {
+  font-size: 8px;
+  letter-spacing: .08em;
+  color: rgb(var(--pg-ink-mute) / .42);
+  text-transform: uppercase;
 }
 
 .pg-board__rule {
@@ -2625,6 +2667,26 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   color: rgb(var(--pg-ink-dim) / .8);
 }
 
+.pg-dock__identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 16px;
+  color: rgb(var(--pg-ink-mute) / .45);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.pg-dock__caption {
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, .1);
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: rgb(var(--pg-ink-mute) / .32);
+}
+
 .pg-dock__alert { max-width: 440px; margin: var(--pg-s-1) auto 0; }
 
 /* The primary action dominates through weight and light, not size. */
@@ -2673,6 +2735,10 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-pill__text { display: none; }
   .pg-board__ladder,
   .pg-board__split { display: none; }
+  .pg-bar__mission-label,
+  .pg-dock__caption { display: none; }
+  .pg-bar__mission { margin-left: 4px; }
+  .pg-board__subtitle { display: none; }
   .pg-legend__item { letter-spacing: .14em; }
   .pg-btn { letter-spacing: .12em; padding-inline: var(--pg-s-2); }
   .pg-iconbtn { width: 34px; height: 34px; }

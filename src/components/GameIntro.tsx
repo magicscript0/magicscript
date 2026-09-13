@@ -168,6 +168,10 @@ export function GameIntro({ mode = 'boot', onReveal, onFinish }: GameIntroProps)
             MAGIC SCRIPT
           </p>
           <p className="pg-intro__sub">Apple of Fortune</p>
+          <span className="pg-intro__state">
+            <span className="pg-dot" aria-hidden="true" />
+            {checking ? 'Secure access channel' : 'System operational'}
+          </span>
         </div>
 
           <div className="pg-intro__instrument">
