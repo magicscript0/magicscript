@@ -2685,4 +2685,22 @@ html:has(.pg-intro:not(.pg-intro--leaving)) {
   .pg-intro__corner,
   .pg-intro__shutter { animation: none; }
   .pg-pill--timer.is-low { animation: none; }
+  .animate-cell-entrance { animation: none !important; opacity: 1 !important; transform: none !important; }
 }
+
+/* --------------------------- Viewer Mode Entrance Animation ----------------------- */
+@keyframes cellEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-cell-entrance {
+  animation: cellEntrance 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+

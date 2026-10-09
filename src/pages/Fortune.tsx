@@ -12,7 +12,11 @@ import { publishDemoRound } from '../services/m11'
 import { CyberBackdrop } from '../components/CyberBackdrop'
 import { GameBrandLockup } from '../components/GameBrand'
 import { FortuneBoard } from '../components/FortuneBoard'
+import { ViewerToggle } from '../components/ViewerToggle'
+import { ViewerPanel } from '../components/ViewerPanel'
 import { LocalTimeChip, OnlineActivityChip } from '../components/PublicGameHud'
+import { useLiveGame } from '../hooks/useLiveGame'
+import { useBalance } from '../hooks/useBalance'
 import { generateDemoRound } from '../utils/generator'
 import { liveValuesToRows } from '../utils/m11Snapshot'
 import { validateM11Node } from '../utils/validation'
@@ -57,11 +61,15 @@ const LADDER_RANGE = `${formatMultiplier(ROWS[0].multiplier)} → ${formatMultip
  * "1"/"0" → SAFE/BROKEN mapping are exactly the ones that were already there.
  */
 export function Fortune({ accountId, remainingMs, onExit, displaySettings }: FortuneProps) {
+  const [mode, setMode] = useState<'play' | 'viewer'>('play')
   const [phase, setPhase] = useState<RoundPhase>('idle')
   const [round, setRound] = useState<ConsoleRound | null>(null)
   const [revealedRows, setRevealedRows] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const mirror = useM11Mirror()
+  const liveGame = useLiveGame(mode === 'viewer')
+  const balanceState = useBalance(mode === 'viewer')
+
   const liveReady = mirror.active && mirror.status === 'valid' && mirror.evaluation !== null
   const canPublish = mirror.active && mirror.status !== 'error'
   const busy = phase === 'publishing' || phase === 'revealing'
@@ -166,7 +174,10 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
       <CyberBackdrop density="calm" />
 
       <header className="pg-bar">
-        <GameBrandLockup variant="compact" />
+        <div className="flex items-center gap-4">
+          <GameBrandLockup variant="compact" />
+          <ViewerToggle mode={mode} onChange={setMode} />
+        </div>
         <div className="pg-bar__side">
           {displaySettings && (
             <div className="hidden items-center gap-2 lg:flex" data-testid="game-hud">
@@ -201,83 +212,91 @@ export function Fortune({ accountId, remainingMs, onExit, displaySettings }: For
         </div>
       </header>
 
-      <div className="fortune-stage">
-        <div className={`pg-board${phase === 'revealing' ? ' is-revealing' : ''}${phase === 'revealed' ? ' is-revealed' : ''}${busy ? ' is-busy' : ''}`}>
-          <span className="pg-board__corner pg-board__corner--tl" aria-hidden="true" />
-          <span className="pg-board__corner pg-board__corner--tr" aria-hidden="true" />
-          <span className="pg-board__corner pg-board__corner--bl" aria-hidden="true" />
-          <span className="pg-board__corner pg-board__corner--br" aria-hidden="true" />
+      {mode === 'viewer' ? (
+        <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 py-5 sm:px-6">
+          <ViewerPanel game={liveGame} balanceState={balanceState} />
+        </main>
+      ) : (
+        <>
+          <div className="fortune-stage">
+            <div className={`pg-board${phase === 'revealing' ? ' is-revealing' : ''}${phase === 'revealed' ? ' is-revealed' : ''}${busy ? ' is-busy' : ''}`}>
+              <span className="pg-board__corner pg-board__corner--tl" aria-hidden="true" />
+              <span className="pg-board__corner pg-board__corner--tr" aria-hidden="true" />
+              <span className="pg-board__corner pg-board__corner--bl" aria-hidden="true" />
+              <span className="pg-board__corner pg-board__corner--br" aria-hidden="true" />
 
-          <div className="pg-board__head">
-            <span className="pg-eyebrow">Multiplier</span>
-            <span className="pg-board__rule" aria-hidden="true" />
-            <span className="pg-board__ladder mono">{LADDER_RANGE}</span>
-            <span className="pg-board__split" aria-hidden="true" />
-            <span className="pg-legend">
-              <span className="pg-legend__item">
-                <span className="pg-dot pg-dot--safe" aria-hidden="true" />
-                Safe
-              </span>
-              <span className="pg-legend__item">
-                <span className="pg-dot pg-dot--broken" aria-hidden="true" />
-                Broken
-              </span>
-            </span>
-          </div>
+              <div className="pg-board__head">
+                <span className="pg-eyebrow">Multiplier</span>
+                <span className="pg-board__rule" aria-hidden="true" />
+                <span className="pg-board__ladder mono">{LADDER_RANGE}</span>
+                <span className="pg-board__split" aria-hidden="true" />
+                <span className="pg-legend">
+                  <span className="pg-legend__item">
+                    <span className="pg-dot pg-dot--safe" aria-hidden="true" />
+                    Safe
+                  </span>
+                  <span className="pg-legend__item">
+                    <span className="pg-dot pg-dot--broken" aria-hidden="true" />
+                    Broken
+                  </span>
+                </span>
+              </div>
 
-          <FortuneBoard rows={round?.rows ?? null} phase={phase} revealedRows={revealedRows} />
-          <span className="pg-board__scan" aria-hidden="true" />
-          <span className="pg-board__shine" aria-hidden="true" />
-        </div>
-
-        {phase === 'idle' && round === null && (
-          <div className="pg-idle">
-            <div className="pg-idle__card">
-              <span className="pg-idle__crest">
-                {mirror.status === 'syncing' ? <CircleDot className="h-5 w-5 animate-pulse" aria-hidden="true" /> : <Sparkles className="h-5 w-5" aria-hidden="true" />}
-              </span>
-              <p className="pg-idle__title">{syncLabel()}</p>
-              <p className="pg-idle__copy">The live current game will appear here when it is available.</p>
-              <span className="pg-idle__loader" aria-hidden="true" />
+              <FortuneBoard rows={round?.rows ?? null} phase={phase} revealedRows={revealedRows} />
+              <span className="pg-board__scan" aria-hidden="true" />
+              <span className="pg-board__shine" aria-hidden="true" />
             </div>
-          </div>
-        )}
-      </div>
 
-      <footer className="pg-dock">
-        <div aria-live="polite" className="pg-dock__status">
-          {phase === 'publishing' || phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" aria-hidden="true" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" aria-hidden="true" />}
-          <span>{statusLine()}</span>
-        </div>
-        {notice && (
-          <div role="alert" className="pg-note pg-note--error pg-dock__alert">
-            <AlertTriangle className="pg-note__icon" aria-hidden="true" />
-            <p>{notice}</p>
+            {phase === 'idle' && round === null && (
+              <div className="pg-idle">
+                <div className="pg-idle__card">
+                  <span className="pg-idle__crest">
+                    {mirror.status === 'syncing' ? <CircleDot className="h-5 w-5 animate-pulse" aria-hidden="true" /> : <Sparkles className="h-5 w-5" aria-hidden="true" />}
+                  </span>
+                  <p className="pg-idle__title">{syncLabel()}</p>
+                  <p className="pg-idle__copy">The live current game will appear here when it is available.</p>
+                  <span className="pg-idle__loader" aria-hidden="true" />
+                </div>
+              </div>
+            )}
           </div>
-        )}
-        <div className="pg-dock__actions">
-          <button
-            type="button"
-            onClick={() => { void handleNewGame() }}
-            disabled={busy || !canPublish}
-            aria-label={phase === 'publishing' ? 'Starting new game' : 'New game'}
-            className={`pg-btn pg-btn--primary pg-dock__primary${phase === 'publishing' ? ' is-busy' : ''}`}
-          >
-            {phase === 'publishing' ? <span className="pg-btn__spinner pg-btn__spinner--dark" /> : <Play className="h-4 w-4" aria-hidden="true" />}
-            <span>{phase === 'publishing' ? 'Starting…' : 'New game'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleReveal}
-            disabled={phase !== 'ready' || round === null}
-            aria-label={phase === 'revealing' ? 'Revealing prediction' : phase === 'revealed' ? 'Prediction shown' : 'Reveal prediction'}
-            className={`pg-btn pg-btn--amber pg-dock__secondary${phase === 'revealing' ? ' is-busy' : ''}`}
-          >
-            {phase === 'revealing' ? <CircleDot className="h-4 w-4 animate-pulse" aria-hidden="true" /> : phase === 'revealed' ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
-            <span>{phase === 'revealing' ? 'Revealing…' : phase === 'revealed' ? 'Shown' : 'Reveal'}</span>
-          </button>
-        </div>
-      </footer>
+
+          <footer className="pg-dock">
+            <div aria-live="polite" className="pg-dock__status">
+              {phase === 'publishing' || phase === 'revealing' ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-emerald-300" aria-hidden="true" /> : <span className="status-dot animate-pulse-soft bg-emerald-300" aria-hidden="true" />}
+              <span>{statusLine()}</span>
+            </div>
+            {notice && (
+              <div role="alert" className="pg-note pg-note--error pg-dock__alert">
+                <AlertTriangle className="pg-note__icon" aria-hidden="true" />
+                <p>{notice}</p>
+              </div>
+            )}
+            <div className="pg-dock__actions">
+              <button
+                type="button"
+                onClick={() => { void handleNewGame() }}
+                disabled={busy || !canPublish}
+                aria-label={phase === 'publishing' ? 'Starting new game' : 'New game'}
+                className={`pg-btn pg-btn--primary pg-dock__primary${phase === 'publishing' ? ' is-busy' : ''}`}
+              >
+                {phase === 'publishing' ? <span className="pg-btn__spinner pg-btn__spinner--dark" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+                <span>{phase === 'publishing' ? 'Starting…' : 'New game'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleReveal}
+                disabled={phase !== 'ready' || round === null}
+                aria-label={phase === 'revealing' ? 'Revealing prediction' : phase === 'revealed' ? 'Prediction shown' : 'Reveal prediction'}
+                className={`pg-btn pg-btn--amber pg-dock__secondary${phase === 'revealing' ? ' is-busy' : ''}`}
+              >
+                {phase === 'revealing' ? <CircleDot className="h-4 w-4 animate-pulse" aria-hidden="true" /> : phase === 'revealed' ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                <span>{phase === 'revealing' ? 'Revealing…' : phase === 'revealed' ? 'Shown' : 'Reveal'}</span>
+              </button>
+            </div>
+          </footer>
+        </>
+      )}
     </div>
   )
 }
