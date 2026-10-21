@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   Cpu,
   Zap,
@@ -9,6 +9,7 @@ import {
   Layers,
   Lock,
 } from 'lucide-react'
+import { playTelemetryBlip, playCyberNovaChime } from '../utils/audio'
 
 interface BootLoaderProps {
   onComplete: () => void
@@ -30,7 +31,28 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
   const [novaFlash, setNovaFlash] = useState(false)
   const [tremor, setTremor] = useState(false)
 
-  // Rapid hex scramble ticker
+  const handleSkip = useCallback(() => {
+    playCyberNovaChime()
+    setNovaFlash(true)
+    setTimeout(() => {
+      setDissolving(true)
+      setTimeout(onComplete, 350)
+    }, 100)
+  }, [onComplete])
+
+  // Keyboard shortcut listener to skip (Space, Enter, Esc)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault()
+        handleSkip()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleSkip])
+
+  // Rapid hex scramble ticker + subtle telemetry audio
   useEffect(() => {
     const hexCodes = [
       '0x4A11::SHARD_ALPHA_ACTIVE',
@@ -40,8 +62,13 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       '0xBA07::RTDB_BRIDGE_ONLINE',
       '0xEE40::HUD_CALIBRATED_60FPS',
     ]
+    let counter = 0
     const interval = setInterval(() => {
       setHexSnippet(hexCodes[Math.floor(Math.random() * hexCodes.length)])
+      counter++
+      if (counter % 3 === 0) {
+        playTelemetryBlip(750 + Math.random() * 300)
+      }
     }, 160)
     return () => clearInterval(interval)
   }, [])
@@ -49,8 +76,9 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
   // Progress interpolation curve
   useEffect(() => {
     let currentP = 0
-    const duration = 2400 // 2.4s cinematic experience
+    const duration = 2300 // 2.3s cinematic experience
     const start = performance.now()
+    let frameId: number
 
     const frame = (now: number) => {
       const elapsed = now - start
@@ -65,14 +93,15 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       if (newStage !== -1) setStageIndex(newStage)
 
       // Tremor near 100%
-      if (currentP >= 95 && !tremor) {
+      if (currentP >= 94 && !tremor) {
         setTremor(true)
       }
 
       if (t < 1) {
-        requestAnimationFrame(frame)
+        frameId = requestAnimationFrame(frame)
       } else {
-        // Trigger Nova Flash
+        // Trigger Nova Flash & Chime
+        playCyberNovaChime()
         setNovaFlash(true)
         setTimeout(() => {
           setDissolving(true)
@@ -83,8 +112,8 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       }
     }
 
-    const anim = requestAnimationFrame(frame)
-    return () => cancelAnimationFrame(anim)
+    frameId = requestAnimationFrame(frame)
+    return () => cancelAnimationFrame(frameId)
   }, [onComplete, tremor])
 
   const currentStage = BOOT_STAGES[stageIndex] || BOOT_STAGES[BOOT_STAGES.length - 1]
@@ -200,7 +229,7 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
               cx="50%"
               cy="50%"
               r="43%"
-              stroke="url(#bootGradientV2)"
+              stroke="url(#bootGradientV3)"
               strokeWidth="5"
               fill="transparent"
               strokeDasharray={2 * Math.PI * 110}
@@ -209,7 +238,7 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
               className="transition-all duration-75"
             />
             <defs>
-              <linearGradient id="bootGradientV2" x1="0%" y1="0%" x2="100%" y2="100%">
+              <linearGradient id="bootGradientV3" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#00f2fe" />
                 <stop offset="50%" stopColor="#8b5cf6" />
                 <stop offset="100%" stopColor="#fbbf24" />
@@ -270,10 +299,10 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-xs font-mono-tech">
         <span className="text-slate-500">MAGIC SCRIPT NEXUS · QUANTUM EDITION</span>
         <button
-          onClick={onComplete}
-          className="text-slate-400 hover:text-cyan-300 border border-slate-700/80 hover:border-cyan-400/50 px-4 py-1.5 rounded-full transition-all tracking-wider shadow-lg"
+          onClick={handleSkip}
+          className="text-slate-400 hover:text-cyan-300 border border-slate-700/80 hover:border-cyan-400/50 px-4 py-1.5 rounded-full transition-all tracking-wider shadow-lg hover:box-glow-cyan"
         >
-          [PRESS TO SKIP]
+          [PRESS SPACE OR CLICK TO SKIP]
         </button>
       </div>
     </div>

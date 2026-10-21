@@ -1,4 +1,4 @@
-import React, { useState, useRef, FormEvent } from 'react'
+import React, { useState, useRef, useEffect, FormEvent } from 'react'
 import {
   KeyRound,
   Hash,
@@ -12,8 +12,10 @@ import {
   CheckCircle2,
   Zap,
   Radio,
+  X,
 } from 'lucide-react'
 import type { PublicSettings } from '../services/auth'
+import { playLaserClick, playTelemetryBlip } from '../utils/audio'
 
 interface NexusLoginCardProps {
   settings: PublicSettings
@@ -35,8 +37,30 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
 
   // 3D Tilt & Glare State
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, glareX: 50, glareY: 50 })
+  const isHoveredRef = useRef(false)
+
+  // Mobile/idle ambient floating effect when not actively hovered
+  useEffect(() => {
+    let animId: number
+    let t = 0
+    const float = () => {
+      animId = requestAnimationFrame(float)
+      if (!isHoveredRef.current) {
+        t += 0.02
+        setTilt({
+          rx: Math.sin(t) * 2.5,
+          ry: Math.cos(t * 0.8) * 3,
+          glareX: 50 + Math.sin(t) * 15,
+          glareY: 50 + Math.cos(t * 0.8) * 15,
+        })
+      }
+    }
+    animId = requestAnimationFrame(float)
+    return () => cancelAnimationFrame(animId)
+  }, [])
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    isHoveredRef.current = true
     const card = cardRef.current
     if (!card) return
     const rect = card.getBoundingClientRect()
@@ -56,19 +80,27 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
   }
 
   const handleMouseLeave = () => {
-    setTilt({ rx: 0, ry: 0, glareX: 50, glareY: 50 })
+    isHoveredRef.current = false
   }
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (loading) return
+    playLaserClick()
     onLogin(accountId, accessCode)
   }
 
   // Quick Demo Autofill Helper
   const handleAutofillDemo = () => {
+    playLaserClick()
     setAccountId('583920194')
     setAccessCode('NEXUS-7782-XVIP')
+  }
+
+  const handleAccountIdChange = (val: string) => {
+    const cleaned = val.replace(/[^0-9]/g, '')
+    setAccountId(cleaned)
+    playTelemetryBlip(920, 0.02)
   }
 
   const isAccountValid = accountId.length >= 9 && accountId.length <= 11
@@ -82,7 +114,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
         onMouseLeave={handleMouseLeave}
         style={{
           transform: `perspective(1200px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) translateZ(0)`,
-          transition: 'transform 0.12s ease-out',
+          transition: isHoveredRef.current ? 'transform 0.12s ease-out' : 'transform 0.4s ease-out',
         }}
         className="relative rounded-3xl p-[1.5px] border-beam-container shadow-[0_30px_90px_-15px_rgba(0,0,0,0.95),0_0_45px_rgba(0,242,254,0.22)]"
       >
@@ -137,9 +169,9 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
                 </label>
                 {accountId.length > 0 ? (
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full ${
+                    className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${
                       isAccountValid
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 glow-cyan'
                         : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     }`}
                   >
@@ -157,14 +189,26 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
                   pattern="[0-9]*"
                   maxLength={11}
                   value={accountId}
-                  onChange={(e) => setAccountId(e.target.value.replace(/[^0-9]/g, ''))}
+                  onChange={(e) => handleAccountIdChange(e.target.value)}
                   placeholder="e.g. 583920194"
                   required
-                  className="w-full bg-[#030712]/85 border border-slate-700/80 group-hover:border-cyan-500/50 focus:border-cyan-400 focus:box-glow-cyan text-white text-sm font-mono-tech rounded-xl px-4 py-3.5 pl-11 outline-none transition-all placeholder:text-slate-600 shadow-inner"
+                  className="w-full bg-[#030712]/85 border border-slate-700/80 group-hover:border-cyan-500/50 focus:border-cyan-400 focus:box-glow-cyan text-white text-sm font-mono-tech rounded-xl px-4 py-3.5 pl-11 pr-10 outline-none transition-all placeholder:text-slate-600 shadow-inner"
                 />
                 <Shield className="w-4 h-4 text-slate-500 group-focus-within:text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2 transition-colors" />
-                {isAccountValid && (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 absolute right-4 top-1/2 -translate-y-1/2" />
+
+                {accountId.length > 0 && (
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                    {isAccountValid && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setAccountId('')}
+                      className="text-slate-500 hover:text-slate-300 transition-colors p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

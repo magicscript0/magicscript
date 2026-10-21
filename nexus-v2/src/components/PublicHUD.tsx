@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from 'react'
-import { Send, Youtube, ShieldCheck, Activity, Clock, Users } from 'lucide-react'
+import {
+  Send,
+  Youtube,
+  ShieldCheck,
+  Clock,
+  Users,
+  Volume2,
+  VolumeX,
+  Maximize2,
+  Minimize2,
+} from 'lucide-react'
 import type { PublicSettings } from '../services/auth'
+import { toggleAudio, isAudioEnabled, playLaserClick } from '../utils/audio'
 
 interface PublicHUDProps {
   settings: PublicSettings
@@ -9,6 +20,8 @@ interface PublicHUDProps {
 export const PublicHUD: React.FC<PublicHUDProps> = ({ settings }) => {
   const [time, setTime] = useState('')
   const [onlineCount, setOnlineCount] = useState(settings.onlineCount)
+  const [soundOn, setSoundOn] = useState(isAudioEnabled())
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Live 12h Clock
   useEffect(() => {
@@ -39,6 +52,23 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings }) => {
     return () => clearInterval(interval)
   }, [])
 
+  const handleToggleSound = () => {
+    const next = toggleAudio()
+    setSoundOn(next)
+    if (next) playLaserClick()
+  }
+
+  const handleToggleFullscreen = () => {
+    playLaserClick()
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {})
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen().catch(() => {})
+      setIsFullscreen(false)
+    }
+  }
+
   return (
     <>
       {/* Top HUD Bar */}
@@ -64,8 +94,34 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings }) => {
           </div>
         </div>
 
-        {/* Live Telemetry Pills */}
+        {/* Live Telemetry Pills & Controls */}
         <div className="flex items-center gap-2 sm:gap-3 pointer-events-auto">
+          {/* Audio Mute/Unmute */}
+          <button
+            onClick={handleToggleSound}
+            title={soundOn ? 'Mute SFX' : 'Enable SFX'}
+            className="glass-panel w-9 h-9 rounded-full flex items-center justify-center text-slate-300 hover:text-cyan-300 hover:border-cyan-400/50 transition-all shadow-md"
+          >
+            {soundOn ? (
+              <Volume2 className="w-4 h-4 text-cyan-400" />
+            ) : (
+              <VolumeX className="w-4 h-4 text-slate-500" />
+            )}
+          </button>
+
+          {/* Fullscreen toggle */}
+          <button
+            onClick={handleToggleFullscreen}
+            title="Toggle Fullscreen"
+            className="glass-panel w-9 h-9 rounded-full hidden sm:flex items-center justify-center text-slate-300 hover:text-cyan-300 hover:border-cyan-400/50 transition-all shadow-md"
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4 text-cyan-400" />
+            ) : (
+              <Maximize2 className="w-4 h-4 text-slate-400" />
+            )}
+          </button>
+
           {/* Online count */}
           <div className="glass-panel px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-mono-tech text-slate-300 border-slate-700/60 shadow-lg">
             <span className="relative flex h-2 w-2">

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { playShockwavePulse } from '../utils/audio'
 
 interface ThreeCanvasProps {
   accelerate?: boolean // when boot loader or login ignition activates
@@ -7,11 +8,11 @@ interface ThreeCanvasProps {
 
 export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) => {
   const mountRef = useRef<HTMLDivElement>(null)
-  const speedRef = useRef(1.0)
+  const targetSpeedRef = useRef(1.0)
   const shockwavesRef = useRef<{ radius: number; maxRadius: number; opacity: number; mesh: THREE.Line }[]>([])
 
   useEffect(() => {
-    speedRef.current = accelerate ? 4.0 : 1.0
+    targetSpeedRef.current = accelerate ? 4.2 : 1.0
   }, [accelerate])
 
   useEffect(() => {
@@ -118,17 +119,16 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
     const colorD = new THREE.Color(0x38bdf8) // Sky blue
 
     for (let i = 0; i < particleCount; i++) {
-      // Cylinder / cone distribution along depth
-      const radius = 8 + Math.random() * 45
+      const radius = 8 + Math.random() * 48
       const angle = Math.random() * Math.PI * 2
       positions[i * 3] = Math.cos(angle) * radius
       positions[i * 3 + 1] = Math.sin(angle) * radius
       positions[i * 3 + 2] = (Math.random() - 0.5) * 80
 
-      zVelocities[i] = 0.04 + Math.random() * 0.08
+      zVelocities[i] = 0.045 + Math.random() * 0.085
 
       const roll = Math.random()
-      const c = roll < 0.5 ? colorA : roll < 0.8 ? colorB : roll < 0.93 ? colorD : colorC
+      const c = roll < 0.52 ? colorA : roll < 0.82 ? colorB : roll < 0.94 ? colorD : colorC
       colors[i * 3] = c.r
       colors[i * 3 + 1] = c.g
       colors[i * 3 + 2] = c.b
@@ -179,10 +179,10 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
         opacity: 0.9,
         mesh,
       })
+      playShockwavePulse()
     }
 
     const handleClick = (e: MouseEvent) => {
-      // Convert click to 3D space
       const halfW = window.innerWidth / 2
       const halfH = window.innerHeight / 2
       const x = ((e.clientX - halfW) / halfW) * 12
@@ -190,7 +190,18 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
       triggerShockwave(x, y)
     }
 
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const halfW = window.innerWidth / 2
+        const halfH = window.innerHeight / 2
+        const x = ((e.touches[0].clientX - halfW) / halfW) * 12
+        const y = -((e.touches[0].clientY - halfH) / halfH) * 8
+        triggerShockwave(x, y)
+      }
+    }
+
     window.addEventListener('click', handleClick)
+    window.addEventListener('touchstart', handleTouchStart, { passive: true })
 
     // 5. Parallax & Mouse Tracking with Weight & Inertia
     let mouseX = 0
@@ -226,13 +237,16 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
     }
     window.addEventListener('resize', handleResize)
 
-    // 7. 60 FPS Animation Engine
+    // 7. 60 FPS Animation Engine with Smooth Speed Interpolation
     let animId: number
+    let currentSpeed = 1.0
     const posAttr = particleGeo.attributes.position as THREE.BufferAttribute
 
     const animate = () => {
       animId = requestAnimationFrame(animate)
-      const currentSpeed = speedRef.current
+
+      // Smooth acceleration/deceleration lerp
+      currentSpeed += (targetSpeedRef.current - currentSpeed) * 0.08
 
       // Parallax smooth lerp
       camTargetX += (mouseX * 4.0 - camTargetX) * 0.04
@@ -273,7 +287,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
       // Shockwaves update
       for (let i = shockwavesRef.current.length - 1; i >= 0; i--) {
         const sw = shockwavesRef.current[i]
-        sw.radius += 0.5 * currentSpeed
+        sw.radius += 0.55 * currentSpeed
         sw.opacity -= 0.018 * currentSpeed
         sw.mesh.scale.set(sw.radius, sw.radius, 1)
         ;(sw.mesh.material as THREE.LineBasicMaterial).opacity = Math.max(0, sw.opacity)
@@ -295,6 +309,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
     return () => {
       cancelAnimationFrame(animId)
       window.removeEventListener('click', handleClick)
+      window.removeEventListener('touchstart', handleTouchStart)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('resize', handleResize)
