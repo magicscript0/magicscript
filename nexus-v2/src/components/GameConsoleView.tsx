@@ -146,8 +146,15 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
       {/* Top Header Ribbon with Mode Switcher & Telemetry */}
       <div className="glass-panel-elevated rounded-2xl p-4 sm:p-5 mb-6 flex flex-wrap items-center justify-between gap-4 border border-cyan-500/30 shadow-[0_15px_40px_rgba(0,0,0,0.8)]">
         {/* Left: Mode Switcher (Play Mode vs Viewer Mode) */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <ViewerToggle mode={mode} onChange={setMode} />
+          <div className="hidden lg:inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono-tech tracking-wider">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+            </span>
+            <span>OPTIMIZED FOR 1XBET APP</span>
+          </div>
         </div>
 
         {/* Right: Realtime Status, Account ID, Remaining Timer & Disconnect */}

@@ -11,7 +11,6 @@ import {
   Lock,
   CheckCircle2,
   Zap,
-  Radio,
   X,
 } from 'lucide-react'
 import type { PublicSettings } from '../services/auth'
@@ -39,6 +38,29 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
   const [showCode, setShowCode] = useState(true)
   const [localError, setLocalError] = useState<string | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+
+  // Simulated Loading State (~1.9s high-tech multi-step verification sequence)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [verifyStage, setVerifyStage] = useState(0) // 0: Cipher, 1: 1xBet Handshake, 2: Timelock
+  const [verifyProgress, setVerifyProgress] = useState(0)
+  const [isShaking, setIsShaking] = useState(false)
+  const verifyTimerRef = useRef<number | null>(null)
+
+  // Clear verification timer on unmount
+  useEffect(() => {
+    return () => {
+      if (verifyTimerRef.current) window.clearInterval(verifyTimerRef.current)
+    }
+  }, [])
+
+  // Trigger error shake micro-interaction when error or localError occurs
+  useEffect(() => {
+    if (error || localError) {
+      setIsShaking(true)
+      const shakeTimer = window.setTimeout(() => setIsShaking(false), 500)
+      return () => window.clearTimeout(shakeTimer)
+    }
+  }, [error, localError])
 
   const handlePasteClipboard = async () => {
     try {
@@ -99,9 +121,9 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
     isHoveredRef.current = false
   }
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (loading) return
+    if (loading || isVerifying) return
     setLocalError(null)
 
     const cleanAccountId = normalizeAccountId(accountId)
@@ -118,13 +140,34 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
       return
     }
 
-    try {
-      await onLogin(cleanAccountId, cleanCode)
-    } catch {
-      // Handled and displayed via error prop
-    }
-  }
+    // Trigger high-tech simulated loading sequence (~1.9s)
+    setIsVerifying(true)
+    setVerifyProgress(0)
+    setVerifyStage(0)
 
+    const startTime = Date.now()
+    const totalDuration = 1900 // 1.9s
+
+    verifyTimerRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startTime
+      const pct = Math.min(100, Math.round((elapsed / totalDuration) * 100))
+      setVerifyProgress(pct)
+
+      if (pct < 38) {
+        setVerifyStage(0)
+      } else if (pct < 78) {
+        setVerifyStage(1)
+      } else {
+        setVerifyStage(2)
+      }
+
+      if (elapsed >= totalDuration) {
+        if (verifyTimerRef.current) clearInterval(verifyTimerRef.current)
+        setIsVerifying(false)
+        onLogin(cleanAccountId, cleanCode).catch(() => {})
+      }
+    }, 40)
+  }
 
   const handleAccountIdChange = (val: string) => {
     const cleaned = val.replace(/[^0-9]/g, '')
@@ -132,6 +175,21 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
   }
 
   const isAccountValid = accountId.length >= 9 && accountId.length <= 11
+
+  // Clean title: remove any leftover "Nexus 3D"
+  const displayTitle = (settings.title || 'Apple of Fortune').replace(/\s*·?\s*Nexus\s*3D/gi, '').trim() || 'Apple of Fortune'
+
+  // Format error with high-tech gaming tone
+  const rawError = localError || error
+  const displayError = rawError
+    ? rawError.toLowerCase().includes('no longer active') ||
+      rawError.toLowerCase().includes('not valid') ||
+      rawError.toLowerCase().includes('unauthorized') ||
+      rawError.toLowerCase().includes('access denied') ||
+      rawError.toLowerCase().includes('invalid')
+      ? 'ACCESS DENIED — Invalid or Unauthorized Access Key. Please verify your credentials.'
+      : rawError
+    : null
 
   return (
     <div className="relative z-30 perspective-container w-full max-w-md px-4 transition-all duration-700 ease-out animate-[fadeInScale_0.7s_ease-out]">
@@ -163,26 +221,59 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
           <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-violet-400/70" />
 
           {/* Card Header & Brand Lockup */}
-          <div className="text-center space-y-2 mb-8 relative z-10">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-mono-tech tracking-wider mb-1 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
+          <div className="text-center space-y-2.5 mb-7 relative z-10">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-mono-tech tracking-wider shadow-[0_0_15px_rgba(0,242,254,0.2)]">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
               <span>QUANTUM ENCRYPTED ACCESS</span>
             </div>
 
             <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white glow-cyan">
-              {settings.title}
+              {displayTitle}
             </h1>
 
-            <p className="text-xs sm:text-sm text-slate-400 font-normal">
+            {/* 1xBet Compatibility Badge */}
+            <div className="flex items-center justify-center pt-0.5">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/35 text-emerald-300 text-[11px] font-mono-tech tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.18)]">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                </span>
+                <span className="font-semibold uppercase tracking-wider">
+                  ACTIVE ENGINE • OPTIMIZED FOR 1XBET APP
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs sm:text-sm text-slate-400 font-normal pt-1">
               {settings.caption}
             </p>
           </div>
 
-          {/* Error Alert Banner */}
-          {(localError || error) && (
-            <div className="mb-6 p-3.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-200 text-xs font-mono-tech flex items-start gap-2.5 animate-pulse shadow-lg">
-              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-              <span>{localError || error}</span>
+          {/* Custom Sleek Cyber Error Alert */}
+          {displayError && (
+            <div
+              className={`mb-6 p-4 rounded-xl bg-red-950/40 border border-red-500/60 text-red-200 text-xs font-mono-tech flex items-start gap-3 shadow-[0_0_25px_rgba(239,68,68,0.3),inset_0_0_15px_rgba(239,68,68,0.15)] relative overflow-hidden backdrop-blur-md ${
+                isShaking ? 'animate-cyber-shake' : ''
+              }`}
+            >
+              <div className="absolute top-0 right-0 w-8 h-8 pointer-events-none overflow-hidden">
+                <div className="absolute transform rotate-45 bg-red-500/30 text-[8px] font-bold text-red-200 py-0.5 right-[-25px] top-[6px] w-[70px] text-center">
+                  ERR
+                </div>
+              </div>
+
+              <div className="p-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 flex-shrink-0">
+                <AlertCircle className="w-4 h-4 animate-pulse" />
+              </div>
+
+              <div className="flex-1 pr-4">
+                <div className="text-[10px] tracking-wider uppercase text-red-400/90 font-bold mb-0.5">
+                  SECURITY EXCEPTION
+                </div>
+                <div className="leading-relaxed font-semibold text-red-100">
+                  {displayError}
+                </div>
+              </div>
             </div>
           )}
 
@@ -271,24 +362,23 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
               </div>
             </div>
 
-            {/* Quick Paste / Help Helper Pill */}
-            <div className="flex justify-between items-center pt-1 text-[11px] font-mono-tech">
-              <span className="text-slate-500">From Dashboard · Game Access</span>
+            {/* Quick Paste Clipboard Helper */}
+            <div className="flex justify-end items-center pt-1 text-[11px] font-mono-tech">
               <button
                 type="button"
                 onClick={handlePasteClipboard}
-                className="text-cyan-400/80 hover:text-cyan-300 flex items-center gap-1 transition-colors hover:underline"
+                className="text-cyan-400/90 hover:text-cyan-300 flex items-center gap-1.5 transition-colors hover:underline px-2 py-1 rounded-lg hover:bg-cyan-500/10"
               >
-                <Zap className="w-3 h-3 text-cyan-400" />
+                <Zap className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Paste from Clipboard</span>
               </button>
             </div>
 
-            {/* High-Voltage Ignition Launch Button */}
+            {/* High-Voltage Ignition Launch Button with Simulated Loading Sequence */}
             <button
               type="submit"
-              disabled={loading || !accountId || !accessCode}
-              className="relative w-full group overflow-hidden rounded-xl font-display font-bold text-sm tracking-wider uppercase text-white py-4 px-6 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_25px_rgba(0,242,254,0.35)] hover:shadow-[0_0_40px_rgba(0,242,254,0.6)] shimmer-trigger mt-3"
+              disabled={loading || isVerifying || !accountId || !accessCode}
+              className="relative w-full group overflow-hidden rounded-xl font-display font-bold text-sm tracking-wider uppercase text-white py-4 px-6 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_25px_rgba(0,242,254,0.35)] hover:shadow-[0_0_40px_rgba(0,242,254,0.6)] shimmer-trigger mt-3"
             >
               {/* Gradient Base */}
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 transition-all duration-500 group-hover:scale-105" />
@@ -297,17 +387,40 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
               {/* Inner outline */}
               <div className="absolute inset-[1px] rounded-[11px] bg-[#030712]/20 backdrop-blur-[2px] transition-all group-hover:bg-transparent" />
 
-              {/* Button Text & Icons */}
-              <div className="relative z-10 flex items-center justify-center gap-2">
-                {loading ? (
+              {/* Dynamic Cybernetic Progress Fill Bar */}
+              {(isVerifying || loading) && (
+                <div
+                  className="absolute bottom-0 left-0 top-0 bg-gradient-to-r from-cyan-400/40 via-violet-400/50 to-emerald-400/50 transition-all duration-100 pointer-events-none"
+                  style={{ width: `${isVerifying ? verifyProgress : 100}%` }}
+                />
+              )}
+
+              {/* Button Text & Neural Ring Loading Sequence */}
+              <div className="relative z-10 flex items-center justify-center gap-2.5">
+                {isVerifying ? (
+                  <>
+                    <div className="relative w-5 h-5 flex items-center justify-center">
+                      <div className="w-5 h-5 rounded-full border-2 border-cyan-400/30 border-t-cyan-400 animate-spin" />
+                      <div className="absolute w-2.5 h-2.5 rounded-full border border-violet-400/40 border-b-violet-400 animate-orbit-reverse" />
+                    </div>
+                    <span className="font-mono-tech text-xs tracking-wider text-cyan-200">
+                      {verifyStage === 0 && 'ENCRYPTING CIPHER...'}
+                      {verifyStage === 1 && '1XBET ENGINE HANDSHAKE...'}
+                      {verifyStage === 2 && 'TIMELOCK VERIFICATION...'}
+                    </span>
+                    <span className="font-mono-tech text-[11px] text-white/80 font-bold ml-1">
+                      [{verifyProgress}%]
+                    </span>
+                  </>
+                ) : loading ? (
                   <>
                     <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                    <span>VERIFYING SECURE KEY...</span>
+                    <span>FINALIZING ACCESS...</span>
                   </>
                 ) : (
                   <>
                     <span>IGNITE ACCESS SESSION</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-cyan-300" />
                   </>
                 )}
               </div>
@@ -316,11 +429,14 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
 
           {/* Footer inside card */}
           <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono-tech text-slate-500 relative z-10">
-            <span className="flex items-center gap-1.5">
-              <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-              <span>SUPABASE RPC · 12ms</span>
+            <span className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+              </span>
+              <span className="text-slate-400 font-medium">LIVE ENGINE SYNC</span>
             </span>
-            <span className="text-cyan-400/90 font-medium">STATUS: ENCRYPTED</span>
+            <span className="text-cyan-400/90 font-medium tracking-wider">STATUS: ENCRYPTED // AES-256</span>
           </div>
         </div>
       </div>

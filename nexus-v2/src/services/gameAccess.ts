@@ -155,10 +155,10 @@ export function classifyGameAccessError(error: unknown): GameAccessError {
     return new GameAccessError('invalid_account', 'Enter a valid Account ID (9–11 digits).')
   }
   if (message.includes('INVALID_ACCESS_CODE') || message.includes('INVALID_CODE_HASH')) {
-    return new GameAccessError('invalid_code', 'This Access Code is not valid.')
+    return new GameAccessError('invalid_code', 'ACCESS DENIED — Invalid or Unauthorized Access Key. Please verify your credentials.')
   }
   if (message.includes('ACCESS_CODE_UNAVAILABLE')) {
-    return new GameAccessError('unavailable', 'This Access Code is no longer active. Ask for a fresh code.')
+    return new GameAccessError('unavailable', 'ACCESS DENIED — Invalid or Unauthorized Access Key. Please verify your credentials.')
   }
   if (message.toLowerCase().includes('fetch')) {
     return new GameAccessError('network', 'The access check could not be completed. Check your connection and try again.')
@@ -206,7 +206,7 @@ export async function redeemGameAccess(accountId: string, plainCode: string): Pr
     if (error) throw classifyGameAccessError(error)
     const row = data?.[0]
     if (!row || typeof row.token !== 'string' || row.token.length === 0) {
-      throw new GameAccessError('unavailable', 'This Access Code is no longer active. Ask for a fresh code.')
+      throw new GameAccessError('unavailable', 'ACCESS DENIED — Invalid or Unauthorized Access Key. Please verify your credentials.')
     }
     return { token: row.token, expiresAt: row.expires_at, serverNow: row.server_now, accountId: cleanAccountId }
   } catch (cause) {

@@ -173,7 +173,7 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
           <span className="text-white">AES-GCM-256</span>
         </div>
         <div className="flex justify-between">
-          <span>SUPABASE RPC:</span>
+          <span>RPC ENGINE:</span>
           <span className="text-emerald-400">{progress > 50 ? 'CONNECTED' : 'STANDBY'}</span>
         </div>
         <div className="flex justify-between">

@@ -69,11 +69,21 @@ export function RoundHistoryPanel({ game }: RoundHistoryPanelProps) {
                   </span>
                   {isSafe ? (
                     <span className="flex items-center gap-1.5 font-semibold text-emerald-400">
-                      <img src="/images/apple-safe.png" alt="WIN" className="h-5 w-5 object-contain" /> WIN
+                      <img
+                        src="/images/apple-safe.webp"
+                        alt="WIN"
+                        onError={(e) => { e.currentTarget.src = '/images/apple-safe.png' }}
+                        className="h-5 w-5 object-contain"
+                      /> WIN
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 font-semibold text-rose-400">
-                      <img src="/images/apple-broken.png" alt="BUST" className="h-5 w-5 object-contain" /> BUST
+                      <img
+                        src="/images/apple-broken.webp"
+                        alt="BUST"
+                        onError={(e) => { e.currentTarget.src = '/images/apple-broken.png' }}
+                        className="h-5 w-5 object-contain"
+                      /> BUST
                     </span>
                   )}
                 </div>

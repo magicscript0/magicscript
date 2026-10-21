@@ -14,7 +14,7 @@ export interface PublicSettings {
 
 export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   siteName: 'MAGIC SCRIPT',
-  title: 'Apple of Fortune · Nexus 3D',
+  title: 'Apple of Fortune',
   caption: 'Enter your Account ID and Access Code to activate session.',
   telegramUrl: 'https://t.me/fox_script_vip',
   youtubeUrl: 'https://youtube.com/@nano_scriptt',

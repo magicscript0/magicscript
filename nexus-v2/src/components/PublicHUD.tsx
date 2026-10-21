@@ -69,22 +69,21 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings, visible }) => {
       >
         {/* Brand Lockup */}
         <div className="flex items-center gap-3 pointer-events-auto">
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-600/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(0,242,254,0.25)]">
-            <div className="absolute inset-0 rounded-xl border border-cyan-400/40 animate-pulse" />
-            <span className="font-display font-bold text-cyan-300 text-lg">M</span>
+          <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-cyan-500/40 shadow-[0_0_20px_rgba(0,242,254,0.3)] bg-slate-950 flex items-center justify-center group">
+            <img
+              src="/images/magic-script-logo.jpg"
+              alt="Magic Script"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+              onError={(e) => {
+                e.currentTarget.src = '/images/magic-script-logo.png'
+              }}
+            />
+            <div className="absolute inset-0 rounded-xl border border-cyan-400/30 pointer-events-none" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-display font-bold tracking-wider text-white text-base">
-                MAGIC SCRIPT
-              </span>
-              <span className="text-[10px] font-mono-tech px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                NEXUS 3D
-              </span>
-            </div>
-            <p className="text-[11px] font-mono-tech text-slate-400 hidden sm:block">
-              QUANTUM OPERATIONS TERMINAL
-            </p>
+            <span className="font-display font-bold tracking-wider text-white text-base block glow-cyan">
+              MAGIC SCRIPT
+            </span>
           </div>
         </div>
 
