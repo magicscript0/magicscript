@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   LogOut,
   Clock,
@@ -6,295 +6,256 @@ import {
   Sparkles,
   ShieldCheck,
   Flame,
-  Award,
+  Play,
+  RotateCw,
+  Eye,
+  Gamepad2,
   RefreshCw,
-  Trophy,
 } from 'lucide-react'
-import { subscribeToM11 } from '../config/firebase'
+import {
+  GRID_ROWS,
+  REVEAL_ROW_DELAY_MS,
+  REVEAL_ROW_DELAY_REDUCED_MOTION_MS,
+  ROWS,
+  formatMultiplier,
+} from '../config/game'
+import { useM11Mirror } from '../hooks/useM11Mirror'
+import { useLiveGame } from '../hooks/useLiveGame'
+import { useBalance } from '../hooks/useBalance'
+import { publishDemoRound } from '../services/m11'
+import { generateDemoRound } from '../utils/generator'
+import { validateM11Node } from '../utils/validation'
+import { liveValuesToRows } from '../utils/m11Snapshot'
+import { prefersReducedMotion } from '../utils/random'
+import { FortuneBoard } from './FortuneBoard'
+import { ViewerToggle } from './ViewerToggle'
+import { ViewerPanel } from './ViewerPanel'
+import type { ConsoleRound, RoundPhase } from '../types/game'
 
-interface GameConsoleViewProps {
+export interface GameConsoleViewProps {
   accountId: string
-  expiresAt: string
+  remainingMs: number
   onLogout: () => void
 }
 
-const MULTIPLIERS = [
-  '12.72x',
-  '9.54x',
-  '7.15x',
-  '5.36x',
-  '4.02x',
-  '3.02x',
-  '2.41x',
-  '1.93x',
-  '1.54x',
-  '1.23x',
-]
+function formatRemaining(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
 
 export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
   accountId,
-  expiresAt,
+  remainingMs,
   onLogout,
 }) => {
-  const [timeLeft, setTimeLeft] = useState('')
-  const [currentRow, setCurrentRow] = useState(1) // 1 to 10
-  const [selectedCells, setSelectedCells] = useState<Record<number, number>>({}) // row -> col
-  const [gameOver, setGameOver] = useState(false)
-  const [won, setWon] = useState(false)
+  const [mode, setMode] = useState<'play' | 'viewer'>('play')
+  const [phase, setPhase] = useState<RoundPhase>('idle')
+  const [round, setRound] = useState<ConsoleRound | null>(null)
+  const [revealedRows, setRevealedRows] = useState(0)
+  const [notice, setNotice] = useState<string | null>(null)
 
-  // Session Countdown Timer
+  // Real backend connections from MAIN
+  const mirror = useM11Mirror()
+  const liveGame = useLiveGame(mode === 'viewer')
+  const balanceState = useBalance(mode === 'viewer')
+
+  const liveReady = mirror.active && mirror.status === 'valid' && mirror.evaluation !== null
+  const canPublish = mirror.active && mirror.status !== 'error'
+  const busy = phase === 'publishing' || phase === 'revealing'
+  const lowTime = remainingMs < 120_000
+  const tableState = !mirror.active ? 'OFFLINE' : liveReady ? 'LIVE' : 'STANDBY'
+
+  // Play Mode: follows /m11 snapshot
   useEffect(() => {
-    const updateCountdown = () => {
-      const now = Date.now()
-      const end = new Date(expiresAt).getTime()
-      const diff = Math.max(0, end - now)
-
-      const minutes = Math.floor(diff / 60000)
-      const seconds = Math.floor((diff % 60000) / 1000)
-      setTimeLeft(
-        `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-      )
-    }
-
-    updateCountdown()
-    const timer = setInterval(updateCountdown, 1000)
-    return () => clearInterval(timer)
-  }, [expiresAt])
-
-  // Firebase Realtime Listener
-  useEffect(() => {
-    const unsubscribe = subscribeToM11((val) => {
-      // Realtime signal received
-    })
-    return () => unsubscribe()
-  }, [])
-
-  const handleCellClick = (row: number, col: number) => {
-    if (gameOver || won) return
-    if (row !== currentRow) return
-
-    // 4 out of 5 columns are safe on lower rows
-    const isSafe = Math.random() < (row < 5 ? 0.85 : 0.7)
-
-    if (isSafe) {
-      setSelectedCells((prev) => ({ ...prev, [row]: col }))
-
-      if (row >= 10) {
-        setWon(true)
-      } else {
-        setCurrentRow(row + 1)
+    if (!liveReady || mirror.evaluation === null) {
+      if (mirror.status !== 'syncing' && mirror.status !== 'idle') {
+        setRound(null)
+        setRevealedRows(0)
+        setPhase('idle')
       }
-    } else {
-      setSelectedCells((prev) => ({ ...prev, [row]: col }))
-      setGameOver(true)
+      return
     }
-  }
 
-  const handleResetGame = () => {
-    setCurrentRow(1)
-    setSelectedCells({})
-    setGameOver(false)
-    setWon(false)
+    try {
+      const rows = liveValuesToRows(mirror.evaluation.values)
+      setRound({ source: 'live', createdAt: mirror.lastUpdated ?? Date.now(), rows })
+      setPhase((current) => (current === 'idle' ? 'ready' : current))
+    } catch {
+      setRound(null)
+      setRevealedRows(0)
+      setPhase('idle')
+      setNotice('The current game could not be displayed.')
+    }
+  }, [liveReady, mirror.evaluation, mirror.status, mirror.lastUpdated])
+
+  // Play Mode: New Game Action
+  const handleNewGame = useCallback(async () => {
+    if (busy || !canPublish) return
+    const wasReady = phase === 'ready' || phase === 'revealed'
+    setNotice(null)
+    setRevealedRows(0)
+    setPhase('publishing')
+    try {
+      const candidate = generateDemoRound()
+      const check = validateM11Node(candidate.node)
+      if (!check.valid) throw new Error('Round validation failed.')
+      await publishDemoRound(candidate.node)
+      setPhase('ready')
+    } catch {
+      setPhase(wasReady ? 'ready' : 'idle')
+      setNotice('The new game could not be started. Please try again.')
+    }
+  }, [busy, canPublish, phase])
+
+  // Play Mode: Reveal Action
+  const handleReveal = useCallback(() => {
+    if (phase !== 'ready' || !round) return
+    setNotice(null)
+    setRevealedRows(0)
+    setPhase('revealing')
+  }, [phase, round])
+
+  // Reveal step timer
+  useEffect(() => {
+    if (phase !== 'revealing') return
+    if (revealedRows >= GRID_ROWS) {
+      setPhase('revealed')
+      return
+    }
+    const delay = prefersReducedMotion() ? REVEAL_ROW_DELAY_REDUCED_MOTION_MS : REVEAL_ROW_DELAY_MS
+    const id = window.setTimeout(() => setRevealedRows((value) => value + 1), delay)
+    return () => window.clearTimeout(id)
+  }, [phase, revealedRows])
+
+  function statusLine(): string {
+    if (phase === 'publishing') return 'Starting a new game & publishing to /m11…'
+    if (phase === 'revealing') return `Revealing predictions (Row ${revealedRows}/${GRID_ROWS})…`
+    if (phase === 'ready') return 'Current game round loaded from Firebase /m11.'
+    if (phase === 'revealed') return 'Full prediction matrix revealed.'
+    return mirror.active ? 'Waiting for /m11 game round…' : 'Offline demo mode active.'
   }
 
   return (
-    <div className="relative z-30 w-full max-w-4xl px-4 py-8">
-      {/* Top Session Ribbon */}
-      <div className="glass-panel-elevated rounded-2xl p-5 mb-6 flex flex-wrap items-center justify-between gap-4 border border-cyan-500/30">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5 text-cyan-400" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono-tech text-slate-400">AUTHENTICATED ID:</span>
-              <span className="font-mono-tech font-bold text-white tracking-wide text-sm">
-                #{accountId}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[11px] font-mono-tech text-emerald-400">
-                ACTIVE ACCESS GRANTED
-              </span>
-            </div>
-          </div>
+    <div className="relative z-30 w-full max-w-5xl px-3 sm:px-6 py-6 transition-all duration-700 ease-out">
+      {/* Top Header Ribbon with Mode Switcher & Telemetry */}
+      <div className="glass-panel-elevated rounded-2xl p-4 sm:p-5 mb-6 flex flex-wrap items-center justify-between gap-4 border border-cyan-500/30 shadow-[0_15px_40px_rgba(0,0,0,0.8)]">
+        {/* Left: Mode Switcher (Play Mode vs Viewer Mode) */}
+        <div className="flex items-center gap-4">
+          <ViewerToggle mode={mode} onChange={setMode} />
         </div>
 
-        {/* Remaining Session Time & Logout */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700 font-mono-tech text-xs">
-            <Clock className="w-4 h-4 text-cyan-400 animate-pulse" />
-            <span className="text-slate-400">SESSION EXPIRES:</span>
-            <span className="text-white font-bold">{timeLeft}</span>
+        {/* Right: Realtime Status, Account ID, Remaining Timer & Disconnect */}
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          {/* Table / Connection state */}
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-mono-tech text-xs font-bold ${
+              tableState === 'LIVE'
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                tableState === 'LIVE' ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'
+              }`}
+            />
+            <span>{mode === 'play' ? tableState : liveGame.active ? 'TELEMETRY LIVE' : 'STANDBY'}</span>
           </div>
 
+          {/* Account ID Badge */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700 font-mono-tech text-xs">
+            <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-slate-400">Account:</span>
+            <span className="text-white font-bold">#{accountId}</span>
+          </div>
+
+          {/* Real Remaining Session Countdown Timer */}
+          <div
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-mono-tech text-xs transition-colors ${
+              lowTime
+                ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 animate-pulse'
+                : 'bg-slate-900/80 border-slate-700 text-slate-300'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-slate-400">Remaining:</span>
+            <span className="text-white font-bold">{formatRemaining(remainingMs)}</span>
+          </div>
+
+          {/* Logout / Disconnect Button */}
           <button
+            type="button"
             onClick={onLogout}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 font-mono-tech text-xs transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 font-mono-tech text-xs transition-colors shadow-sm"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>DISCONNECT</span>
+            <span className="hidden sm:inline">DISCONNECT</span>
           </button>
         </div>
       </div>
 
-      {/* Main Game Interface Board */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left: Ladder of Multipliers */}
-        <div className="glass-panel rounded-2xl p-5 border border-cyan-500/20 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-            <span className="text-xs font-mono-tech text-slate-300 font-bold flex items-center gap-1.5">
-              <Award className="w-4 h-4 text-amber-400" />
-              <span>TIER MULTIPLIERS</span>
-            </span>
-            <span className="text-[10px] font-mono-tech text-cyan-400">10 STEPS</span>
-          </div>
-
-          <div className="space-y-1.5">
-            {MULTIPLIERS.map((mul, idx) => {
-              const step = 10 - idx
-              const isCurrent = step === currentRow
-              const isPassed = step < currentRow
-
-              return (
-                <div
-                  key={step}
-                  className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-mono-tech transition-all ${
-                    isCurrent
-                      ? 'bg-cyan-500/25 border border-cyan-400 text-white shadow-[0_0_15px_rgba(0,242,254,0.35)] font-bold scale-[1.02]'
-                      : isPassed
-                      ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
-                      : 'bg-slate-900/40 text-slate-500 border border-slate-800/60'
-                  }`}
-                >
-                  <span className="text-[11px]">LEVEL {step}</span>
-                  <span className="font-bold">{mul}</span>
-                </div>
-              )
-            })}
-          </div>
+      {/* Main Content Area based on Selected Mode */}
+      {mode === 'viewer' ? (
+        /* VIEWER MODE: Live Telemetry Engine, Matrix, Stats, & Round History */
+        <div className="w-full">
+          <ViewerPanel game={liveGame} balanceState={balanceState} />
         </div>
-
-        {/* Center: Live Interactive 5-Column Grid */}
-        <div className="md:col-span-2 glass-panel rounded-2xl p-6 border border-cyan-500/20 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Flame className="w-4 h-4 text-cyan-400" />
-                <h3 className="font-display font-bold text-white text-base">
-                  APPLE OF FORTUNE · INTERACTIVE RADAR
-                </h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleResetGame}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-mono-tech text-slate-300 transition-colors"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>RESET</span>
-                </button>
-                <div className="flex items-center gap-1.5 text-xs font-mono-tech text-slate-400">
-                  <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                  <span>RTDB SYNC</span>
-                </div>
-              </div>
+      ) : (
+        /* PLAY MODE: Apple of Fortune Prediction Board with /m11 Sync */
+        <div className="flex flex-col gap-5">
+          {/* Action Control Bar */}
+          <div className="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 border border-cyan-500/25">
+            <div className="flex items-center gap-2 text-xs font-mono-tech text-cyan-300">
+              <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
+              <span>{statusLine()}</span>
             </div>
 
-            {/* Victory / Defeat Overlay Banner */}
-            {won && (
-              <div className="mb-4 p-3.5 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-between text-amber-200 font-mono-tech text-xs animate-bounce">
-                <span className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-amber-400" />
-                  <span>MAX LEVEL 10 REACHED! MULTIPLIER 12.72x WON!</span>
-                </span>
-                <button
-                  onClick={handleResetGame}
-                  className="px-3 py-1 rounded bg-amber-500 text-slate-950 font-bold text-xs"
-                >
-                  PLAY AGAIN
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {/* New Game Button */}
+              <button
+                type="button"
+                disabled={busy || !canPublish}
+                onClick={handleNewGame}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400 text-cyan-200 font-mono-tech font-bold text-xs uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(0,242,254,0.25)] hover:shadow-[0_0_20px_rgba(0,242,254,0.4)]"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${phase === 'publishing' ? 'animate-spin' : ''}`} />
+                <span>NEW GAME</span>
+              </button>
 
-            {gameOver && (
-              <div className="mb-4 p-3.5 rounded-xl bg-red-500/20 border border-red-500/50 flex items-center justify-between text-red-200 font-mono-tech text-xs">
-                <span>ROUND OVER ON LEVEL {currentRow}. TAP RESET TO RE-ARM RADAR.</span>
-                <button
-                  onClick={handleResetGame}
-                  className="px-3 py-1 rounded bg-red-500 text-white font-bold text-xs"
-                >
-                  RE-ARM
-                </button>
-              </div>
-            )}
-
-            {/* 10-Row Grid Matrix */}
-            <div className="space-y-1.5">
-              {[...Array(10)].map((_, rowIdx) => {
-                const rowNum = 10 - rowIdx
-                const isRowActive = rowNum === currentRow && !gameOver && !won
-                const isRowPassed = rowNum < currentRow
-
-                return (
-                  <div
-                    key={rowIdx}
-                    className={`flex items-center gap-2 p-1 rounded-xl transition-all ${
-                      isRowActive
-                        ? 'bg-cyan-500/10 border border-cyan-500/30 shadow-[0_0_15px_rgba(0,242,254,0.15)]'
-                        : ''
-                    }`}
-                  >
-                    <span className="w-7 text-[10px] font-mono-tech text-slate-500 text-center">
-                      R{rowNum}
-                    </span>
-                    <div className="grid grid-cols-5 gap-2 flex-1">
-                      {[0, 1, 2, 3, 4].map((colIdx) => {
-                        const isPicked = selectedCells[rowNum] === colIdx
-
-                        return (
-                          <button
-                            key={colIdx}
-                            disabled={!isRowActive || gameOver || won}
-                            onClick={() => handleCellClick(rowNum, colIdx)}
-                            className={`h-8 sm:h-9 rounded-lg border flex items-center justify-center transition-all ${
-                              isPicked
-                                ? isRowPassed || won
-                                  ? 'bg-emerald-500/30 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
-                                  : 'bg-red-500/30 border-red-400 shadow-[0_0_12px_rgba(239,68,68,0.5)]'
-                                : isRowActive
-                                ? 'bg-slate-900/80 border-cyan-500/40 hover:border-cyan-300 hover:bg-cyan-500/20 cursor-pointer shadow-sm'
-                                : 'bg-slate-900/30 border-slate-800/50 cursor-not-allowed opacity-60'
-                            }`}
-                          >
-                            {isPicked ? (
-                              isRowPassed || won ? (
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-300 animate-pulse" />
-                              ) : (
-                                <span className="text-xs">💥</span>
-                              )
-                            ) : isRowActive ? (
-                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/60 animate-ping" />
-                            ) : (
-                              <span className="w-1 h-1 rounded-full bg-slate-700" />
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
+              {/* Reveal Prediction Button */}
+              <button
+                type="button"
+                disabled={phase !== 'ready' || !round}
+                onClick={handleReveal}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-mono-tech font-extrabold text-xs uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)]"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>REVEAL PREDICTION</span>
+              </button>
             </div>
           </div>
 
-          {/* Telemetry info bar */}
-          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-mono-tech text-slate-400">
-            <span>PREDICTION ENGINE: ONLINE</span>
-            <span className="text-cyan-400">M11_NODE_ACTIVE</span>
-          </div>
+          {/* Notice Banner if any */}
+          {notice && (
+            <div className="p-3.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-200 font-mono-tech text-xs">
+              {notice}
+            </div>
+          )}
+
+          {/* The Hero Apple of Fortune 10-Row Board */}
+          <FortuneBoard
+            rows={round?.rows ?? null}
+            phase={phase}
+            revealedRows={revealedRows}
+          />
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { ThreeCanvas } from './components/ThreeCanvas'
 import { BootLoader } from './components/BootLoader'
 import { PublicHUD } from './components/PublicHUD'
 import { NexusLoginCard } from './components/NexusLoginCard'
 import { GameConsoleView } from './components/GameConsoleView'
+import { useGameAccess } from './hooks/useGameAccess'
+import { recordGameLoginFailure, recordGameLoginSuccess } from './services/visitorTracking'
 import {
   fetchPublicSettings,
-  authenticateGameUser,
   DEFAULT_PUBLIC_SETTINGS,
   type PublicSettings,
 } from './services/auth'
@@ -16,27 +17,12 @@ export const App: React.FC = () => {
   const [settings, setSettings] = useState<PublicSettings>(DEFAULT_PUBLIC_SETTINGS)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [session, setSession] = useState<{
-    accountId: string
-    token: string
-    expiresAt: string
-  } | null>(() => {
-    // Check if session exists in localStorage
-    const saved = localStorage.getItem('nexus_session_v2')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        if (new Date(parsed.expiresAt).getTime() > Date.now()) {
-          return parsed
-        }
-      } catch {
-        localStorage.removeItem('nexus_session_v2')
-      }
-    }
-    return null
-  })
 
-  // Load public settings from Supabase
+  // Real Supabase Access Engine from MAIN
+  const access = useGameAccess()
+  const authorized = access.status === 'active'
+
+  // Fetch Public Settings from Supabase
   useEffect(() => {
     fetchPublicSettings().then((res) => {
       setSettings(res)
@@ -44,29 +30,24 @@ export const App: React.FC = () => {
     })
   }, [])
 
-  const handleLogin = async (accountId: string, code: string) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await authenticateGameUser(accountId, code)
-      const newSession = {
-        accountId: result.accountId,
-        token: result.token,
-        expiresAt: result.expiresAt,
+  // Real Login Handler linked to Supabase RPC & Visitor Tracking
+  const handleLogin = useCallback(
+    async (accountId: string, code: string) => {
+      setLoading(true)
+      setError(null)
+      try {
+        await access.login(accountId, code)
+        recordGameLoginSuccess(accountId)
+      } catch (cause: any) {
+        recordGameLoginFailure(accountId, cause)
+        setError(cause.message || 'Invalid or expired Access Code.')
+        throw cause
+      } finally {
+        setLoading(false)
       }
-      localStorage.setItem('nexus_session_v2', JSON.stringify(newSession))
-      setSession(newSession)
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please verify code.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('nexus_session_v2')
-    setSession(null)
-  }
+    },
+    [access]
+  )
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#030712] text-slate-100 flex flex-col justify-center items-center select-none">
@@ -87,17 +68,17 @@ export const App: React.FC = () => {
       {/* 5. Main Center Stage - STRICTLY MOUNTED & REVEALED ONLY AFTER 100% BOOT COMPLETION */}
       {bootState === 'ready' && (
         <main className="relative z-20 flex items-center justify-center w-full py-16 px-4">
-          {session ? (
+          {authorized && access.accountId ? (
             <GameConsoleView
-              accountId={session.accountId}
-              expiresAt={session.expiresAt}
-              onLogout={handleLogout}
+              accountId={access.accountId}
+              remainingMs={access.remainingMs}
+              onLogout={access.exit}
             />
           ) : (
             <NexusLoginCard
               settings={settings}
               onLogin={handleLogin}
-              loading={loading}
+              loading={loading || access.status === 'checking'}
               error={error}
             />
           )}

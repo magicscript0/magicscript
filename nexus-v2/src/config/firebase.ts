@@ -1,41 +1,52 @@
-import { initializeApp, getApps, type FirebaseApp } from 'firebase/app'
-import { getDatabase, ref, onValue, type Database } from 'firebase/database'
+/**
+ * Firebase (demo backend) configuration.
+ *
+ * Secrets/credentials come from environment variables. The non-secret
+ * public project identifiers below (`zaem-a8d30`) are already embedded in
+ * the public APP 2 client and are required for the public web to consume
+ * the same `/m11` node. They are used only as SAFE fallbacks when the
+ * deployment does not provide the corresponding `VITE_FIREBASE_*` value; an
+ * explicit valid `VITE_FIREBASE_DATABASE_URL` still takes precedence.
+ * No API key / app id / sender id secret is defaulted here.
+ */
+export const PUBLIC_FIREBASE_FALLBACK = {
+  databaseURL: 'https://zaem-a8d30-default-rtdb.firebaseio.com',
+  authDomain: 'zaem-a8d30.firebaseapp.com',
+  projectId: 'zaem-a8d30',
+  storageBucket: 'zaem-a8d30.appspot.com',
+} as const
 
-export const FIREBASE_CONFIG = {
-  databaseURL: String(import.meta.env.VITE_FIREBASE_DATABASE_URL || 'https://zaem-a8d30-default-rtdb.firebaseio.com').trim(),
-  authDomain: String(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'zaem-a8d30.firebaseapp.com').trim(),
-  projectId: String(import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zaem-a8d30').trim(),
-  storageBucket: String(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'zaem-a8d30.appspot.com').trim(),
-  apiKey: String(import.meta.env.VITE_FIREBASE_API_KEY || '').trim(),
-}
+export const FIREBASE_ENV = {
+  apiKey: 'VITE_FIREBASE_API_KEY',
+  authDomain: 'VITE_FIREBASE_AUTH_DOMAIN',
+  databaseURL: 'VITE_FIREBASE_DATABASE_URL',
+  projectId: 'VITE_FIREBASE_PROJECT_ID',
+  storageBucket: 'VITE_FIREBASE_STORAGE_BUCKET',
+  messagingSenderId: 'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  appId: 'VITE_FIREBASE_APP_ID',
+} as const
 
-let appInstance: FirebaseApp | null = null
-let dbInstance: Database | null = null
+/**
+ * Minimum required value for the READ-ONLY Realtime Database integration.
+ *
+ * The Firebase JS SDK's RTDB connection is made to the database instance
+ * named in the URL and authenticates per security rules — an API key /
+ * project id are NOT part of the RTDB wire protocol and are only needed
+ * for other Firebase services (Auth, Firestore, …). The demo database
+ * allows public reads of /m11 (verified by an unauthenticated REST read in
+ * Phase 4), so a databaseURL-only initialization is sufficient here.
+ * All other VITE_FIREBASE_* values remain optional passthroughs.
+ */
+export const REQUIRED_FIREBASE_ENV: readonly string[] = [
+  FIREBASE_ENV.databaseURL,
+]
 
-export function getFirebaseDb(): Database | null {
-  if (dbInstance) return dbInstance
-  try {
-    if (!getApps().length) {
-      appInstance = initializeApp(FIREBASE_CONFIG)
-    } else {
-      appInstance = getApps()[0]
-    }
-    dbInstance = getDatabase(appInstance)
-    return dbInstance
-  } catch (err) {
-    console.warn('[Firebase] Failed to initialize RTDB:', err)
-    return null
-  }
-}
+/** The single node this demo is ever allowed to touch. */
+export const M11_PATH = 'm11'
 
-export function subscribeToM11(callback: (data: any) => void): () => void {
-  const db = getFirebaseDb()
-  if (!db) return () => {}
-  const m11Ref = ref(db, 'm11')
-  const unsubscribe = onValue(m11Ref, (snapshot) => {
-    callback(snapshot.val())
-  }, (err) => {
-    console.warn('[Firebase RTDB] /m11 listener error:', err)
-  })
-  return unsubscribe
-}
+/**
+ * Top-level nodes owned by the existing demo Android client.
+ * NEVER access these — reads or writes — in any phase.
+ * (Writing /main force-closes clients sitting on the splash screen.)
+ */
+export const FORBIDDEN_TOP_LEVEL_PATHS = ['main', 'xbetmoney', 'users', 'bet1', 'data'] as const
