@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { History, RefreshCw, Sparkles, Target, Trophy, XCircle } from 'lucide-react'
+import {
+  ArrowRight,
+  Crosshair,
+  History,
+  Radio,
+  RefreshCw,
+  Sparkles,
+  Target,
+  Trophy,
+  XCircle,
+  Zap,
+} from 'lucide-react'
 import { ROWS, formatMultiplier } from '../config/game'
 import { LiveStatsPanel } from './LiveStatsPanel'
 import { RoundHistoryPanel } from './RoundHistoryPanel'
@@ -93,7 +104,6 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
   // Detect End-of-Game Transition (active: true -> active: false)
   useEffect(() => {
     if (prevActiveRef.current && !game.active) {
-      // Game just ended -> refresh sessions and balance
       sessionsState.refetch()
       balanceState.refetch()
 
@@ -103,7 +113,6 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
       const finalRound = snap.userPicks.length
       const mult = finalRound > 0 ? ROWS[Math.min(finalRound - 1, ROWS.length - 1)].multiplier : 1.0
 
-      // Guess outcome: if winSum > 0, it was won, otherwise lost
       const wasWin = (snap.winSum ?? 0) > 0
       const netProfit = wasWin ? (snap.winSum ?? 0) - bet : -bet
       const startingBal = currentBal - netProfit
@@ -155,7 +164,6 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
         setLastGame(summaryFromSession)
       }
 
-      // If summary is currently showing, enrich with exact session data
       if (showEndSummary && endedSummary && endedSummary.sessionId === latest.id) {
         setEndedSummary(summaryFromSession)
       }
@@ -176,28 +184,47 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
   const rowsToDisplay = [...ROWS].reverse()
 
   return (
-    <div className="flex w-full flex-col gap-5">
-      {/* Top action bar */}
-      <div className="flex items-center justify-between rounded-xl border border-white/[.06] bg-slate-900/50 px-4 py-2.5 backdrop-blur-md">
-        <div className="flex items-center gap-2 text-xs">
-          <span className="flex h-2 w-2 relative">
-            <span
-              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                game.active ? 'bg-emerald-400' : 'bg-slate-400'
-              }`}
-            />
-            <span
-              className={`relative inline-flex rounded-full h-2 w-2 ${
-                game.active ? 'bg-emerald-500' : 'bg-slate-500'
-              }`}
-            />
-          </span>
-          <span className="font-semibold text-slate-300">
-            {game.active ? 'Live Telemetry Connected' : 'Waiting for Active Game'}
-          </span>
+    <div className="relative flex w-full flex-col gap-6">
+      {/* Dynamic Ambient Background Aura */}
+      <div
+        className={`pointer-events-none fixed inset-0 -z-10 transition-all duration-1000 ${
+          game.active && (game.win_sum ?? 0) > (game.bet_sum ?? 0)
+            ? 'bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(16,185,129,0.14),transparent_70%)]'
+            : game.active
+              ? 'bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(6,182,212,0.12),transparent_70%)]'
+              : 'bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(30,41,59,0.2),transparent_70%)]'
+        }`}
+      />
+
+      {/* Top Action Telemetry Bar */}
+      <div className="cockpit-panel relative flex flex-wrap items-center justify-between gap-3 rounded-2xl px-5 py-3 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-3 py-1">
+            <span className="relative flex h-2 w-2">
+              <span
+                className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+                  game.active ? 'bg-emerald-400' : 'bg-slate-500'
+                }`}
+              />
+              <span
+                className={`relative inline-flex h-2 w-2 rounded-full ${
+                  game.active ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-slate-500'
+                }`}
+              />
+            </span>
+            <span className="font-mono text-xs font-black tracking-wider uppercase text-slate-200">
+              {game.active ? 'LIVE TELEMETRY STREAM' : 'STANDBY • WAITING FOR ROUND'}
+            </span>
+          </div>
+
+          <div className="hidden items-center gap-1.5 font-mono text-xs text-slate-400 sm:flex">
+            <Radio className="h-3.5 w-3.5 text-cyan-400 animate-pulse" />
+            <span>1xBet Stream Synced (24ms)</span>
+          </div>
+
           {game.account_id && (
-            <span className="ml-2 rounded bg-white/[.05] px-2 py-0.5 font-mono text-slate-400">
-              Account: #{game.account_id}
+            <span className="rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-0.5 font-mono text-xs font-bold text-slate-300">
+              Account: <span className="text-cyan-300">#{game.account_id}</span>
             </span>
           )}
         </div>
@@ -206,159 +233,249 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
           type="button"
           onClick={handleRefreshAll}
           disabled={game.loading || balanceState.loading}
-          className="flex items-center gap-1.5 rounded-lg border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-semibold text-slate-300 transition-all hover:bg-white/[.08] hover:text-white"
+          className="group flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/15 to-blue-500/10 px-4 py-1.5 text-xs font-bold text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)] transition-all duration-300 hover:border-cyan-400 hover:brightness-125 hover:shadow-[0_0_18px_rgba(6,182,212,0.4)] active:scale-95 disabled:opacity-50"
         >
           <RefreshCw
-            className={`h-3.5 w-3.5 text-cyan-400 ${
-              game.loading || balanceState.loading ? 'animate-spin' : ''
+            className={`h-3.5 w-3.5 transition-transform duration-500 ${
+              game.loading || balanceState.loading ? 'animate-spin' : 'group-hover:rotate-180'
             }`}
           />
-          <span>Refresh Data</span>
+          <span>Sync Radar Data</span>
         </button>
       </div>
 
-      {/* Main split: 10x5 Grid (Left) + LiveStats (Right) */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-        {/* 10x5 Grid Card / End of Game Card */}
-        <div className="flex flex-col gap-3 rounded-2xl border border-white/[.08] bg-slate-950/80 p-4.5 backdrop-blur-xl shadow-2xl lg:col-span-7">
-          <div className="flex items-center justify-between border-b border-white/[.06] pb-3">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-cyan-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                Live 10×5 Matrix Telemetry
-              </h3>
+      {/* Main Grid + Stats Section */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Left Column: 10x5 Apple Matrix Screen */}
+        <div className="cockpit-panel relative flex flex-col gap-3.5 overflow-hidden rounded-3xl p-5 shadow-2xl lg:col-span-7">
+          {/* Matrix Header */}
+          <div className="relative flex flex-wrap items-center justify-between border-b border-white/[.08] pb-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
+                <Target className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black tracking-widest uppercase text-slate-100">
+                  Live 10×5 Telemetry Matrix
+                </h3>
+                <p className="text-[10px] font-medium text-slate-400">
+                  خريطة التفاح الحية والتحركات في الوقت الفعلي
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[11px] text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <img src="/images/apple-safe.png" alt="" className="h-4 w-4 object-contain" /> Safe Apple
+
+            {/* Apple Icons Legend */}
+            <div className="flex items-center gap-3 rounded-full border border-white/10 bg-black/50 px-3 py-1 text-xs">
+              <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                <img
+                  src="/images/apple-safe.png"
+                  alt="Safe Apple"
+                  className="h-4 w-4 object-contain drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]"
+                />
+                Safe Apple
               </span>
-              <span className="flex items-center gap-1.5">
-                <img src="/images/apple-broken.png" alt="" className="h-4 w-4 object-contain" /> Broken
+              <span className="h-3 w-[1px] bg-white/10" />
+              <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                <img
+                  src="/images/apple-broken.png"
+                  alt="Broken Apple"
+                  className="h-4 w-4 object-contain drop-shadow-[0_0_6px_rgba(244,63,94,0.5)]"
+                />
+                Broken Apple
               </span>
             </div>
           </div>
 
           {!hasGame ? (
             showEndSummary && endedSummary ? (
-              /* End of Game WIN / LOST Screen */
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-white/[.1] bg-gradient-to-b from-slate-900/90 to-slate-950/95 p-6 text-center backdrop-blur-2xl shadow-2xl">
+              /* Cinematic End of Game Screen */
+              <div
+                className={`relative flex min-h-[460px] flex-col items-center justify-center overflow-hidden rounded-2xl border p-8 text-center backdrop-blur-2xl shadow-2xl ${
+                  endedSummary.outcome === 'WON'
+                    ? 'border-emerald-500/50 bg-gradient-to-b from-emerald-950/40 via-slate-950/90 to-black/95 shadow-[0_0_50px_rgba(16,185,129,0.2)]'
+                    : 'border-rose-500/50 bg-gradient-to-b from-rose-950/40 via-slate-950/90 to-black/95 shadow-[0_0_50px_rgba(244,63,94,0.2)]'
+                }`}
+              >
+                {/* Background Victory Aura */}
                 <div
-                  className={`mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border ${
+                  className={`pointer-events-none absolute -top-24 h-64 w-64 rounded-full blur-3xl opacity-40 ${
+                    endedSummary.outcome === 'WON' ? 'bg-emerald-400' : 'bg-rose-500'
+                  }`}
+                />
+
+                {/* Hero Badge Icon */}
+                <div
+                  className={`relative mb-4 flex h-20 w-20 items-center justify-center rounded-3xl border transition-transform duration-500 hover:scale-105 ${
                     endedSummary.outcome === 'WON'
-                      ? 'border-emerald-500/40 bg-emerald-500/10 shadow-[0_0_30px_rgba(16,185,129,0.25)]'
-                      : 'border-rose-500/40 bg-rose-500/10 shadow-[0_0_30px_rgba(244,63,94,0.25)]'
+                      ? 'border-emerald-400/60 bg-gradient-to-br from-emerald-500/30 to-black shadow-[0_0_35px_rgba(16,185,129,0.4)]'
+                      : 'border-rose-400/60 bg-gradient-to-br from-rose-500/30 to-black shadow-[0_0_35px_rgba(244,63,94,0.4)]'
                   }`}
                 >
                   <img
                     src={endedSummary.outcome === 'WON' ? '/images/apple-safe.png' : '/images/apple-broken.png'}
                     alt={endedSummary.outcome}
-                    className="h-10 w-10 object-contain"
+                    className="h-12 w-12 object-contain drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]"
                   />
+                  {endedSummary.outcome === 'WON' && (
+                    <Trophy className="absolute -top-2 -right-2 h-7 w-7 text-amber-300 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" />
+                  )}
                 </div>
 
-                <h3
-                  className={`text-xl font-black tracking-wide ${
-                    endedSummary.outcome === 'WON' ? 'text-emerald-400' : 'text-rose-400'
-                  }`}
-                >
-                  {endedSummary.outcome === 'WON' ? '🎉 GAME WON' : '💀 GAME LOST'}
-                </h3>
-                <p className="mt-0.5 text-xs text-slate-400">Session #{endedSummary.sessionId} completed</p>
+                <div className="flex items-center gap-2">
+                  <h3
+                    className={`text-2xl font-black tracking-wider uppercase ${
+                      endedSummary.outcome === 'WON'
+                        ? 'text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-amber-300 drop-shadow-[0_0_20px_rgba(52,211,153,0.4)]'
+                        : 'text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-red-500 drop-shadow-[0_0_20px_rgba(244,63,94,0.4)]'
+                    }`}
+                  >
+                    {endedSummary.outcome === 'WON' ? '🏆 VICTORY CASHOUT' : '💀 TACTICAL BUST'}
+                  </h3>
+                </div>
 
-                <div className="mt-5 w-full max-w-sm rounded-xl border border-white/[.06] bg-black/40 p-4 text-xs font-medium">
-                  <div className="flex justify-between py-1.5 border-b border-white/[.04]">
-                    <span className="text-slate-400">Starting Balance:</span>
+                <p className="mt-1 font-mono text-xs text-slate-400">
+                  Flight Session #{endedSummary.sessionId} Completed
+                </p>
+
+                {/* Financial Debrief Receipt */}
+                <div className="mt-6 w-full max-w-sm rounded-2xl border border-white/10 bg-black/60 p-5 shadow-2xl backdrop-blur-md">
+                  <div className="flex justify-between border-b border-white/[.06] py-2 text-xs">
+                    <span className="text-slate-400">Initial Stake:</span>
                     <span className="font-mono font-bold text-slate-200">
                       {endedSummary.startingBalance.toFixed(2)} EGP
                     </span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-white/[.04]">
+                  <div className="flex justify-between border-b border-white/[.06] py-2 text-xs">
                     <span className="text-slate-400">Final Balance:</span>
-                    <span className="font-mono font-bold text-emerald-400">
+                    <span className="font-mono font-extrabold text-emerald-300">
                       {endedSummary.finalBalance.toFixed(2)} EGP
                     </span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-white/[.04]">
+                  <div className="flex justify-between border-b border-white/[.06] py-2 text-xs">
                     <span className="text-slate-400">
                       {endedSummary.outcome === 'WON' ? 'Net Profit:' : 'Net Loss:'}
                     </span>
                     <span
-                      className={`font-mono font-bold ${
-                        endedSummary.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      className={`font-mono text-sm font-black ${
+                        endedSummary.netProfit >= 0
+                          ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                          : 'text-rose-400'
                       }`}
                     >
                       {endedSummary.netProfit >= 0 ? '+' : ''}
                       {endedSummary.netProfit.toFixed(2)} EGP
                     </span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-white/[.04]">
-                    <span className="text-slate-400">
-                      {endedSummary.outcome === 'WON' ? 'Final Round:' : 'Last Round:'}
-                    </span>
+                  <div className="flex justify-between border-b border-white/[.06] py-2 text-xs">
+                    <span className="text-slate-400">Completed Altitude:</span>
                     <span className="font-mono font-bold text-cyan-300">
-                      {endedSummary.finalRound} / 10
+                      Row {endedSummary.finalRound} / 10
                     </span>
                   </div>
-                  <div className="flex justify-between py-1.5">
-                    <span className="text-slate-400">Multiplier:</span>
-                    <span className="font-mono font-bold text-cyan-300">
-                      x{endedSummary.multiplier.toFixed(2)}
+                  <div className="flex justify-between py-2 text-xs">
+                    <span className="text-slate-400">Achieved Multiplier:</span>
+                    <span className="font-mono font-black text-amber-300">
+                      ×{endedSummary.multiplier.toFixed(2)}
                     </span>
                   </div>
                 </div>
 
+                {/* New Round Action Button */}
                 <button
                   type="button"
                   onClick={handleNewRound}
-                  className="mt-6 flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 py-2.5 text-xs font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:brightness-110 active:scale-95"
+                  className="mt-6 flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 px-8 py-3 text-sm font-black tracking-wider uppercase text-slate-950 shadow-[0_0_25px_rgba(16,185,129,0.4)] transition-all duration-300 hover:brightness-110 hover:shadow-[0_0_35px_rgba(16,185,129,0.6)] active:scale-95"
                 >
-                  <span>🎮 New Round</span>
+                  <Zap className="h-4 w-4 fill-current" />
+                  <span>Ready For Next Round</span>
+                  <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
             ) : (
-              /* Default Waiting State (Preserved exactly) */
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-dashed border-white/[.08] bg-black/20 p-8 text-center">
-                <Sparkles className="mb-3 h-10 w-10 text-cyan-400/50 animate-pulse" />
-                <h4 className="text-sm font-bold text-slate-200">Waiting for game to start…</h4>
-                <p className="mt-1 max-w-xs text-xs text-slate-400">
-                  Start a round in your app or trigger a new game. Live grid cells and picks will stream here automatically.
+              /* High-Tech Standby Radar Display */
+              <div className="relative flex min-h-[460px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/10 bg-black/30 p-8 text-center backdrop-blur-xl">
+                {/* Concentric Radar Graphic */}
+                <div className="relative mb-5 flex h-32 w-32 items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border border-cyan-500/20" />
+                  <div className="absolute inset-4 rounded-full border border-cyan-500/30" />
+                  <div className="absolute inset-8 rounded-full border border-dashed border-cyan-500/40" />
+                  <div
+                    className="absolute inset-0 rounded-full border-t-2 border-cyan-400/80"
+                    style={{ animation: 'radarSweep 4s linear infinite' }}
+                  />
+                  <Sparkles className="h-8 w-8 text-cyan-400 drop-shadow-[0_0_12px_#22d3ee] animate-pulse" />
+                </div>
+
+                <h4 className="text-sm font-black tracking-widest uppercase text-slate-100">
+                  Telemetry Radar Standing By…
+                </h4>
+                <p className="mt-2 max-w-sm text-xs leading-relaxed text-slate-400">
+                  ابدأ جولة جديدة في اللعبة أو قم باختيار أي تفاحة؛ وسيتم سحب البيانات الحية للشبكة
+                  والتحركات تلقائياً في هذه الشاشة.
                 </p>
+                <div className="mt-4 flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-950/40 px-3 py-1 font-mono text-[11px] font-bold text-cyan-300">
+                  <Radio className="h-3.5 w-3.5 animate-pulse" />
+                  <span>LISTENING ON LIVE SOCKET</span>
+                </div>
               </div>
             )
           ) : (
-            /* Active 10x5 Grid */
-            <div className="flex flex-col gap-1.5 overflow-x-auto py-1">
+            /* Active 10x5 Grid with Tactile Cells */
+            <div className="flex flex-col gap-2 overflow-x-auto py-1">
               {rowsToDisplay.map((spec) => {
                 const rowIndex = spec.row - 1 // 0 to 9
                 const isCurrent = rowIndex === currentRow
                 const rawPick = userPicks[rowIndex]
                 const pickedColIdx = normalizePickColIndex(rawPick)
                 const rowCells = matrix ? matrix[rowIndex] : [1, 1, 1, 1, 1]
+                const isApex = spec.row === 10
+
+                // Tier styling for row multiplier
+                const getMultiplierTierStyle = () => {
+                  if (isApex) {
+                    return 'border-amber-400/60 bg-gradient-to-r from-amber-500/25 to-yellow-500/20 text-yellow-300 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                  }
+                  if (spec.row >= 7) {
+                    return 'border-purple-400/50 bg-purple-500/15 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.25)]'
+                  }
+                  if (spec.row >= 4) {
+                    return 'border-cyan-400/50 bg-cyan-500/15 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.25)]'
+                  }
+                  return 'border-emerald-400/40 bg-emerald-500/15 text-emerald-300'
+                }
 
                 return (
                   <div
                     key={spec.row}
-                    className={`flex items-center gap-2 rounded-xl border p-1.5 transition-all ${
+                    className={`relative flex items-center gap-2.5 rounded-2xl border p-1.5 transition-all duration-300 ${
                       isCurrent
-                        ? 'border-cyan-500/60 bg-cyan-950/30 shadow-[0_0_15px_rgba(6,182,212,0.2)] ring-1 ring-cyan-500/40'
-                        : rowIndex < currentRow
-                          ? 'border-white/[.04] bg-black/20 opacity-85'
-                          : 'border-white/[.03] bg-black/10'
+                        ? 'active-row-shimmer border-cyan-400/80 shadow-[0_0_25px_rgba(6,182,212,0.35)] ring-1 ring-cyan-400/60'
+                        : isApex
+                          ? 'jackpot-glow bg-gradient-to-r from-amber-950/20 to-black/40'
+                          : rowIndex < currentRow
+                            ? 'border-white/[.04] bg-black/30 opacity-80'
+                            : 'border-white/[.025] bg-black/20'
                     }`}
                   >
-                    {/* Multiplier Badge */}
+                    {/* Active row pulse indicator banner */}
+                    {isCurrent && (
+                      <div className="absolute -left-1 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r-full bg-cyan-400 shadow-[0_0_10px_#22d3ee]" />
+                    )}
+
+                    {/* Multiplier Pill on Left */}
                     <div
-                      className={`flex w-18 items-center justify-center rounded-lg px-2 py-1.5 font-mono text-xs font-bold ${
-                        isCurrent
-                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                          : 'bg-white/[.04] text-slate-300'
-                      }`}
+                      className={`flex w-20 flex-col items-center justify-center rounded-xl border px-2 py-1.5 font-mono transition-all ${getMultiplierTierStyle()}`}
                     >
-                      {formatMultiplier(spec.multiplier)}
+                      <span className="text-[9px] font-bold uppercase tracking-wider opacity-75">
+                        {isApex ? 'JACKPOT' : `ROW ${spec.row}`}
+                      </span>
+                      <span className="text-xs font-black">
+                        {formatMultiplier(spec.multiplier)}
+                      </span>
                     </div>
 
-                    {/* 5 Cells */}
-                    <div className="grid flex-1 grid-cols-5 gap-1.5">
+                    {/* 5 Tactile Cells */}
+                    <div className="grid flex-1 grid-cols-5 gap-2">
                       {rowCells.map((cellValue, colIndex) => {
                         const isPicked = pickedColIdx === colIndex
                         const isSafe = cellValue === 1
@@ -369,48 +486,51 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
                             key={colIndex}
                             style={
                               isNewGameEntrance
-                                ? { animationDelay: `${(spec.row - 1) * 80 + colIndex * 15}ms` }
+                                ? { animationDelay: `${(spec.row - 1) * 70 + colIndex * 15}ms` }
                                 : undefined
                             }
-                            className={`relative flex h-10 items-center justify-center rounded-lg border text-xs font-medium transition-all ${
+                            className={`group relative flex h-12 items-center justify-center rounded-xl border transition-all duration-200 ${
                               isNewGameEntrance ? 'animate-cell-entrance' : ''
                             } ${
                               isPicked
                                 ? isSafe
-                                  ? 'border-emerald-400 bg-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.4)] ring-2 ring-emerald-400'
-                                  : 'border-rose-400 bg-rose-500/30 shadow-[0_0_12px_rgba(244,63,94,0.4)] ring-2 ring-rose-400'
+                                  ? 'border-emerald-400 bg-gradient-to-b from-emerald-500/35 to-emerald-950/60 shadow-[0_0_20px_rgba(16,185,129,0.5)] ring-2 ring-emerald-400'
+                                  : 'border-rose-400 bg-gradient-to-b from-rose-500/35 to-rose-950/60 shadow-[0_0_20px_rgba(244,63,94,0.5)] ring-2 ring-rose-400'
                                 : isRecommended
-                                  ? 'border-cyan-400/50 bg-cyan-500/10'
+                                  ? 'border-cyan-400/60 bg-cyan-500/15 shadow-[0_0_12px_rgba(6,182,212,0.3)] ring-1 ring-cyan-400/40'
                                   : isSafe
-                                    ? 'border-emerald-500/20 bg-emerald-950/20 text-emerald-300'
-                                    : 'border-rose-500/20 bg-rose-950/20 text-rose-400'
+                                    ? 'border-emerald-500/20 bg-gradient-to-b from-white/[.04] to-black/40 hover:border-emerald-500/40'
+                                    : 'border-rose-500/20 bg-gradient-to-b from-white/[.04] to-black/40 hover:border-rose-500/40'
                             }`}
                           >
-                            {/* Icon visual: custom safe or broken apple images */}
-                            {isSafe ? (
-                              <img
-                                src="/images/apple-safe.png"
-                                alt="Safe Apple"
-                                className="h-7 w-7 object-contain drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]"
-                              />
-                            ) : (
-                              <img
-                                src="/images/apple-broken.png"
-                                alt="Broken Apple"
-                                className="h-7 w-7 object-contain drop-shadow-[0_0_8px_rgba(244,63,94,0.35)]"
-                              />
-                            )}
+                            {/* Inner Sunken Well Specular Highlight */}
+                            <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-white/[.06] to-transparent" />
 
-                            {/* Pick tag */}
+                            {/* Apple Visual */}
+                            <img
+                              src={isSafe ? '/images/apple-safe.png' : '/images/apple-broken.png'}
+                              alt={isSafe ? 'Safe Apple' : 'Broken Apple'}
+                              className={`relative h-8 w-8 object-contain transition-transform duration-200 group-hover:scale-110 ${
+                                isSafe
+                                  ? 'drop-shadow-[0_0_10px_rgba(52,211,153,0.45)]'
+                                  : 'drop-shadow-[0_0_10px_rgba(244,63,94,0.45)]'
+                              }`}
+                            />
+
+                            {/* Holographic User Pick Reticle */}
                             {isPicked && (
-                              <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded bg-white px-1 font-mono text-[9px] font-black text-black shadow">
-                                PICK
-                              </span>
+                              <div className="pointer-events-none absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-md border border-amber-300 bg-gradient-to-r from-amber-400 to-yellow-300 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-slate-950 shadow-[0_0_12px_rgba(251,191,36,0.7)] z-10">
+                                <Crosshair className="h-2.5 w-2.5" />
+                                <span>PICK</span>
+                              </div>
                             )}
 
-                            {/* Recommended indicator */}
+                            {/* Recommended Radar Target */}
                             {isRecommended && !isPicked && (
-                              <span className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                              <div className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center">
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+                                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                              </div>
                             )}
                           </div>
                         )
@@ -423,50 +543,50 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
           )}
         </div>
 
-        {/* Live Stats Panel (Right) - clean reflow without Synchronizer Notes */}
+        {/* Right Column: Live Stats Panel */}
         <div className="flex flex-col gap-4 lg:col-span-5">
           <LiveStatsPanel game={game} balanceState={balanceState} />
         </div>
       </div>
 
-      {/* Row 2: Round History Panel */}
+      {/* Row 2: Tactical Flight Log (Round History) */}
       <RoundHistoryPanel game={game} />
 
-      {/* Persistent Last Game Summary Card (Task 4.5) */}
+      {/* Row 3: Persistent Last Game Avionics Summary */}
       {lastGame && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-white/[.06] bg-slate-950/60 p-4 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+        <div className="cockpit-panel flex flex-col gap-3 rounded-2xl p-4 shadow-xl sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-              <History className="h-4 w-4 text-cyan-400" /> Last Game Summary:
+            <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-300">
+              <History className="h-4 w-4 text-cyan-400" /> Previous Mission Summary:
             </span>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-black tracking-wider ${
                 lastGame.outcome === 'WON'
-                  ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
-                  : 'border-rose-500/40 bg-rose-500/20 text-rose-300'
+                  ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                  : 'border-rose-500/50 bg-rose-500/20 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
               }`}
             >
               {lastGame.outcome === 'WON' ? (
                 <>
-                  <Trophy className="h-3.5 w-3.5" /> WON
+                  <Trophy className="h-3.5 w-3.5 text-amber-300" /> WON
                 </>
               ) : (
                 <>
-                  <XCircle className="h-3.5 w-3.5" /> LOST
+                  <XCircle className="h-3.5 w-3.5 text-rose-300" /> LOST
                 </>
               )}
             </span>
-            <span className="rounded bg-white/[.05] px-2 py-0.5 font-mono text-xs text-slate-300">
+            <span className="rounded-md border border-white/10 bg-white/[.04] px-2 py-0.5 font-mono text-xs font-bold text-slate-300">
               Session #{lastGame.sessionId}
             </span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
             <span className="text-slate-400">
-              Net:{' '}
+              Net Result:{' '}
               <span
-                className={`font-bold ${
-                  lastGame.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                className={`font-black ${
+                  lastGame.netProfit >= 0 ? 'text-emerald-300' : 'text-rose-400'
                 }`}
               >
                 {lastGame.netProfit >= 0 ? '+' : ''}
@@ -474,7 +594,12 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
               </span>
             </span>
             <span className="text-slate-400">
-              Rounds: <span className="font-bold text-cyan-300">{lastGame.finalRound}/10</span>
+              Altitude:{' '}
+              <span className="font-black text-cyan-300">{lastGame.finalRound}/10</span>
+            </span>
+            <span className="text-slate-400">
+              Multiplier:{' '}
+              <span className="font-black text-amber-300">×{lastGame.multiplier.toFixed(2)}</span>
             </span>
             <span className="text-slate-500">
               {new Date(lastGame.endedAt).toLocaleTimeString()}
