@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Next-Gen 3D Holographic Quantum Terminal for MAGIC SCRIPT",
   "scripts": {
-    "dev": "vite --port 5174 --host 0.0.0.0",
+    "dev": "vite --port 5174 --host",
     "build": "tsc && vite build",
     "preview": "vite preview --port 5174 --host 0.0.0.0"
   },
