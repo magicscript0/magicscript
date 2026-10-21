@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { playShockwavePulse } from '../utils/audio'
 
 interface ThreeCanvasProps {
   accelerate?: boolean // when boot loader or login ignition activates
@@ -179,7 +178,6 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
         opacity: 0.9,
         mesh,
       })
-      playShockwavePulse()
     }
 
     const handleClick = (e: MouseEvent) => {

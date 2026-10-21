@@ -11,7 +11,6 @@ import {
   Trophy,
 } from 'lucide-react'
 import { subscribeToM11 } from '../config/firebase'
-import { playLaserClick, playCyberNovaChime, playTelemetryBlip } from '../utils/audio'
 
 interface GameConsoleViewProps {
   accountId: string
@@ -74,18 +73,14 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
     if (gameOver || won) return
     if (row !== currentRow) return
 
-    playLaserClick()
-
     // 4 out of 5 columns are safe on lower rows
     const isSafe = Math.random() < (row < 5 ? 0.85 : 0.7)
 
     if (isSafe) {
       setSelectedCells((prev) => ({ ...prev, [row]: col }))
-      playTelemetryBlip(1200, 0.05)
 
       if (row >= 10) {
         setWon(true)
-        playCyberNovaChime()
       } else {
         setCurrentRow(row + 1)
       }
@@ -96,7 +91,6 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
   }
 
   const handleResetGame = () => {
-    playLaserClick()
     setCurrentRow(1)
     setSelectedCells({})
     setGameOver(false)
@@ -136,10 +130,7 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
           </div>
 
           <button
-            onClick={() => {
-              playLaserClick()
-              onLogout()
-            }}
+            onClick={onLogout}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 font-mono-tech text-xs transition-colors"
           >
             <LogOut className="w-3.5 h-3.5" />

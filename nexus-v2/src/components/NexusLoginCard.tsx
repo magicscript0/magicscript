@@ -15,7 +15,6 @@ import {
   X,
 } from 'lucide-react'
 import type { PublicSettings } from '../services/auth'
-import { playLaserClick, playTelemetryBlip } from '../utils/audio'
 
 interface NexusLoginCardProps {
   settings: PublicSettings
@@ -39,7 +38,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, glareX: 50, glareY: 50 })
   const isHoveredRef = useRef(false)
 
-  // Mobile/idle ambient floating effect when not actively hovered
+  // Ambient floating animation when idle
   useEffect(() => {
     let animId: number
     let t = 0
@@ -86,13 +85,11 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (loading) return
-    playLaserClick()
     onLogin(accountId, accessCode)
   }
 
   // Quick Demo Autofill Helper
   const handleAutofillDemo = () => {
-    playLaserClick()
     setAccountId('583920194')
     setAccessCode('NEXUS-7782-XVIP')
   }
@@ -100,13 +97,12 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
   const handleAccountIdChange = (val: string) => {
     const cleaned = val.replace(/[^0-9]/g, '')
     setAccountId(cleaned)
-    playTelemetryBlip(920, 0.02)
   }
 
   const isAccountValid = accountId.length >= 9 && accountId.length <= 11
 
   return (
-    <div className="relative z-30 perspective-container w-full max-w-md px-4">
+    <div className="relative z-30 perspective-container w-full max-w-md px-4 transition-all duration-700 ease-out animate-[fadeInScale_0.7s_ease-out]">
       {/* Outer Border Beam Wrapper */}
       <div
         ref={cardRef}

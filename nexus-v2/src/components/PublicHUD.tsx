@@ -5,22 +5,19 @@ import {
   ShieldCheck,
   Clock,
   Users,
-  Volume2,
-  VolumeX,
   Maximize2,
   Minimize2,
 } from 'lucide-react'
 import type { PublicSettings } from '../services/auth'
-import { toggleAudio, isAudioEnabled, playLaserClick } from '../utils/audio'
 
 interface PublicHUDProps {
   settings: PublicSettings
+  visible: boolean
 }
 
-export const PublicHUD: React.FC<PublicHUDProps> = ({ settings }) => {
+export const PublicHUD: React.FC<PublicHUDProps> = ({ settings, visible }) => {
   const [time, setTime] = useState('')
   const [onlineCount, setOnlineCount] = useState(settings.onlineCount)
-  const [soundOn, setSoundOn] = useState(isAudioEnabled())
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Live 12h Clock
@@ -52,14 +49,7 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings }) => {
     return () => clearInterval(interval)
   }, [])
 
-  const handleToggleSound = () => {
-    const next = toggleAudio()
-    setSoundOn(next)
-    if (next) playLaserClick()
-  }
-
   const handleToggleFullscreen = () => {
-    playLaserClick()
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {})
       setIsFullscreen(true)
@@ -71,8 +61,12 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings }) => {
 
   return (
     <>
-      {/* Top HUD Bar */}
-      <header className="fixed top-0 left-0 right-0 z-40 px-4 sm:px-8 py-4 flex items-center justify-between pointer-events-none">
+      {/* Top HUD Bar with Smooth Slide-In Reveal */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-40 px-4 sm:px-8 py-4 flex items-center justify-between pointer-events-none transition-all duration-700 ease-out transform ${
+          visible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+        }`}
+      >
         {/* Brand Lockup */}
         <div className="flex items-center gap-3 pointer-events-auto">
           <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-600/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(0,242,254,0.25)]">
@@ -94,21 +88,8 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings }) => {
           </div>
         </div>
 
-        {/* Live Telemetry Pills & Controls */}
+        {/* Live Telemetry Pills & Fullscreen Control */}
         <div className="flex items-center gap-2 sm:gap-3 pointer-events-auto">
-          {/* Audio Mute/Unmute */}
-          <button
-            onClick={handleToggleSound}
-            title={soundOn ? 'Mute SFX' : 'Enable SFX'}
-            className="glass-panel w-9 h-9 rounded-full flex items-center justify-center text-slate-300 hover:text-cyan-300 hover:border-cyan-400/50 transition-all shadow-md"
-          >
-            {soundOn ? (
-              <Volume2 className="w-4 h-4 text-cyan-400" />
-            ) : (
-              <VolumeX className="w-4 h-4 text-slate-500" />
-            )}
-          </button>
-
           {/* Fullscreen toggle */}
           <button
             onClick={handleToggleFullscreen}
@@ -141,8 +122,12 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings }) => {
         </div>
       </header>
 
-      {/* Bottom HUD Bar: Social Links & Security */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 px-4 sm:px-8 py-4 flex items-center justify-between pointer-events-none">
+      {/* Bottom HUD Bar: Social Links & Security with Slide-Up Reveal */}
+      <footer
+        className={`fixed bottom-0 left-0 right-0 z-40 px-4 sm:px-8 py-4 flex items-center justify-between pointer-events-none transition-all duration-700 ease-out transform ${
+          visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
+        }`}
+      >
         <div className="hidden sm:flex items-center gap-2 text-xs font-mono-tech text-slate-400 pointer-events-auto">
           <ShieldCheck className="w-4 h-4 text-cyan-400" />
           <span>END-TO-END ENCRYPTED GATEWAY</span>

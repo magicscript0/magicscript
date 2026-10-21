@@ -12,7 +12,7 @@ import {
 } from './services/auth'
 
 export const App: React.FC = () => {
-  const [bootCompleted, setBootCompleted] = useState(false)
+  const [bootState, setBootState] = useState<'booting' | 'ready'>('booting')
   const [settings, setSettings] = useState<PublicSettings>(DEFAULT_PUBLIC_SETTINGS)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,37 +70,39 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#030712] text-slate-100 flex flex-col justify-center items-center select-none">
-      {/* 1. Real 3D Three.js WebGL Engine Canvas */}
-      <ThreeCanvas accelerate={!bootCompleted} />
+      {/* 1. Real 3D Three.js WebGL Engine Canvas (Runs at 60 FPS in background) */}
+      <ThreeCanvas accelerate={bootState === 'booting'} />
 
-      {/* 2. Cyber scanlines overlay for high-tech aesthetic */}
-      <div className="fixed inset-0 scanlines-overlay opacity-30 pointer-events-none z-10" />
+      {/* 2. Cyber scanlines overlay for authentic futuristic display */}
+      <div className="fixed inset-0 scanlines-overlay opacity-25 pointer-events-none z-10" />
 
-      {/* 3. Cinematic Startup Bootloader (Fake Loading Sequence) */}
-      {!bootCompleted && (
-        <BootLoader onComplete={() => setBootCompleted(true)} />
+      {/* 3. Realistic Hardware Bootloader (Displays until 100% complete) */}
+      {bootState === 'booting' && (
+        <BootLoader onComplete={() => setBootState('ready')} />
       )}
 
-      {/* 4. Ambient Public HUD (Status, Live Clock, Online Users, Social Links) */}
-      <PublicHUD settings={settings} />
+      {/* 4. Ambient Public HUD - Only visible AFTER loading completely finishes */}
+      <PublicHUD settings={settings} visible={bootState === 'ready'} />
 
-      {/* 5. Main Center Stage */}
-      <main className="relative z-20 flex items-center justify-center w-full py-16 px-4">
-        {session ? (
-          <GameConsoleView
-            accountId={session.accountId}
-            expiresAt={session.expiresAt}
-            onLogout={handleLogout}
-          />
-        ) : (
-          <NexusLoginCard
-            settings={settings}
-            onLogin={handleLogin}
-            loading={loading}
-            error={error}
-          />
-        )}
-      </main>
+      {/* 5. Main Center Stage - STRICTLY MOUNTED & REVEALED ONLY AFTER 100% BOOT COMPLETION */}
+      {bootState === 'ready' && (
+        <main className="relative z-20 flex items-center justify-center w-full py-16 px-4">
+          {session ? (
+            <GameConsoleView
+              accountId={session.accountId}
+              expiresAt={session.expiresAt}
+              onLogout={handleLogout}
+            />
+          ) : (
+            <NexusLoginCard
+              settings={settings}
+              onLogin={handleLogin}
+              loading={loading}
+              error={error}
+            />
+          )}
+        </main>
+      )}
     </div>
   )
 }

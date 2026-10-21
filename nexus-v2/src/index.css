@@ -162,3 +162,18 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 242, 254, 0.6);
 }
+
+/* Materialization Reveal Animation */
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) translateZ(-60px);
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateZ(0);
+    filter: blur(0);
+  }
+}
+
