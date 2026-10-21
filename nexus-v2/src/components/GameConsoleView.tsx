@@ -142,9 +142,9 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
   }
 
   return (
-    <div className="relative z-30 w-full max-w-5xl px-3 sm:px-6 py-6 transition-all duration-700 ease-out">
+    <div className="relative z-30 w-full max-w-5xl px-2.5 sm:px-6 py-4 sm:py-6 transition-all duration-700 ease-out">
       {/* Top Header Ribbon with Mode Switcher & Telemetry */}
-      <div className="glass-panel-elevated rounded-2xl p-4 sm:p-5 mb-6 flex flex-wrap items-center justify-between gap-4 border border-cyan-500/30 shadow-[0_15px_40px_rgba(0,0,0,0.8)]">
+      <div className="glass-panel-elevated rounded-2xl p-3 sm:p-5 mb-4 sm:mb-6 flex flex-wrap items-center justify-between gap-3 sm:gap-4 border border-cyan-500/30 shadow-[0_15px_40px_rgba(0,0,0,0.8)]">
         {/* Left: Mode Switcher (Play Mode vs Viewer Mode) */}
         <div className="flex items-center gap-3">
           <ViewerToggle mode={mode} onChange={setMode} />
@@ -158,10 +158,10 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
         </div>
 
         {/* Right: Realtime Status, Account ID, Remaining Timer & Disconnect */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Table / Connection state */}
           <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-mono-tech text-xs font-bold ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border font-mono-tech text-[11px] sm:text-xs font-bold ${
               tableState === 'LIVE'
                 ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
                 : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
@@ -176,7 +176,7 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
           </div>
 
           {/* Account ID Badge */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700 font-mono-tech text-xs">
+          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-slate-900/80 border border-slate-700 font-mono-tech text-[11px] sm:text-xs">
             <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
             <span className="text-slate-400">Account:</span>
             <span className="text-white font-bold">#{accountId}</span>
@@ -184,14 +184,14 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
 
           {/* Real Remaining Session Countdown Timer */}
           <div
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-mono-tech text-xs transition-colors ${
+            className={`flex items-center gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border font-mono-tech text-[11px] sm:text-xs transition-colors ${
               lowTime
                 ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 animate-pulse'
                 : 'bg-slate-900/80 border-slate-700 text-slate-300'
             }`}
           >
             <Clock className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-slate-400">Remaining:</span>
+            <span className="text-slate-400 hidden xs:inline">Remaining:</span>
             <span className="text-white font-bold">{formatRemaining(remainingMs)}</span>
           </div>
 
@@ -199,7 +199,7 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
           <button
             type="button"
             onClick={onLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 font-mono-tech text-xs transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 font-mono-tech text-[11px] sm:text-xs transition-colors shadow-sm"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">DISCONNECT</span>

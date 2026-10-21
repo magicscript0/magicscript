@@ -259,4 +259,69 @@
   animation: loss-glow-pulse 2.4s ease-in-out infinite;
 }
 
+/* Staggered Row Loading & Cyber Scan Beam */
+@keyframes row-cyber-scan {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(200%);
+    opacity: 0;
+  }
+}
+
+.animate-row-cyber-scan {
+  animation: row-cyber-scan 0.65s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* Apple Spring / Scale Micro-Animation */
+@keyframes apple-spring-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.35) translateY(6px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18) translateY(-2px);
+  }
+  85% {
+    transform: scale(0.95) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-apple-spring {
+  animation: apple-spring-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  will-change: transform, opacity;
+}
+
+/* Staggered Row Entrance Fade & Glow */
+@keyframes row-stagger-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-row-stagger-in {
+  animation: row-stagger-in 0.35s ease-out both;
+  will-change: transform, opacity;
+}
+
+
 

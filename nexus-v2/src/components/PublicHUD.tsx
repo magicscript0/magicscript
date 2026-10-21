@@ -63,13 +63,13 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings, visible }) => {
     <>
       {/* Top HUD Bar with Smooth Slide-In Reveal */}
       <header
-        className={`fixed top-0 left-0 right-0 z-40 px-4 sm:px-8 py-4 flex items-center justify-between pointer-events-none transition-all duration-700 ease-out transform ${
+        className={`fixed top-0 left-0 right-0 z-40 px-3 sm:px-8 py-3 sm:py-4 flex items-center justify-between pointer-events-none transition-all duration-700 ease-out transform ${
           visible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
         }`}
       >
         {/* Brand Lockup */}
-        <div className="flex items-center gap-3 pointer-events-auto">
-          <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-cyan-500/40 shadow-[0_0_20px_rgba(0,242,254,0.3)] bg-slate-950 flex items-center justify-center group">
+        <div className="flex items-center gap-2.5 sm:gap-3 pointer-events-auto">
+          <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-xl overflow-hidden border border-cyan-500/40 shadow-[0_0_20px_rgba(0,242,254,0.3)] bg-slate-950 flex items-center justify-center group flex-shrink-0">
             <img
               src="/images/magic-script-logo.jpg"
               alt="Magic Script"
@@ -81,7 +81,7 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings, visible }) => {
             <div className="absolute inset-0 rounded-xl border border-cyan-400/30 pointer-events-none" />
           </div>
           <div>
-            <span className="font-display font-bold tracking-wider text-white text-base block glow-cyan">
+            <span className="font-display font-bold tracking-wider text-white text-sm sm:text-base block glow-cyan">
               MAGIC SCRIPT
             </span>
           </div>
@@ -103,8 +103,8 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings, visible }) => {
           </button>
 
           {/* Online count */}
-          <div className="glass-panel px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-mono-tech text-slate-300 border-slate-700/60 shadow-lg">
-            <span className="relative flex h-2 w-2">
+          <div className="glass-panel px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-mono-tech text-slate-300 border-slate-700/60 shadow-lg">
+            <span className="relative flex h-2 w-2 flex-shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
@@ -113,10 +113,10 @@ export const PublicHUD: React.FC<PublicHUDProps> = ({ settings, visible }) => {
             <span className="text-slate-400 hidden sm:inline">Active</span>
           </div>
 
-          {/* Clock */}
-          <div className="glass-panel px-3 py-1.5 rounded-full hidden md:flex items-center gap-2 text-xs font-mono-tech text-slate-300 border-slate-700/60">
-            <Clock className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{time}</span>
+          {/* Clock - Always visible on all screens (Mobile & Desktop) */}
+          <div className="glass-panel px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-mono-tech text-slate-300 border-slate-700/60 shadow-md">
+            <Clock className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+            <span className="whitespace-nowrap">{time}</span>
           </div>
         </div>
       </header>
