@@ -8,6 +8,11 @@ export const SUPABASE_ENV = {
   publishableKey: 'VITE_SUPABASE_PUBLISHABLE_KEY',
 } as const
 
+export const PUBLIC_SUPABASE_FALLBACK = {
+  url: 'https://eeffakpnyhqoxgbpxelj.supabase.co',
+  publishableKey: 'sb_publishable_9ImsBi1sOOCJbnAzLiqGwA_mF8Jhjtu',
+} as const
+
 function looksLikeServiceRoleKey(value: string): boolean {
   const normalized = value.toLowerCase()
   if (normalized.includes('service_role') || normalized.includes('service-role') || normalized.startsWith('sb_secret_')) {
@@ -38,8 +43,11 @@ export function isPublishableSupabaseKey(value: string): boolean {
 }
 
 export function readSupabaseConfig(): { url: string; publishableKey: string } | null {
-  const url = String(import.meta.env[SUPABASE_ENV.url] ?? '').trim()
-  const publishableKey = String(import.meta.env[SUPABASE_ENV.publishableKey] ?? '').trim()
+  const envUrl = String(import.meta.env[SUPABASE_ENV.url] ?? '').trim()
+  const envKey = String(import.meta.env[SUPABASE_ENV.publishableKey] ?? '').trim()
+
+  const url = envUrl || PUBLIC_SUPABASE_FALLBACK.url
+  const publishableKey = envKey || PUBLIC_SUPABASE_FALLBACK.publishableKey
 
   if (!url || !isPublishableSupabaseKey(publishableKey)) return null
 

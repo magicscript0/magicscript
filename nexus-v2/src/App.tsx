@@ -5,6 +5,7 @@ import { PublicHUD } from './components/PublicHUD'
 import { NexusLoginCard } from './components/NexusLoginCard'
 import { GameConsoleView } from './components/GameConsoleView'
 import { useGameAccess } from './hooks/useGameAccess'
+import { normalizeAccountId, GameAccessError } from './services/gameAccess'
 import { recordGameLoginFailure, recordGameLoginSuccess } from './services/visitorTracking'
 import {
   fetchPublicSettings,
@@ -36,11 +37,19 @@ export const App: React.FC = () => {
       setLoading(true)
       setError(null)
       try {
-        await access.login(accountId, code)
-        recordGameLoginSuccess(accountId)
-      } catch (cause: any) {
+        const cleanId = normalizeAccountId(accountId)
+        const cleanCode = code.trim().toUpperCase()
+        await access.login(cleanId, cleanCode)
+        recordGameLoginSuccess(cleanId)
+      } catch (cause: unknown) {
         recordGameLoginFailure(accountId, cause)
-        setError(cause.message || 'Invalid or expired Access Code.')
+        if (cause instanceof GameAccessError) {
+          setError(cause.message)
+        } else if (cause instanceof Error) {
+          setError(cause.message)
+        } else {
+          setError('Access could not be verified right now. Try again shortly.')
+        }
         throw cause
       } finally {
         setLoading(false)

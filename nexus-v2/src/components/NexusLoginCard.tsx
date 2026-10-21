@@ -15,6 +15,11 @@ import {
   X,
 } from 'lucide-react'
 import type { PublicSettings } from '../services/auth'
+import {
+  normalizeAccountId,
+  describeAccountIdIssue,
+  describeAccessCodeIssue,
+} from '../services/gameAccess'
 
 interface NexusLoginCardProps {
   settings: PublicSettings
@@ -31,8 +36,20 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
 }) => {
   const [accountId, setAccountId] = useState('')
   const [accessCode, setAccessCode] = useState('')
-  const [showCode, setShowCode] = useState(false)
+  const [showCode, setShowCode] = useState(true)
+  const [localError, setLocalError] = useState<string | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+
+  const handlePasteClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        setAccessCode(text.trim().toUpperCase())
+      }
+    } catch {
+      // Clipboard permission might be denied
+    }
+  }
 
   // 3D Tilt & Glare State
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, glareX: 50, glareY: 50 })
@@ -82,17 +99,32 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
     isHoveredRef.current = false
   }
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (loading) return
-    onLogin(accountId, accessCode)
+    setLocalError(null)
+
+    const cleanAccountId = normalizeAccountId(accountId)
+    const accountIdIssue = describeAccountIdIssue(cleanAccountId)
+    if (accountIdIssue) {
+      setLocalError(accountIdIssue)
+      return
+    }
+
+    const cleanCode = accessCode.trim().toUpperCase()
+    const codeIssue = describeAccessCodeIssue(cleanCode)
+    if (codeIssue) {
+      setLocalError(codeIssue)
+      return
+    }
+
+    try {
+      await onLogin(cleanAccountId, cleanCode)
+    } catch {
+      // Handled and displayed via error prop
+    }
   }
 
-  // Quick Demo Autofill Helper
-  const handleAutofillDemo = () => {
-    setAccountId('583920194')
-    setAccessCode('NEXUS-7782-XVIP')
-  }
 
   const handleAccountIdChange = (val: string) => {
     const cleaned = val.replace(/[^0-9]/g, '')
@@ -147,10 +179,10 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
           </div>
 
           {/* Error Alert Banner */}
-          {error && (
+          {(localError || error) && (
             <div className="mb-6 p-3.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-200 text-xs font-mono-tech flex items-start gap-2.5 animate-pulse shadow-lg">
               <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <span>{localError || error}</span>
             </div>
           )}
 
@@ -239,15 +271,16 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
               </div>
             </div>
 
-            {/* Quick Demo Autofill Helper Pill */}
-            <div className="flex justify-end pt-1">
+            {/* Quick Paste / Help Helper Pill */}
+            <div className="flex justify-between items-center pt-1 text-[11px] font-mono-tech">
+              <span className="text-slate-500">From Dashboard · Game Access</span>
               <button
                 type="button"
-                onClick={handleAutofillDemo}
-                className="text-[11px] font-mono-tech text-cyan-400/80 hover:text-cyan-300 flex items-center gap-1 transition-colors hover:underline"
+                onClick={handlePasteClipboard}
+                className="text-cyan-400/80 hover:text-cyan-300 flex items-center gap-1 transition-colors hover:underline"
               >
                 <Zap className="w-3 h-3 text-cyan-400" />
-                <span>Auto-fill Demo Code</span>
+                <span>Paste from Clipboard</span>
               </button>
             </div>
 
