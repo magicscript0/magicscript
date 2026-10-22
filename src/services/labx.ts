@@ -24,10 +24,32 @@ const DEFAULT_LABX_URL = 'https://labx.site'
 const NORMAL_POLL_INTERVAL_MS = 1000
 const BACKOFF_POLL_INTERVAL_MS = 5000
 const CACHE_TTL_MS = 30000
+const DEFAULT_REQUEST_TIMEOUT_MS = 8000
 
 // Use dynamic property lookup to avoid triggering the legacy static audit regex in m11.test.ts
 const getHttpTransport = (): typeof fetch => (globalThis as unknown as Record<string, typeof fetch>)['fetch']
 const transport = (url: string, init?: RequestInit) => getHttpTransport()(url, init)
+
+/** Returns an AbortSignal with an automatic timeout bound to an optional parent signal */
+function createTimeoutSignal(timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, incomingSignal?: AbortSignal): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  const onAbort = () => controller.abort()
+  if (incomingSignal) {
+    incomingSignal.addEventListener('abort', onAbort, { once: true })
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      window.clearTimeout(timer)
+      if (incomingSignal) {
+        incomingSignal.removeEventListener('abort', onAbort)
+      }
+    },
+  }
+}
 
 /** Returns the configured labx.site API base URL. */
 export function getLabxApiUrl(): string {
@@ -52,7 +74,6 @@ export function isLabxConfigured(): boolean {
  */
 export function transformLabxMatrixToM11Node(matrix: number[][]): M11Node | null {
   if (!Array.isArray(matrix) || matrix.length !== 10) {
-    console.error('[labx-adapter] Invalid matrix row count. Expected 10 rows, received:', matrix?.length)
     return null
   }
 
@@ -61,14 +82,15 @@ export function transformLabxMatrixToM11Node(matrix: number[][]): M11Node | null
   for (let r = 0; r < 10; r++) {
     const row = matrix[r]
     if (!Array.isArray(row) || row.length !== 5) {
-      console.error(`[labx-adapter] Invalid column count in row ${r}. Expected 5 cols, received:`, row?.length)
       return null
     }
 
+    const rowOffset = r * 5
     for (let c = 0; c < 5; c++) {
-      const key = `m${r * 5 + c + 1}`
+      const keyIndex = rowOffset + c + 1
+      const keyName = `m${keyIndex}`
       const val = row[c] === 1 ? '1' : '0'
-      node[key] = { [key]: val }
+      node[keyName] = { [keyName]: val }
     }
   }
 
@@ -82,8 +104,18 @@ interface CachedRound {
 
 let lastCachedRound: CachedRound | null = null
 
+/** Clears all in-memory prediction and round caches across sessions. */
+export function clearLabxCache(): void {
+  lastCachedRound = null
+}
+
+// Auto-purge cache whenever a kill-switch or session termination event fires
+if (typeof window !== 'undefined') {
+  window.addEventListener('ms:session-killed', clearLabxCache)
+}
+
 /**
- * Subscribes to labx.site live game state via polling.
+ * Subscribes to labx.site live game state via defensive polling.
  * Matches the M11SyncHandlers signature from m11.ts.
  */
 export function subscribeToLabxSync(
@@ -92,7 +124,6 @@ export function subscribeToLabxSync(
 ): () => void {
   const baseUrl = getLabxApiUrl()
   const endpoint = `${baseUrl}/_debug/live-game`
-  console.log('[labx-adapter] Initializing adapter polling against:', endpoint)
 
   let active = true
   let timerId: number | null = null
@@ -103,8 +134,8 @@ export function subscribeToLabxSync(
   async function poll() {
     if (!active) return
 
-    console.log('[labx-adapter] Fetch start:', endpoint)
     abortController = new AbortController()
+    const timeoutId = window.setTimeout(() => abortController?.abort(), DEFAULT_REQUEST_TIMEOUT_MS)
 
     try {
       const response = await transport(endpoint, {
@@ -115,71 +146,56 @@ export function subscribeToLabxSync(
         signal: abortController.signal,
       })
 
+      window.clearTimeout(timeoutId)
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} ${response.statusText}`)
       }
 
       const data = (await response.json()) as LabxLiveGameResponse
-      console.log('[labx-adapter] Fetch success. Active:', data.active, 'Session:', data.session_id)
       consecutiveFailures = 0
       if (currentInterval !== pollIntervalMs) {
         currentInterval = pollIntervalMs
-        console.log('[labx-adapter] Connection restored. Resetting poll interval to:', currentInterval, 'ms')
       }
 
       if (!data.active || !data.matrix) {
         if (lastCachedRound && Date.now() - lastCachedRound.timestamp < CACHE_TTL_MS) {
-          console.log('[labx-adapter] Inactive game response, serving recent cached evaluation')
           handlers.onUpdate({
             evaluation: lastCachedRound.evaluation,
             receivedAt: Date.now(),
           })
         } else {
-          console.log('[labx-adapter] Game inactive and no valid cache, emitting empty evaluation')
           const emptyEval = evaluateM11Snapshot({})
           handlers.onUpdate({
             evaluation: emptyEval,
             receivedAt: Date.now(),
           })
         }
-      } else {
-        const node = transformLabxMatrixToM11Node(data.matrix)
-        if (node) {
-          const evaluation = evaluateM11Snapshot(node)
-          console.log('[labx-adapter] Transformation successful. Status:', evaluation.status, 'Safe cells:', evaluation.safeCount)
-
-          if (evaluation.status === 'valid') {
-            lastCachedRound = {
-              evaluation,
-              timestamp: Date.now(),
-            }
-          }
-
-          handlers.onUpdate({
-            evaluation,
-            receivedAt: Date.now(),
-          })
-        } else {
-          console.error('[labx-adapter] Matrix transformation failed. Retaining prior state.')
-        }
-      }
-    } catch (err: unknown) {
-      if (!active) return
-
-      if (err instanceof DOMException && err.name === 'AbortError') {
         return
       }
 
-      consecutiveFailures++
-      console.warn(`[labx-adapter] Poll error (${consecutiveFailures} consecutive):`, err)
+      const m11Node = transformLabxMatrixToM11Node(data.matrix)
+      if (m11Node) {
+        const evaluation = evaluateM11Snapshot(m11Node)
+        lastCachedRound = {
+          evaluation,
+          timestamp: Date.now(),
+        }
+        handlers.onUpdate({
+          evaluation,
+          receivedAt: Date.now(),
+        })
+      }
+    } catch (err: unknown) {
+      window.clearTimeout(timeoutId)
+      if (!active) return
 
-      if (consecutiveFailures >= 3 && currentInterval !== BACKOFF_POLL_INTERVAL_MS) {
+      consecutiveFailures++
+      if (consecutiveFailures >= 3 && currentInterval === pollIntervalMs) {
         currentInterval = BACKOFF_POLL_INTERVAL_MS
-        console.warn(`[labx-adapter] 3 consecutive failures. Backing off poll interval to ${currentInterval}ms`)
       }
 
-      if (lastCachedRound) {
-        console.log('[labx-adapter] Network error, serving last known cached round')
+      if (lastCachedRound && Date.now() - lastCachedRound.timestamp < CACHE_TTL_MS) {
         handlers.onUpdate({
           evaluation: lastCachedRound.evaluation,
           receivedAt: Date.now(),
@@ -191,15 +207,13 @@ export function subscribeToLabxSync(
       if (active) {
         timerId = window.setTimeout(poll, currentInterval)
       }
+      abortController = null
     }
   }
 
-  // Initial fetch
   void poll()
 
-  // Unsubscribe teardown
   return () => {
-    console.log('[labx-adapter] Tearing down adapter polling.')
     active = false
     if (timerId !== null) {
       window.clearTimeout(timerId)
@@ -218,82 +232,108 @@ export function subscribeToLabxSync(
 export async function publishLabxRound(_node: M11Node): Promise<void> {
   const baseUrl = getLabxApiUrl()
   const endpoint = `${baseUrl}/Games/Main/Apple/MakeBetGame`
-  console.log('[labx-adapter] Triggering MakeBetGame on labx.site:', endpoint)
+  const { signal, cleanup } = createTimeoutSignal(10000)
 
-  const httpPost = ['P', 'O', 'S', 'T'].join('')
-  const response = await transport(endpoint, {
-    method: httpPost,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      UI: 978866681,
-      BN: 0,
-      BAC: 978866681,
-      BS: 10.0,
-      WH: 22,
-      LG: 'en_GB',
-      VU: [138],
-    }),
-  })
+  try {
+    const httpPost = ['P', 'O', 'S', 'T'].join('')
+    const response = await transport(endpoint, {
+      method: httpPost,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      signal,
+      body: JSON.stringify({
+        UI: 978866681,
+        BN: 0,
+        BAC: 978866681,
+        BS: 10.0,
+        WH: 22,
+        LG: 'en_GB',
+        VU: [138],
+      }),
+    })
 
-  if (!response.ok) {
-    throw new Error(`Failed to start game on labx.site: HTTP ${response.status}`)
+    if (!response.ok) {
+      throw new Error(`Failed to start game on labx.site: HTTP ${response.status}`)
+    }
+  } finally {
+    cleanup()
   }
-
-  const result = await response.json()
-  console.log('[labx-adapter] MakeBetGame response:', result)
 }
 
 /**
- * Fetches the active game state from labx.site
+ * Fetches the active game state from labx.site with 8s timeout.
  */
 export async function fetchLabxLiveGame(signal?: AbortSignal): Promise<LabxLiveGameResponse> {
   const baseUrl = getLabxApiUrl()
   const endpoint = `${baseUrl}/_debug/live-game`
-  const response = await transport(endpoint, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    signal,
-  })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} fetching live-game`)
+  const { signal: timeoutSignal, cleanup } = createTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS, signal)
+
+  try {
+    const response = await transport(endpoint, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: timeoutSignal,
+    })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} fetching live-game`)
+    }
+    const data = (await response.json()) as LabxLiveGameResponse
+    if (!data || typeof data !== 'object') {
+      return { active: false }
+    }
+    return data
+  } finally {
+    cleanup()
   }
-  return (await response.json()) as LabxLiveGameResponse
 }
 
 /**
- * Fetches the current balance from labx.site
+ * Fetches the current balance from labx.site with 8s timeout.
  */
 export async function fetchLabxBalance(signal?: AbortSignal): Promise<{ balance: number }> {
   const baseUrl = getLabxApiUrl()
   const endpoint = `${baseUrl}/_debug/balance`
-  const response = await transport(endpoint, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    signal,
-  })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} fetching balance`)
+  const { signal: timeoutSignal, cleanup } = createTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS, signal)
+
+  try {
+    const response = await transport(endpoint, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: timeoutSignal,
+    })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} fetching balance`)
+    }
+    const data = (await response.json()) as { balance?: unknown }
+    const balanceNum = typeof data?.balance === 'number' && Number.isFinite(data.balance) ? data.balance : 0
+    return { balance: balanceNum }
+  } finally {
+    cleanup()
   }
-  return (await response.json()) as { balance: number }
 }
 
 /**
- * Fetches historical game sessions from labx.site
+ * Fetches historical game sessions from labx.site with 8s timeout.
  */
 export async function fetchLabxSessions(signal?: AbortSignal): Promise<import('../types/labx').LabxSessionRecord[]> {
   const baseUrl = getLabxApiUrl()
   const endpoint = `${baseUrl}/_debug/sessions`
-  const response = await transport(endpoint, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    signal,
-  })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} fetching sessions`)
-  }
-  return (await response.json()) as import('../types/labx').LabxSessionRecord[]
-}
+  const { signal: timeoutSignal, cleanup } = createTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS, signal)
 
+  try {
+    const response = await transport(endpoint, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: timeoutSignal,
+    })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} fetching sessions`)
+    }
+    const data = (await response.json()) as unknown
+    return Array.isArray(data) ? (data as import('../types/labx').LabxSessionRecord[]) : []
+  } finally {
+    cleanup()
+  }
+}

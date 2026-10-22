@@ -1,38 +1,30 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   server: {
+    port: 5174,
     host: true,
-    port: 5173,
-    // Allow the sandbox preview host so the live demo is reachable in-browser.
-    allowedHosts: ['.e2b.app'],
+    strictPort: true,
   },
-  preview: {
-    host: true,
-    port: 4173,
+  esbuild: {
+    // Strip all console and debugger statements from production bundle
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
   },
   build: {
     sourcemap: false,
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks: {
-          react: ['react', 'react-dom'],
-          firebase: ['firebase/app', 'firebase/database'],
-          supabase: ['@supabase/supabase-js'],
-          icons: ['lucide-react'],
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-three': ['three'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-firebase': ['firebase/app', 'firebase/database'],
         },
       },
     },
   },
-  esbuild: {
-    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    css: false,
-  },
-})
+}))

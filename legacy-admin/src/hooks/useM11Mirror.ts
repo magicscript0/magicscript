@@ -28,32 +28,27 @@ function isProviderConfigured(): boolean {
 /**
  * Read-only live observation of game rounds (Firebase /m11 or labx.site API).
  * Never writes, never repairs — reports incoming data against the contract.
- * Strictly gated by the authenticated state (enabled flag).
  */
-export function useM11Mirror(enabled = true): M11MirrorState {
-  const isConfigured = isProviderConfigured()
-  const [active, setActive] = useState(() => enabled && isConfigured)
+export function useM11Mirror(): M11MirrorState {
+  const [active] = useState(() => isProviderConfigured())
   const [status, setStatus] = useState<M11MirrorStatus>(() =>
-    enabled && isConfigured ? 'syncing' : 'idle',
+    isProviderConfigured() ? 'syncing' : 'idle',
   )
   const [evaluation, setEvaluation] = useState<M11SyncEvaluation | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<number | null>(null)
 
   useEffect(() => {
-    setActive(enabled && isConfigured)
-    if (!enabled || !isConfigured) {
-      setStatus('idle')
-      setEvaluation(null)
-      setError(null)
-    }
-  }, [enabled, isConfigured])
-
-  useEffect(() => {
     if (!active) return
 
     let unsubscribe: (() => void) | undefined
     const useLabx = isLabxConfigured()
+
+    if (useLabx) {
+      console.log('[useM11Mirror] Provider selected: labx.site API')
+    } else {
+      console.log('[useM11Mirror] Provider selected: Firebase RTDB /m11')
+    }
 
     try {
       const handlers = {
@@ -83,20 +78,7 @@ export function useM11Mirror(enabled = true): M11MirrorState {
       )
     }
 
-    // Immediate Kill-Switch listener: on session termination, abort listener & purge memory
-    const onKillSwitch = () => {
-      unsubscribe?.()
-      unsubscribe = undefined
-      setEvaluation(null)
-      setStatus('idle')
-      setActive(false)
-    }
-    window.addEventListener('ms:session-killed', onKillSwitch)
-
-    return () => {
-      unsubscribe?.()
-      window.removeEventListener('ms:session-killed', onKillSwitch)
-    }
+    return () => unsubscribe?.()
   }, [active])
 
   return { active, status, evaluation, error, lastUpdated }

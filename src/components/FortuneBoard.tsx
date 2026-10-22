@@ -1,73 +1,57 @@
-import { memo, type CSSProperties } from 'react'
-import { Apple, Bomb } from 'lucide-react'
+import React, { memo } from 'react'
+import { Apple, Bomb, Lock } from 'lucide-react'
 import { GRID_ROWS, ROWS, formatMultiplier } from '../config/game'
 import type { M11Value, RoundPhase, RowView } from '../types/game'
 
 type CellState = 'empty' | 'hidden' | 'safe' | 'bomb'
 
-const CELL_MODIFIERS: Record<CellState, string> = {
-  empty: 'fortune-cell--empty',
-  hidden: 'fortune-cell--hidden',
-  safe: 'fortune-cell--safe',
-  bomb: 'fortune-cell--bomb',
-}
-
-const STATE_LABELS: Record<CellState, string> = {
-  empty: 'empty',
-  hidden: 'hidden',
-  safe: 'safe',
-  bomb: 'bomb',
-}
-
 const VALUE_TO_VISUAL: Readonly<Record<M11Value, 'safe' | 'bomb'>> = {
-  '1': 'safe', // Firebase WIN / SAFE apple
-  '0': 'bomb', // Firebase LOSE / BROKEN apple
+  '1': 'safe', // SAFE apple
+  '0': 'bomb', // BROKEN apple / bomb
 }
 
-/**
- * Visual mapping for the public prediction board.
- *
- * Values arrive exactly as stored in Firebase /m11 (m1…m50) and keep the
- * existing contract semantics unchanged. This function only assigns the
- * logical result state:
- *
- *   stored "1" → SAFE state
- *   stored "0" → BROKEN state
- *
- * The rendered apple assets are swapped inside FortuneCell so the public
- * experience shows the SAFE/GOOD apple visual for safe data and the
- * BROKEN/BOMB-looking apple visual for broken data. This is visual-only;
- * no stored value or Firebase contract is changed.
- */
 export function boardVisualForValue(value: M11Value): 'safe' | 'bomb' {
   return VALUE_TO_VISUAL[value]
 }
 
-/**
- * One board position.
- *
- * The accessible contract is untouched: the cell itself is the labelled
- * `img` node and everything inside it is decorative. The inner spans exist
- * only so lighting can be layered — a recessed well, the glyph on its own
- * contact shadow, and a state rim that flashes once as the row is revealed.
- */
-const FortuneCell = memo(function FortuneCell({ state, label, animate, armed = false }: { state: CellState; label: string | null; animate: boolean; armed?: boolean }) {
-  const animation = animate && (state === 'safe' || state === 'bomb') ? 'animate-pop-in' : ''
+const FortuneCell = memo(function FortuneCell({
+  state,
+  label,
+  armed = false,
+}: {
+  state: CellState
+  label: string | null
+  armed?: boolean
+}) {
   return (
     <div
       role={label === null ? undefined : 'img'}
-      aria-label={label === null ? undefined : `${label} — ${STATE_LABELS[state]}`}
-      aria-hidden={label === null ? true : undefined}
-      className={`fortune-cell ${CELL_MODIFIERS[state]} ${animation}${armed ? ' fortune-cell--armed' : ''}`}
+      aria-label={label === null ? undefined : label}
+      className={`relative flex items-center justify-center rounded-xl transition-all duration-300 h-11 sm:h-12 border ${
+        state === 'safe'
+          ? 'bg-emerald-500/25 border-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.5)] scale-[1.02]'
+          : state === 'bomb'
+          ? 'bg-rose-500/25 border-rose-400 shadow-[0_0_18px_rgba(244,63,94,0.45)]'
+          : armed
+          ? 'bg-cyan-500/15 border-cyan-400/80 shadow-[0_0_12px_rgba(0,242,254,0.3)] animate-pulse'
+          : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
+      }`}
     >
-      <span className="fortune-cell__well" aria-hidden="true" />
-      <span className="fortune-cell__glyph" aria-hidden="true">
-        {state === 'safe' ? (
-          <Bomb className="h-full w-full" strokeWidth={2.2} />
-        ) : (
-          <Apple className={`h-full w-full${state === 'hidden' || state === 'empty' ? ' is-dim' : ''}`} strokeWidth={2.2} />
-        )}
-      </span>
+      {state === 'safe' ? (
+        <div className="flex items-center justify-center text-emerald-300">
+          <Apple className="h-6 w-6 filter drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-bounce" />
+        </div>
+      ) : state === 'bomb' ? (
+        <div className="flex items-center justify-center text-rose-400">
+          <Bomb className="h-6 w-6 filter drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
+        </div>
+      ) : state === 'hidden' ? (
+        <div className="flex items-center justify-center text-slate-600">
+          <Lock className="h-4 w-4 opacity-40" />
+        </div>
+      ) : (
+        <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
+      )}
     </div>
   )
 })
@@ -78,46 +62,61 @@ export interface FortuneBoardProps {
   revealedRows: number
 }
 
-/**
- * The Apple of Fortune prediction board — the hero component of the product.
- *
- * Renders the exact same m1…m50 → row/column mapping as the admin console
- * (same RowView model, same key order, same reveal order), but composes it
- * like a console instrument: a multiplier rail that fills as rows are
- * revealed, a ladder of recessed tile surfaces, and a left-to-right cascade
- * inside each row. Cell size is derived from the stage it is given, so all
- * ten rows stay on screen without scrolling (see the .fortune-* rules in
- * index.css).
- */
 export function FortuneBoard({ rows, phase, revealedRows }: FortuneBoardProps) {
   const hasRound = rows !== null
   const displayRows = [...(rows ?? placeholderRows())].reverse()
   const activeRow = phase === 'revealing' ? revealedRows : -1
-  const revealed = hasRound ? Math.min(GRID_ROWS, Math.max(0, revealedRows)) : 0
-  const railStyle = { '--pg-rail': `${(revealed / GRID_ROWS) * 100}%` } as CSSProperties
 
   return (
-    <section aria-label="Prediction board" className="fortune-board" style={railStyle}>
+    <div className="w-full flex flex-col gap-2 p-3 sm:p-5 rounded-3xl glass-panel-elevated border border-cyan-500/30 shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
       {displayRows.map((row) => {
         const isRevealed = hasRound && row.row <= revealedRows
         const armed = row.row === activeRow
+
         return (
-          <div key={row.row} className="contents">
-            <div className={`fortune-chip${isRevealed ? ' fortune-chip--revealed' : ''}${armed ? ' fortune-chip--active' : ''}`}>
+          <div
+            key={row.row}
+            className={`flex items-center gap-2.5 p-1 rounded-2xl transition-all ${
+              armed
+                ? 'bg-cyan-500/10 border border-cyan-500/30 shadow-[0_0_15px_rgba(0,242,254,0.2)]'
+                : ''
+            }`}
+          >
+            {/* Multiplier Chip */}
+            <div
+              className={`w-16 sm:w-20 py-2.5 px-2 rounded-xl text-center font-mono-tech text-xs font-bold transition-all ${
+                isRevealed
+                  ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-400/80 shadow-[0_0_12px_rgba(0,242,254,0.3)]'
+                  : armed
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 animate-pulse'
+                  : 'bg-slate-900/60 text-slate-500 border border-slate-800'
+              }`}
+            >
               {formatMultiplier(row.multiplier)}
             </div>
-            {row.cells.map((cell) => {
-              const state: CellState = !hasRound ? 'empty' : isRevealed ? boardVisualForValue(cell.value) : 'hidden'
-              return <FortuneCell key={cell.key} state={state} label={hasRound ? `Position ${cell.key}` : null} animate={phase === 'revealing' || phase === 'revealed'} armed={armed} />
-            })}
+
+            {/* 5 Column Tiles */}
+            <div className="grid grid-cols-5 gap-2 flex-1">
+              {row.cells.map((cell) => {
+                const state: CellState = !hasRound
+                  ? 'empty'
+                  : isRevealed
+                  ? boardVisualForValue(cell.value)
+                  : 'hidden'
+                return (
+                  <FortuneCell
+                    key={cell.key}
+                    state={state}
+                    label={hasRound ? `Position ${cell.key}` : null}
+                    armed={armed}
+                  />
+                )
+              })}
+            </div>
           </div>
         )
       })}
-      <span className="fortune-rail" aria-hidden="true" />
-      {/* Mirrors the axis on the right at desktop widths so the ladder reads as
-          an instrument, not a left-aligned table. Decorative only. */}
-      <span className="fortune-axis" aria-hidden="true" />
-    </section>
+    </div>
   )
 }
 
@@ -125,6 +124,9 @@ function placeholderRows(): RowView[] {
   return ROWS.map((spec) => ({
     row: spec.row,
     multiplier: spec.multiplier,
-    cells: Array.from({ length: 5 }, (_, index) => ({ key: spec.keys[index], value: '0' as const })),
+    cells: Array.from({ length: 5 }, (_, index) => ({
+      key: spec.keys[index],
+      value: '0' as const,
+    })),
   })).slice(0, GRID_ROWS)
 }

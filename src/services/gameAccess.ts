@@ -155,14 +155,17 @@ export function classifyGameAccessError(error: unknown): GameAccessError {
     return new GameAccessError('network', 'The access check could not be completed. Check your connection and try again.')
   }
   const message = postgrestMessage(error)
+  if (message.includes('RATE_LIMIT_EXCEEDED')) {
+    return new GameAccessError('unavailable', 'ACCESS COOLDOWN — Too many failed attempts. Security lock active for 5 minutes.')
+  }
   if (message.includes('INVALID_ACCOUNT_ID')) {
     return new GameAccessError('invalid_account', 'Enter a valid Account ID (9–11 digits).')
   }
   if (message.includes('INVALID_ACCESS_CODE') || message.includes('INVALID_CODE_HASH')) {
-    return new GameAccessError('invalid_code', 'This Access Code is not valid.')
+    return new GameAccessError('invalid_code', 'ACCESS DENIED — Invalid or Unauthorized Access Key. Please verify your credentials.')
   }
   if (message.includes('ACCESS_CODE_UNAVAILABLE')) {
-    return new GameAccessError('unavailable', 'This Access Code is no longer active. Ask for a fresh code.')
+    return new GameAccessError('unavailable', 'ACCESS DENIED — Invalid or Unauthorized Access Key. Please verify your credentials.')
   }
   if (message.toLowerCase().includes('fetch')) {
     return new GameAccessError('network', 'The access check could not be completed. Check your connection and try again.')
@@ -210,7 +213,7 @@ export async function redeemGameAccess(accountId: string, plainCode: string): Pr
     if (error) throw classifyGameAccessError(error)
     const row = data?.[0]
     if (!row || typeof row.token !== 'string' || row.token.length === 0) {
-      throw new GameAccessError('unavailable', 'This Access Code is unavailable or rate limited. Please try again later.')
+      throw new GameAccessError('unavailable', 'ACCESS DENIED — Access Code is unavailable or rate limited. Please try again later.')
     }
     return { token: row.token, expiresAt: row.expires_at, serverNow: row.server_now, accountId: cleanAccountId }
   } catch (cause) {

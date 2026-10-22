@@ -1,12 +1,12 @@
 {
-  "name": "magic-script-admin-console",
+  "name": "magic-script-nexus-v2",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "MAGIC SCRIPT administrative command center with a Supabase control plane and Firebase /m11 bridge.",
+  "description": "Next-Gen 3D Holographic Quantum Terminal for MAGIC SCRIPT",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",

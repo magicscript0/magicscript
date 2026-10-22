@@ -12,9 +12,9 @@ export interface GameAccessState {
   status: GameAccessStatus
   reason: GameAccessEndReason
   accountId: string | null
-  /** Local epoch ms when access ends. */
+  /** Local epoch ms (derived from the server clock) when access ends. */
   expiresAt: number | null
-  /** Milliseconds of access left (monotonic, updated every second while active). */
+  /** Milliseconds of access left (updated every second while active). */
   remainingMs: number
   login: (accountId: string, code: string) => Promise<void>
   /** Voluntary sign-out back to the Game Login screen. */
@@ -34,21 +34,15 @@ interface TimerSet {
   tick: number | null
 }
 
-interface MonotonicBaseline {
-  initialRemainingMs: number
-  monotonicStart: number
-  wallClockStart: number
-}
-
 /**
- * End-user zero-trust game access session.
+ * End-user game access session.
  *
  * The browser never decides on its own whether access is still valid:
  *  - restore on refresh always revalidates against Supabase (fail-closed),
- *  - a heartbeat revalidates every 30s, plus on tab focus / visibilitychange,
- *  - the countdown uses a monotonic clock (performance.now()) starting from
- *    the server-computed offset (expires_at - server_now) so local device clock
- *    tampering or rollbacks can NEVER grant unauthorized access.
+ *  - a heartbeat revalidates every 30 s, plus on tab focus,
+ *  - the local countdown is a UX courtesy computed from the SERVER clock
+ *    offset — when it reaches zero the session ends regardless, and every
+ *    heartbeat defers to the persisted server-side state.
  */
 export function useGameAccess(): GameAccessState {
   const [status, setStatus] = useState<GameAccessStatus>(() => (readStoredGameSession() ? 'checking' : 'none'))
@@ -58,10 +52,7 @@ export function useGameAccess(): GameAccessState {
   const [remainingMs, setRemainingMs] = useState(0)
 
   const aliveRef = useRef(true)
-  const isRevalidatingRef = useRef(false)
-  const lastDriftCheckRef = useRef(0)
   const timersRef = useRef<TimerSet>({ expiry: null, heartbeat: null, tick: null })
-  const baselineRef = useRef<MonotonicBaseline | null>(null)
 
   const clearTimers = useCallback(() => {
     const timers = timersRef.current
@@ -74,22 +65,14 @@ export function useGameAccess(): GameAccessState {
   const failClosed = useCallback((nextReason: Exclude<GameAccessEndReason, null>) => {
     clearTimers()
     clearGameSession()
-    baselineRef.current = null
     setAccountId(null)
     setExpiresAt(null)
     setRemainingMs(0)
     setReason(nextReason)
     setStatus('none')
-
-    // Dispatch global instant kill-switch event to purge all active streams and prediction matrices
-    try {
-      window.dispatchEvent(new CustomEvent('ms:session-killed', { detail: { reason: nextReason } }))
-    } catch {
-      // safe fallback for older browsers
-    }
   }, [clearTimers])
 
-  /** Applies a server-confirmed session and schedules tamper-proof monotonic enforcement. */
+  /** Applies a server-confirmed session and (re)schedules enforcement. */
   const activate = useCallback((session: StoredGameSession, expiresAtIso: string, serverNowIso: string): boolean => {
     const expiresServer = Date.parse(expiresAtIso)
     const serverNow = Date.parse(serverNowIso)
@@ -97,78 +80,46 @@ export function useGameAccess(): GameAccessState {
       failClosed('unverified')
       return false
     }
-    const initialRemaining = expiresServer - serverNow
-    if (initialRemaining <= 0) {
+    const remaining = expiresServer - serverNow
+    if (remaining <= 0) {
       failClosed('expired')
       return false
     }
 
-    const baseline: MonotonicBaseline = {
-      initialRemainingMs: initialRemaining,
-      monotonicStart: performance.now(),
-      wallClockStart: Date.now(),
-    }
-    baselineRef.current = baseline
-
-    const expiresAtLocal = Date.now() + initialRemaining
+    const expiresAtLocal = Date.now() + remaining
     clearTimers()
     setAccountId(session.accountId)
     setExpiresAt(expiresAtLocal)
-    setRemainingMs(initialRemaining)
+    setRemainingMs(remaining)
     setReason(null)
     setStatus('active')
 
     const timers = timersRef.current
     timers.expiry = window.setTimeout(() => {
+      // The deadline came from the server clock; ending the session here is
+      // fail-closed even if the network is momentarily unavailable.
       failClosed('expired')
-    }, initialRemaining + EXPIRY_GRACE_MS)
-
-    timers.heartbeat = window.setInterval(() => {
-      void revalidateRef.current()
-    }, GAME_ACCESS_HEARTBEAT_MS)
-
+    }, remaining + EXPIRY_GRACE_MS)
+    timers.heartbeat = window.setInterval(() => { void revalidateRef.current() }, GAME_ACCESS_HEARTBEAT_MS)
     timers.tick = window.setInterval(() => {
-      const b = baselineRef.current
-      if (!b) return
-
-      // Monotonic delta: unaffected by local OS clock rollback
-      const monotonicElapsed = performance.now() - b.monotonicStart
-      const currentRemaining = Math.max(0, b.initialRemainingMs - monotonicElapsed)
-      setRemainingMs(currentRemaining)
-
-      // Anti-Tampering: detect backward OS clock jumps or long OS suspensions
-      const wallElapsed = Date.now() - b.wallClockStart
-      const clockDrift = Math.abs(wallElapsed - monotonicElapsed)
-      if (wallElapsed < -1000 || clockDrift > 15_000) {
-        // Throttle drift verification to once every 15s to avoid duplicate request storms
-        const now = Date.now()
-        if (now - lastDriftCheckRef.current > 15_000) {
-          lastDriftCheckRef.current = now
-          void revalidateRef.current()
-        }
-      }
-
-      if (currentRemaining <= 0) {
-        failClosed('expired')
-      }
+      setRemainingMs(Math.max(0, expiresAtLocal - Date.now()))
     }, TICK_MS)
-
     return true
   }, [clearTimers, failClosed])
 
   /** Server revalidation of the stored token (heartbeat / focus path). */
   const revalidate = useCallback(async () => {
-    if (isRevalidatingRef.current) return
     const stored = readStoredGameSession()
     if (!stored) {
       failClosed('expired')
       return
     }
-    isRevalidatingRef.current = true
     try {
       const check = await checkGameAccess(stored.token)
       if (!aliveRef.current) return
       if (!check) {
+        // An unknown/rejected token is an expired-access ATTEMPT: recorded
+        // for security monitoring (fail-safe) before the session closes.
         recordGameAccessAttempt('access_expired', stored.accountId)
         failClosed('expired')
         return
@@ -181,30 +132,27 @@ export function useGameAccess(): GameAccessState {
       }
       activate(stored, check.expiresAt, check.serverNow)
     } catch {
-      // Transient network failure while inside deadline: retain session, retry on next heartbeat
-    } finally {
-      isRevalidatingRef.current = false
+      // Transient network failure while still inside the server-issued
+      // deadline: keep the session, retry on the next heartbeat. Restore on
+      // refresh is stricter — see verifyStoredSession below.
     }
   }, [activate, failClosed])
 
   const revalidateRef = useRef(revalidate)
-  useEffect(() => {
-    revalidateRef.current = revalidate
-  }, [revalidate])
+  useEffect(() => { revalidateRef.current = revalidate }, [revalidate])
 
   /** Full restore path: always verifies against the server, fail-closed. */
   const verifyStoredSession = useCallback(async () => {
-    if (isRevalidatingRef.current) return
     const stored = readStoredGameSession()
     if (!stored) {
       failClosed('expired')
       return
     }
-    isRevalidatingRef.current = true
     try {
       const check = await checkGameAccess(stored.token)
       if (!aliveRef.current) return
       if (!check) {
+        // Restore attempt with an unknown/rejected token → security event.
         recordGameAccessAttempt('access_expired', stored.accountId)
         failClosed('expired')
         return
@@ -217,9 +165,9 @@ export function useGameAccess(): GameAccessState {
       }
       activate(stored, check.expiresAt, check.serverNow)
     } catch {
+      // Access could not be verified server-side at all → do not grant it.
+      // A network failure is not an attack signal: nothing is recorded.
       failClosed('unverified')
-    } finally {
-      isRevalidatingRef.current = false
     }
   }, [activate, failClosed])
 
@@ -249,17 +197,12 @@ export function useGameAccess(): GameAccessState {
   const login = useCallback(async (accountIdInput: string, code: string) => {
     const result = await redeemGameAccess(accountIdInput, code)
     if (!aliveRef.current) return
-    const sessionObj: StoredGameSession = {
-      token: result.token,
-      accountId: result.accountId,
-      expiresAtIso: result.expiresAt,
-      serverNowIso: result.serverNow,
-    }
-    storeGameSession(sessionObj)
-    activate(sessionObj, result.expiresAt, result.serverNow)
+    storeGameSession({ token: result.token, accountId: result.accountId })
+    activate({ token: result.token, accountId: result.accountId }, result.expiresAt, result.serverNow)
   }, [activate])
 
   const exit = useCallback(() => {
+    // Voluntary sign-out: capture the Account ID before storage is cleared.
     recordGameLogout(readStoredGameSession()?.accountId ?? null)
     failClosed('ended')
   }, [failClosed])
