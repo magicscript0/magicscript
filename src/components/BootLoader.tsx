@@ -25,7 +25,6 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
   const firebaseStatusRef = useRef<HTMLSpanElement>(null)
 
   // Single-execution lifecycle guard (Strict-Mode safe)
-  const hasStartedRef = useRef(false)
   const isCompleteRef = useRef(false)
   const onCompleteRef = useRef(onComplete)
   onCompleteRef.current = onComplete
@@ -54,28 +53,28 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
     return { gpu, cores: `${cores} CORES`, memory, resolution }
   }, [])
 
-  // Realistic Boot Sequence with Decoupled RAF loop
+  // Realistic Boot Sequence with Decoupled RAF loop & Strict-Mode safety
   useEffect(() => {
-    if (hasStartedRef.current) return
-    hasStartedRef.current = true
+    let isCancelled = false
+    const timers: number[] = []
+    let rafId: number | null = null
 
     const stages = [
-      { p: 18, msg: 'KERNEL_INIT: Mounting WebGL 2.0 graphics pipeline...', delay: 240 },
-      { p: 36, msg: 'HARDWARE_PROBE: Handshaking host GPU & memory allocations...', delay: 360 },
-      { p: 58, msg: 'SUPABASE_RPC: Establishing secure TLS tunnel (AES-GCM-256)...', delay: 420 },
-      { p: 78, msg: 'FIREBASE_BRIDGE: Syncing /m11 realtime prediction telemetry...', delay: 380 },
-      { p: 92, msg: 'SPATIAL_CALIB: Calibrating 3D perspective & 60 FPS matrix...', delay: 320 },
-      { p: 100, msg: 'SYSTEM_VERIFIED: All security channels armed & ready.', delay: 280 },
+      { p: 18, msg: 'KERNEL_INIT: Mounting WebGL 2.0 graphics pipeline...', delay: 180 },
+      { p: 38, msg: 'HARDWARE_PROBE: Handshaking host GPU & memory allocations...', delay: 240 },
+      { p: 62, msg: 'SUPABASE_RPC: Establishing secure TLS tunnel (AES-GCM-256)...', delay: 260 },
+      { p: 82, msg: 'FIREBASE_BRIDGE: Syncing /m11 realtime prediction telemetry...', delay: 240 },
+      { p: 94, msg: 'SPATIAL_CALIB: Calibrating 3D perspective & 60 FPS matrix...', delay: 200 },
+      { p: 100, msg: 'SYSTEM_VERIFIED: All security channels armed & ready.', delay: 160 },
     ]
 
     let currentStage = 0
     let currentP = 0
-    let rafId: number | null = null
-    const timers: number[] = []
 
     const circumference = 2 * Math.PI * 110 // r = 43% of 256px ≈ 110px
 
     const updateDOM = (pct: number) => {
+      if (isCancelled) return
       // 1. Center number percentage
       if (percentTextRef.current) {
         percentTextRef.current.textContent = `${pct}`
@@ -105,23 +104,26 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       }
     }
 
+    const finishBoot = () => {
+      if (isCancelled || isCompleteRef.current) return
+      isCompleteRef.current = true
+      onCompleteRef.current()
+    }
+
     const runStage = () => {
-      if (isCompleteRef.current) return
+      if (isCancelled || isCompleteRef.current) return
 
       if (currentStage >= stages.length) {
         updateDOM(100)
         setPhase('locking')
 
         const tLock = window.setTimeout(() => {
-          if (isCompleteRef.current) return
+          if (isCancelled || isCompleteRef.current) return
           setPhase('revealing')
 
-          const tDone = window.setTimeout(() => {
-            isCompleteRef.current = true
-            onCompleteRef.current()
-          }, 500)
+          const tDone = window.setTimeout(finishBoot, 300)
           timers.push(tDone)
-        }, 350)
+        }, 220)
         timers.push(tLock)
         return
       }
@@ -134,14 +136,15 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       const startP = currentP
       const targetP = stage.p
       const startTime = performance.now()
-      const duration = stage.delay
+      const duration = Math.max(1, stage.delay)
 
       const step = (now: number) => {
-        if (isCompleteRef.current) return
-        const elapsed = now - startTime
-        const factor = Math.min(1, elapsed / duration)
-        // Natural ease-out interpolation
-        const nextP = Math.round(startP + (targetP - startP) * (1 - Math.pow(1 - factor, 2.4)))
+        if (isCancelled || isCompleteRef.current) return
+        const elapsed = Math.max(0, (now || performance.now()) - startTime)
+        const factor = Math.min(1, Math.max(0, elapsed / duration))
+        // Safe ease-out curve without negative values or NaN
+        const ease = 1 - Math.pow(Math.max(0, 1 - factor), 2.2)
+        const nextP = Math.min(100, Math.max(0, Math.round(startP + (targetP - startP) * ease)))
         currentP = nextP
         updateDOM(nextP)
 
@@ -149,7 +152,7 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
           rafId = requestAnimationFrame(step)
         } else {
           currentStage++
-          const tNext = window.setTimeout(runStage, 60)
+          const tNext = window.setTimeout(runStage, 35)
           timers.push(tNext)
         }
       }
@@ -157,10 +160,15 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       rafId = requestAnimationFrame(step)
     }
 
-    const tInit = window.setTimeout(runStage, 100)
+    // Safety Watchdog: Guarantee boot unlocks within 2.4s under all circumstances
+    const watchdog = window.setTimeout(finishBoot, 2400)
+    timers.push(watchdog)
+
+    const tInit = window.setTimeout(runStage, 50)
     timers.push(tInit)
 
     return () => {
+      isCancelled = true
       if (rafId) cancelAnimationFrame(rafId)
       timers.forEach((t) => clearTimeout(t))
     }
