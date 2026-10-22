@@ -2,14 +2,16 @@
 -- MAGIC SCRIPT NEXUS: PRODUCTION BACKEND SECURITY HARDENING & RATE LIMITING
 -- Database: Supabase / PostgreSQL 15+
 -- Schema: public
--- Version: 2.1.0-Production
+-- Version: 2.2.0-Production
 --
 -- Security Pillars:
 -- 1. Zero-Trust Access Model: Anon role has ZERO table access (SELECT, INSERT, UPDATE, DELETE denied).
--- 2. Strictly Gated RPCs: Only verified SECURITY DEFINER functions exposed to 'anon'.
--- 3. Server-Side Progressive Brute-Force Rate Limiting (Account ID + Window Locking).
--- 4. Cryptographic Nonce & Token Hashing (Zero plaintext tokens/hashes in transit or storage).
--- 5. Anti-Clock-Skew & Tamper Protection: Expirations derived exclusively from database clock (now()).
+-- 2. Concurrency-Safe Atomic Advisory Locks per Account ID.
+-- 3. Failed-Attempt Accounting: Committed without rollback; zero trust in client-side reporting.
+-- 4. Lockout Preservation: Attempts during active lockout do not extend the lockout indefinitely.
+-- 5. Privileged Maintenance: Pruning restricted to administrators and service_role.
+-- 6. Column-Level Least Privilege: Secret code_hash is never exposed to authenticated or anon queries.
+-- 7. Full Schema Compatibility: Idempotent and independent of optional visitor telemetry schema.
 -- ==============================================================================
 
 create extension if not exists pgcrypto;
@@ -21,7 +23,7 @@ create table if not exists public.game_access_rate_limits (
   id uuid primary key default gen_random_uuid(),
   account_id text not null,
   success boolean not null default false,
-  attempt_time timestamptz not null default timezone('utc', now()),
+  attempt_time timestamptz not null default now(),
   ip_pseudo_hash text,
   constraint game_access_rate_limits_account_id check (account_id ~ '^[0-9]{9,11}$')
 );
@@ -33,12 +35,18 @@ alter table public.game_access_rate_limits enable row level security;
 
 -- Revoke all direct permissions on rate limit table from anon and public
 revoke all on table public.game_access_rate_limits from public, anon;
+revoke all on table public.game_access_rate_limits from authenticated;
 grant select on table public.game_access_rate_limits to authenticated;
 grant all on table public.game_access_rate_limits to service_role;
 
+drop policy if exists game_access_rate_limits_admin_select on public.game_access_rate_limits;
+create policy game_access_rate_limits_admin_select on public.game_access_rate_limits
+  for select to authenticated
+  using (public.has_admin_role('admin'));
+
 
 -- ------------------------------------------------------------------------------
--- 2. HARDENED REDEMPTION RPC WITH RATE LIMITING (SECURITY DEFINER)
+-- 2. HARDENED REDEMPTION RPC WITH ATOMIC ADVISORY LOCK & RATE LIMITING
 -- ------------------------------------------------------------------------------
 create or replace function public.redeem_game_access(
   p_code_hash text, 
@@ -59,6 +67,7 @@ declare
   v_recent_failures integer := 0;
   v_lockout_window interval := interval '5 minutes';
   v_max_failures integer := 5;
+  v_last_success timestamptz;
 begin
   -- A. Strict Input Sanitization & Validation
   if p_account_id is null or p_account_id !~ '^[0-9]{9,11}$' then
@@ -69,30 +78,30 @@ begin
     raise exception using errcode = '22023', message = 'INVALID_ACCESS_CODE';
   end if;
 
-  -- B. Rate Limit Enforcement: Max 5 failed attempts per Account in 5 minutes
+  -- B. Concurrency-Safe Atomic Coordination: Transaction-scoped advisory lock per account ID
+  perform pg_advisory_xact_lock(hashtext('game_access_account:' || p_account_id));
+
+  -- C. Rate Limit Enforcement: Failures since last successful redemption within 5-minute window
+  select coalesce(max(attempt_time), '1970-01-01'::timestamptz) into v_last_success
+  from public.game_access_rate_limits
+  where account_id = p_account_id
+    and success = true;
+
   select count(*) into v_recent_failures
-  from (
-    select attempt_time as ts
-    from public.game_access_rate_limits
-    where account_id = p_account_id
-      and success = false
-      and attempt_time > (now() - v_lockout_window)
-    union all
-    select created_at as ts
-    from public.security_events
-    where game_account_id = p_account_id
-      and event_type = 'game_login_failure'
-      and created_at > (now() - v_lockout_window)
-  ) recent_failures;
+  from public.game_access_rate_limits
+  where account_id = p_account_id
+    and success = false
+    and attempt_time > (now() - v_lockout_window)
+    and attempt_time > v_last_success;
 
   if v_recent_failures >= v_max_failures then
-    -- Do not insert another failure record during lockout to prevent indefinite lockout extensions (DoS)
+    -- Lockout active: Do not insert another failure record during lockout to prevent DoS window extension
     raise exception using 
       errcode = 'P0001', 
       message = 'RATE_LIMIT_EXCEEDED: Security threshold triggered. Too many failed attempts for this Account ID. Please wait 5 minutes before retrying.';
   end if;
 
-  -- C. Atomic Lock & Fetch Access Code
+  -- D. Atomic Lock & Fetch Access Code
   select * into v_code
   from public.game_access_codes
   where game_access_codes.code_hash = lower(p_code_hash)
@@ -101,18 +110,17 @@ begin
     and (game_access_codes.expires_at is null or game_access_codes.expires_at > now())
   for update;
 
-  -- D. Failure Handling with Audit Logging
+  -- E. Failed Attempt Persistence (Commit without aborting transaction)
   if not found then
-    -- Record failed attempt to trigger rate limit progression
     insert into public.game_access_rate_limits (account_id, success, attempt_time)
     values (p_account_id, false, now());
 
-    raise exception using 
-      errcode = '28000', 
-      message = 'ACCESS_CODE_UNAVAILABLE: Invalid, expired, or already revoked access key.';
+    -- Return 0 rows. The transaction commits, ensuring the failure row persists on disk!
+    -- Callers check (!row || !row.token) and map to GameAccessError('unavailable').
+    return;
   end if;
 
-  -- E. Success Path: Increment usage and record activation
+  -- F. Success Path: Increment usage and record activation
   update public.game_access_codes
   set uses_count = uses_count + 1,
       account_id = p_account_id,
@@ -131,7 +139,7 @@ begin
     now() + make_interval(mins => v_code.duration_minutes)
   );
 
-  -- Record successful attempt to reset threshold context
+  -- Record successful attempt to reset threshold context for subsequent attempts
   insert into public.game_access_rate_limits (account_id, success, attempt_time)
   values (p_account_id, true, now());
 
@@ -177,62 +185,9 @@ $$;
 
 
 -- ------------------------------------------------------------------------------
--- 4. PERMISSIONS & ZERO-TRUST LEAST PRIVILEGE GRANTS
+-- 4. PRIVILEGED MAINTENANCE PRUNING (SECURITY DEFINER)
 -- ------------------------------------------------------------------------------
--- Ensure public/anon cannot execute administrative or schema routines
-revoke all on function public.create_game_access_code(text, integer, uuid) from public, anon;
-revoke all on function public.redeem_game_access(text, text) from public;
-revoke all on function public.check_game_access(text) from public;
-
--- Grant execution ONLY to necessary entry points
-grant execute on function public.create_game_access_code(text, integer, uuid) to authenticated;
-grant execute on function public.redeem_game_access(text, text) to anon, authenticated;
-grant execute on function public.check_game_access(text) to anon, authenticated;
-
--- Explicitly revoke all direct CRUD privileges on core game tables from anon and public
-revoke all on table public.game_access_codes from public, anon;
-revoke all on table public.game_access_sessions from public, anon;
-revoke all on table public.visitor_sessions from public, anon;
-revoke all on table public.security_events from public, anon;
-
--- Re-assert Row Level Security on all critical tables
-alter table public.game_access_codes enable row level security;
-alter table public.game_access_sessions enable row level security;
-alter table public.visitor_sessions enable row level security;
-alter table public.security_events enable row level security;
-
--- Admin RLS Policies for authenticated administrators
-drop policy if exists game_access_codes_admin_select on public.game_access_codes;
-create policy game_access_codes_admin_select on public.game_access_codes
-  for select to authenticated
-  using (public.has_admin_role('admin'));
-
-drop policy if exists game_access_codes_admin_update on public.game_access_codes;
-create policy game_access_codes_admin_update on public.game_access_codes
-  for update to authenticated
-  using (public.has_admin_role('admin'))
-  with check (public.has_admin_role('admin'));
-
-drop policy if exists game_access_sessions_admin_select on public.game_access_sessions;
-create policy game_access_sessions_admin_select on public.game_access_sessions
-  for select to authenticated
-  using (public.has_admin_role('admin'));
-
-drop policy if exists visitor_sessions_admin_select on public.visitor_sessions;
-create policy visitor_sessions_admin_select on public.visitor_sessions
-  for select to authenticated
-  using (public.has_admin_role('admin'));
-
-drop policy if exists security_events_admin_select on public.security_events;
-create policy security_events_admin_select on public.security_events
-  for select to authenticated
-  using (public.has_admin_role('admin'));
-
-
--- ------------------------------------------------------------------------------
--- 5. AUTOMATED MAINTENANCE: PRUNE RATE LIMIT RECORDS OLDER THAN 24 HOURS
--- ------------------------------------------------------------------------------
-create or replace function public.prune_game_rate_limits()
+create or replace function public.prune_game_rate_limits(p_older_than interval default interval '24 hours')
 returns integer
 language plpgsql
 security definer
@@ -241,12 +196,116 @@ as $$
 declare
   v_deleted integer;
 begin
+  -- Only authenticated administrators or service_role can execute maintenance pruning
+  if not public.has_admin_role('admin') and current_user != 'service_role' then
+    raise exception using errcode = '42501', message = 'Only administrators or service role can prune rate limit records.';
+  end if;
+
+  if p_older_than < interval '1 hour' or p_older_than > interval '365 days' then
+    raise exception using errcode = '22023', message = 'INVALID_RETENTION_WINDOW';
+  end if;
+
   delete from public.game_access_rate_limits
-  where attempt_time < (now() - interval '24 hours');
+  where attempt_time < (now() - p_older_than);
   get diagnostics v_deleted = row_count;
   return v_deleted;
 end;
 $$;
 
-revoke all on function public.prune_game_rate_limits() from public, anon;
-grant execute on function public.prune_game_rate_limits() to authenticated, service_role;
+revoke all on function public.prune_game_rate_limits(interval) from public, anon;
+grant execute on function public.prune_game_rate_limits(interval) to authenticated, service_role;
+
+-- Seamless integration into existing security monitoring cleanup workflow
+create or replace function public.prune_security_monitoring(p_retention_days integer default 90)
+returns table (events_deleted bigint, visitors_deleted bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_events bigint := 0;
+  v_visitors bigint := 0;
+  v_cutoff timestamptz;
+begin
+  if not public.has_admin_role('admin') and current_user != 'service_role' then
+    raise exception using errcode = '42501', message = 'Only administrators can prune monitoring data.';
+  end if;
+
+  if p_retention_days is null or p_retention_days < 7 or p_retention_days > 365 then
+    raise exception using errcode = '22023', message = 'INVALID_RETENTION';
+  end if;
+
+  v_cutoff := now() - (p_retention_days || ' days')::interval;
+
+  if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'security_events') then
+    delete from public.security_events where created_at < v_cutoff;
+    get diagnostics v_events = row_count;
+  end if;
+
+  if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'visitor_sessions') then
+    delete from public.visitor_sessions where last_seen_at < v_cutoff;
+    get diagnostics v_visitors = row_count;
+  end if;
+
+  -- Maintain rate limits in the same maintenance sweep (prune records older than 24 hours)
+  perform public.prune_game_rate_limits(interval '24 hours');
+
+  return query select v_events, v_visitors;
+end;
+$$;
+
+
+-- ------------------------------------------------------------------------------
+-- 5. PERMISSIONS & ZERO-TRUST LEAST PRIVILEGE GRANTS
+-- ------------------------------------------------------------------------------
+-- Revoke all function execution from public
+revoke all on function public.create_game_access_code(text, integer, uuid) from public, anon;
+revoke all on function public.redeem_game_access(text, text) from public;
+revoke all on function public.check_game_access(text) from public;
+
+-- Grant execution to minimum required entry points
+grant execute on function public.create_game_access_code(text, integer, uuid) to authenticated;
+grant execute on function public.redeem_game_access(text, text) to anon, authenticated;
+grant execute on function public.check_game_access(text) to anon, authenticated;
+
+-- Explicitly revoke all direct CRUD privileges on core game tables from anon and public
+revoke all on table public.game_access_codes from public, anon;
+revoke all on table public.game_access_sessions from public, anon;
+
+-- Maintain column-level least-privilege on game_access_codes (code_hash is NEVER granted)
+revoke all on table public.game_access_codes from authenticated;
+grant select (
+  id, duration_minutes, active, expires_at, created_at, created_by,
+  revoked_at, uses_count, account_id, redeemed_at
+) on table public.game_access_codes to authenticated;
+grant update (active, revoked_at) on table public.game_access_codes to authenticated;
+
+revoke all on table public.game_access_sessions from authenticated;
+grant select (id, code_id, account_id, created_at, expires_at)
+  on table public.game_access_sessions to authenticated;
+
+grant all on table public.game_access_codes, public.game_access_sessions to service_role;
+
+-- Re-assert Row Level Security on core game tables
+alter table public.game_access_codes enable row level security;
+alter table public.game_access_sessions enable row level security;
+
+-- Admin RLS Policies for authenticated administrators
+drop policy if exists game_access_codes_admin_select on public.game_access_codes;
+drop policy if exists game_access_codes_select on public.game_access_codes;
+create policy game_access_codes_admin_select on public.game_access_codes
+  for select to authenticated
+  using (public.has_admin_role('admin'));
+
+drop policy if exists game_access_codes_admin_update on public.game_access_codes;
+drop policy if exists game_access_codes_update on public.game_access_codes;
+create policy game_access_codes_admin_update on public.game_access_codes
+  for update to authenticated
+  using (public.has_admin_role('admin'))
+  with check (public.has_admin_role('admin'));
+
+drop policy if exists game_access_sessions_admin_select on public.game_access_sessions;
+drop policy if exists game_access_sessions_select on public.game_access_sessions;
+create policy game_access_sessions_admin_select on public.game_access_sessions
+  for select to authenticated
+  using (public.has_admin_role('admin'));
