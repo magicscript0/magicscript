@@ -11,7 +11,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
   const shockwavesRef = useRef<{ radius: number; maxRadius: number; opacity: number; mesh: THREE.Line }[]>([])
 
   useEffect(() => {
-    targetSpeedRef.current = accelerate ? 4.2 : 1.0
+    targetSpeedRef.current = accelerate ? 3.8 : 1.0
   }, [accelerate])
 
   useEffect(() => {
@@ -20,15 +20,16 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
 
     // 1. Scene, Camera, WebGL Renderer
     const scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2(0x030712, 0.024)
+    scene.fog = new THREE.FogExp2(0x030712, 0.022)
 
+    const isMobileInitial = window.innerWidth < 768
     const camera = new THREE.PerspectiveCamera(
-      55,
+      isMobileInitial ? 60 : 50,
       window.innerWidth / window.innerHeight,
       0.1,
       1000
     )
-    camera.position.set(0, 0, 25)
+    camera.position.set(0, 0, isMobileInitial ? 32 : 24)
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -36,77 +37,152 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
       powerPreference: 'high-performance',
     })
     renderer.setSize(window.innerWidth, window.innerHeight)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(
+      isMobileInitial
+        ? Math.min(window.devicePixelRatio, 1.5)
+        : Math.min(window.devicePixelRatio, 2.0)
+    )
     container.appendChild(renderer.domElement)
 
-    // 2. Central 3D Kinetic Core Group
+    // 2. Central Cyber Kinetic Group
     const coreGroup = new THREE.Group()
     scene.add(coreGroup)
 
-    // 2a. Outer Wireframe Torus Knot
-    const torusGeo = new THREE.TorusKnotGeometry(4.8, 1.25, 140, 28, 2, 3)
-    const torusMat = new THREE.MeshBasicMaterial({
+    // 2a. Outer Low-Poly Faceted Cyber Geodesic Lattice (Replaces tangled rope)
+    const outerGeo = new THREE.IcosahedronGeometry(4.2, 1)
+    const outerMat = new THREE.MeshBasicMaterial({
       color: 0x00f2fe,
       wireframe: true,
       transparent: true,
-      opacity: 0.24,
+      opacity: 0.22,
     })
-    const torusMesh = new THREE.Mesh(torusGeo, torusMat)
-    coreGroup.add(torusMesh)
+    const outerMesh = new THREE.Mesh(outerGeo, outerMat)
+    coreGroup.add(outerMesh)
 
-    // Torus Glowing Point Vertices
-    const torusPointMat = new THREE.PointsMaterial({
-      color: 0x8b5cf6,
-      size: 0.1,
+    // Glowing Vertex Nodes on Outer Geodesic Lattice
+    const outerPointsMat = new THREE.PointsMaterial({
+      color: 0x00f2fe,
+      size: 0.15,
       transparent: true,
       opacity: 0.85,
       blending: THREE.AdditiveBlending,
     })
-    const torusPoints = new THREE.Points(torusGeo, torusPointMat)
-    coreGroup.add(torusPoints)
+    const outerPoints = new THREE.Points(outerGeo, outerPointsMat)
+    coreGroup.add(outerPoints)
 
-    // 2b. Inner Crystalline Icosahedron Core
-    const icoGeo = new THREE.IcosahedronGeometry(2.4, 1)
-    const icoMat = new THREE.MeshBasicMaterial({
+    // 2b. Intermediate Shield (Violet Dodecahedron)
+    const midGeo = new THREE.DodecahedronGeometry(3.1, 0)
+    const midMat = new THREE.MeshBasicMaterial({
+      color: 0x8b5cf6,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.24,
+    })
+    const midMesh = new THREE.Mesh(midGeo, midMat)
+    coreGroup.add(midMesh)
+
+    // 2c. Inner Crystalline Quantum Core (Golden Octahedron)
+    const innerGeo = new THREE.OctahedronGeometry(2.0, 0)
+    const innerMat = new THREE.MeshBasicMaterial({
       color: 0xfbbf24,
       wireframe: true,
       transparent: true,
       opacity: 0.45,
     })
-    const icoMesh = new THREE.Mesh(icoGeo, icoMat)
-    coreGroup.add(icoMesh)
+    const innerMesh = new THREE.Mesh(innerGeo, innerMat)
+    coreGroup.add(innerMesh)
 
-    // 2c. Concentric Orbiting Gimbal Rings with Satellites
-    const rings: { line: THREE.Line; speedX: number; speedY: number; speedZ: number }[] = []
+    const innerPointsMat = new THREE.PointsMaterial({
+      color: 0xfbbf24,
+      size: 0.22,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+    })
+    const innerPoints = new THREE.Points(innerGeo, innerPointsMat)
+    coreGroup.add(innerPoints)
+
+    // 2d. Concentric Structured Cyber Gimbal Rings with Orbital Telemetry Nodes
+    const rings: {
+      group: THREE.Group
+      speedX: number
+      speedY: number
+      speedZ: number
+      lineGeo: THREE.BufferGeometry
+      lineMat: THREE.LineBasicMaterial
+      nodesGeo?: THREE.BufferGeometry
+      nodesMat?: THREE.PointsMaterial
+    }[] = []
+
     const ringConfigs = [
-      { radius: 7.8, color: 0x00f2fe, opacity: 0.35, sx: 0.005, sy: 0.003, sz: 0.006 },
-      { radius: 9.6, color: 0x8b5cf6, opacity: 0.3, sx: -0.004, sy: 0.005, sz: -0.005 },
-      { radius: 11.5, color: 0x38bdf8, opacity: 0.25, sx: 0.003, sy: -0.004, sz: 0.004 },
-      { radius: 13.8, color: 0xfbbf24, opacity: 0.2, sx: -0.002, sy: 0.002, sz: -0.003 },
+      { radius: 6.8, color: 0x00f2fe, opacity: 0.35, nodeCount: 4, sx: 0.004, sy: 0.005, sz: 0.003 },
+      { radius: 9.4, color: 0x8b5cf6, opacity: 0.30, nodeCount: 6, sx: -0.005, sy: 0.003, sz: -0.004 },
+      { radius: 12.2, color: 0x38bdf8, opacity: 0.25, nodeCount: 4, sx: 0.003, sy: -0.004, sz: 0.004 },
+      { radius: 15.6, color: 0xfbbf24, opacity: 0.18, nodeCount: 8, sx: -0.002, sy: 0.002, sz: -0.002 },
     ]
 
     ringConfigs.forEach((cfg) => {
-      const ringGeo = new THREE.BufferGeometry()
+      const ringGroup = new THREE.Group()
+      coreGroup.add(ringGroup)
+
+      // Ring circular track
+      const lineGeo = new THREE.BufferGeometry()
       const pts: THREE.Vector3[] = []
-      const segments = 128
+      const segments = 96
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2
         pts.push(new THREE.Vector3(Math.cos(theta) * cfg.radius, Math.sin(theta) * cfg.radius, 0))
       }
-      ringGeo.setFromPoints(pts)
-      const ringMat = new THREE.LineBasicMaterial({
+      lineGeo.setFromPoints(pts)
+      const lineMat = new THREE.LineBasicMaterial({
         color: cfg.color,
         transparent: true,
         opacity: cfg.opacity,
         blending: THREE.AdditiveBlending,
       })
-      const ring = new THREE.Line(ringGeo, ringMat)
-      coreGroup.add(ring)
-      rings.push({ line: ring, speedX: cfg.sx, speedY: cfg.sy, speedZ: cfg.sz })
+      const ringLine = new THREE.Line(lineGeo, lineMat)
+      ringGroup.add(ringLine)
+
+      // Orbital Satellites / Data Beacon Nodes along ring
+      const nodePts: THREE.Vector3[] = []
+      for (let i = 0; i < cfg.nodeCount; i++) {
+        const theta = (i / cfg.nodeCount) * Math.PI * 2
+        nodePts.push(new THREE.Vector3(Math.cos(theta) * cfg.radius, Math.sin(theta) * cfg.radius, 0))
+      }
+      const nodesGeo = new THREE.BufferGeometry().setFromPoints(nodePts)
+      const nodesMat = new THREE.PointsMaterial({
+        color: cfg.color,
+        size: 0.18,
+        transparent: true,
+        opacity: Math.min(1, cfg.opacity * 2.5),
+        blending: THREE.AdditiveBlending,
+      })
+      const nodes = new THREE.Points(nodesGeo, nodesMat)
+      ringGroup.add(nodes)
+
+      rings.push({
+        group: ringGroup,
+        speedX: cfg.sx,
+        speedY: cfg.sy,
+        speedZ: cfg.sz,
+        lineGeo,
+        lineMat,
+        nodesGeo,
+        nodesMat,
+      })
     })
 
-    // 3. 10,000 Spatial Warp Star Field (Particles gliding forward in Z)
-    const particleCount = 10000
+    // 2e. Subtle Perspective Cyber Matrix Floor in Deep Background
+    const gridHelper = new THREE.GridHelper(60, 30, 0x00f2fe, 0x1e293b)
+    gridHelper.position.set(0, -14, -10)
+    gridHelper.rotation.x = 0.22
+    ;(gridHelper.material as THREE.Material).transparent = true
+    ;(gridHelper.material as THREE.Material).opacity = 0.12
+    scene.add(gridHelper)
+
+    // 3. Responsive Particle Star Field (Forward Warp Drift)
+    // 1,500 particles on mobile, 3,500 on desktop (clamped for high 60fps performance)
+    const particleCount = isMobileInitial ? 1500 : 3500
     const particleGeo = new THREE.BufferGeometry()
     const positions = new Float32Array(particleCount * 3)
     const colors = new Float32Array(particleCount * 3)
@@ -118,13 +194,13 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
     const colorD = new THREE.Color(0x38bdf8) // Sky blue
 
     for (let i = 0; i < particleCount; i++) {
-      const radius = 8 + Math.random() * 48
+      const radius = 7 + Math.random() * 45
       const angle = Math.random() * Math.PI * 2
       positions[i * 3] = Math.cos(angle) * radius
       positions[i * 3 + 1] = Math.sin(angle) * radius
       positions[i * 3 + 2] = (Math.random() - 0.5) * 80
 
-      zVelocities[i] = 0.045 + Math.random() * 0.085
+      zVelocities[i] = 0.04 + Math.random() * 0.075
 
       const roll = Math.random()
       const c = roll < 0.52 ? colorA : roll < 0.82 ? colorB : roll < 0.94 ? colorD : colorC
@@ -137,24 +213,24 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
     particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
 
     const particleMat = new THREE.PointsMaterial({
-      size: 0.075,
+      size: isMobileInitial ? 0.08 : 0.075,
       vertexColors: true,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.78,
       blending: THREE.AdditiveBlending,
     })
 
     const particleSystem = new THREE.Points(particleGeo, particleMat)
     scene.add(particleSystem)
 
-    // 4. Interactive Shockwave System on Click / Tap
+    // 4. Interactive Cyber Shockwave System on Click / Tap
     const shockwaveGroup = new THREE.Group()
     scene.add(shockwaveGroup)
 
     const triggerShockwave = (x = 0, y = 0) => {
       const geo = new THREE.BufferGeometry()
       const pts: THREE.Vector3[] = []
-      const segs = 64
+      const segs = 48
       for (let i = 0; i <= segs; i++) {
         const theta = (i / segs) * Math.PI * 2
         pts.push(new THREE.Vector3(Math.cos(theta), Math.sin(theta), 0))
@@ -164,7 +240,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
       const mat = new THREE.LineBasicMaterial({
         color: 0x00f2fe,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.85,
         blending: THREE.AdditiveBlending,
       })
 
@@ -174,13 +250,20 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
 
       shockwavesRef.current.push({
         radius: 1,
-        maxRadius: 28,
-        opacity: 0.9,
+        maxRadius: 26,
+        opacity: 0.85,
         mesh,
       })
     }
 
+    // Filter out taps/clicks directly targeting form controls
+    const isInteractiveTarget = (target: EventTarget | null) => {
+      if (!target || !(target instanceof HTMLElement)) return false
+      return !!target.closest('input, button, select, textarea, a, label, form')
+    }
+
     const handleClick = (e: MouseEvent) => {
+      if (isInteractiveTarget(e.target)) return
       const halfW = window.innerWidth / 2
       const halfH = window.innerHeight / 2
       const x = ((e.clientX - halfW) / halfW) * 12
@@ -190,6 +273,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
 
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length > 0) {
+        if (isInteractiveTarget(e.target)) return
         const halfW = window.innerWidth / 2
         const halfH = window.innerHeight / 2
         const x = ((e.touches[0].clientX - halfW) / halfW) * 12
@@ -226,17 +310,25 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
     window.addEventListener('mousemove', handleMouseMove, { passive: true })
     window.addEventListener('touchmove', handleTouchMove, { passive: true })
 
-    // 6. Resize Handler
+    // 6. Responsive Resize Handler
     const handleResize = () => {
+      const isMobile = window.innerWidth < 768
+      camera.fov = isMobile ? 60 : 50
+      camera.position.z = isMobile ? 32 : 24
       camera.aspect = window.innerWidth / window.innerHeight
       camera.updateProjectionMatrix()
+
       renderer.setSize(window.innerWidth, window.innerHeight)
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      renderer.setPixelRatio(
+        isMobile
+          ? Math.min(window.devicePixelRatio, 1.5)
+          : Math.min(window.devicePixelRatio, 2.0)
+      )
     }
     window.addEventListener('resize', handleResize)
 
-    // 7. 60 FPS Animation Engine with Smooth Speed Interpolation & Power Saving
-    let animId: number = 0
+    // 7. 60 FPS Render Engine with Visibility Pausing & Lerped Acceleration
+    let animId = 0
     let isPaused = false
     let currentSpeed = 1.0
     const posAttr = particleGeo.attributes.position as THREE.BufferAttribute
@@ -249,35 +341,42 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
       currentSpeed += (targetSpeedRef.current - currentSpeed) * 0.08
 
       // Parallax smooth lerp
-      camTargetX += (mouseX * 4.0 - camTargetX) * 0.04
-      camTargetY += (-mouseY * 3.0 - camTargetY) * 0.04
+      camTargetX += (mouseX * 3.5 - camTargetX) * 0.04
+      camTargetY += (-mouseY * 2.5 - camTargetY) * 0.04
 
       camera.position.x = camTargetX
       camera.position.y = camTargetY
-      camera.rotation.z = -camTargetX * 0.015
+      camera.rotation.z = -camTargetX * 0.012
       camera.lookAt(0, 0, 0)
 
-      // Kinetic core rotation
-      torusMesh.rotation.x += 0.0035 * currentSpeed
-      torusMesh.rotation.y += 0.0055 * currentSpeed
-      torusPoints.rotation.x = torusMesh.rotation.x
-      torusPoints.rotation.y = torusMesh.rotation.y
+      // Geodesic outer core rotation
+      outerMesh.rotation.x += 0.003 * currentSpeed
+      outerMesh.rotation.y += 0.0045 * currentSpeed
+      outerPoints.rotation.x = outerMesh.rotation.x
+      outerPoints.rotation.y = outerMesh.rotation.y
 
-      icoMesh.rotation.x -= 0.006 * currentSpeed
-      icoMesh.rotation.y += 0.008 * currentSpeed
+      // Intermediate shield counter-rotation
+      midMesh.rotation.x -= 0.004 * currentSpeed
+      midMesh.rotation.y -= 0.005 * currentSpeed
+
+      // Crystalline core rotation
+      innerMesh.rotation.x += 0.005 * currentSpeed
+      innerMesh.rotation.y -= 0.006 * currentSpeed
+      innerPoints.rotation.x = innerMesh.rotation.x
+      innerPoints.rotation.y = innerMesh.rotation.y
 
       // Gimbal rings rotation
       rings.forEach((r) => {
-        r.line.rotation.x += r.speedX * currentSpeed
-        r.line.rotation.y += r.speedY * currentSpeed
-        r.line.rotation.z += r.speedZ * currentSpeed
+        r.group.rotation.x += r.speedX * currentSpeed
+        r.group.rotation.y += r.speedY * currentSpeed
+        r.group.rotation.z += r.speedZ * currentSpeed
       })
 
       // Particle forward warp drift
       const positionsArr = posAttr.array as Float32Array
       for (let i = 0; i < particleCount; i++) {
         const idx = i * 3 + 2
-        positionsArr[idx] += zVelocities[i] * currentSpeed * 2.2
+        positionsArr[idx] += zVelocities[i] * currentSpeed * 2.0
         if (positionsArr[idx] > 35) {
           positionsArr[idx] = -45
         }
@@ -287,7 +386,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
       // Shockwaves update
       for (let i = shockwavesRef.current.length - 1; i >= 0; i--) {
         const sw = shockwavesRef.current[i]
-        sw.radius += 0.55 * currentSpeed
+        sw.radius += 0.5 * currentSpeed
         sw.opacity -= 0.018 * currentSpeed
         sw.mesh.scale.set(sw.radius, sw.radius, 1)
         ;(sw.mesh.material as THREE.LineBasicMaterial).opacity = Math.max(0, sw.opacity)
@@ -303,7 +402,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
       renderer.render(scene, camera)
     }
 
-    // Page Visibility API - pause loop when tab is backgrounded
+    // Page Visibility API - zero CPU/battery consumption when tab is hidden
     const handleVisibilityChange = () => {
       if (document.hidden) {
         isPaused = true
@@ -317,7 +416,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // WebGL Context Loss Handling (Mobile OS / GPU Memory Pressure)
+    // WebGL Context Loss Handling (Mobile OS / Background tab recovery)
     const domElement = renderer.domElement
     const handleContextLost = (e: Event) => {
       e.preventDefault()
@@ -335,7 +434,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
 
     animate()
 
-    // 8. Cleanup
+    // 8. Complete Resource Cleanup on Unmount
     return () => {
       isPaused = true
       cancelAnimationFrame(animId)
@@ -353,21 +452,31 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
         container.removeChild(domElement)
       }
 
-      torusGeo.dispose()
-      torusMat.dispose()
-      torusPointMat.dispose()
-      icoGeo.dispose()
-      icoMat.dispose()
+      outerGeo.dispose()
+      outerMat.dispose()
+      outerPointsMat.dispose()
+      midGeo.dispose()
+      midMat.dispose()
+      innerGeo.dispose()
+      innerMat.dispose()
+      innerPointsMat.dispose()
+      gridHelper.geometry.dispose()
+      ;(gridHelper.material as THREE.Material).dispose()
       particleGeo.dispose()
       particleMat.dispose()
+
       rings.forEach((r) => {
-        r.line.geometry.dispose()
-        ;(r.line.material as THREE.Material).dispose()
+        r.lineGeo.dispose()
+        r.lineMat.dispose()
+        if (r.nodesGeo) r.nodesGeo.dispose()
+        if (r.nodesMat) r.nodesMat.dispose()
       })
+
       shockwavesRef.current.forEach((sw) => {
         sw.mesh.geometry.dispose()
         ;(sw.mesh.material as THREE.Material).dispose()
       })
+
       renderer.dispose()
     }
   }, [])

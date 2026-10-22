@@ -177,6 +177,25 @@
   }
 }
 
+/* Card Idle Float - GPU Accelerated Compositor Thread */
+@keyframes card-idle-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-card-float {
+  animation: card-idle-float 5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
 /* Micro-shake interaction for cyber alerts */
 @keyframes cyber-shake {
   0%, 100% { transform: translateX(0); }

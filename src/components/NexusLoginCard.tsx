@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, FormEvent } from 'react'
+import React, { useState, useRef, useEffect, FormEvent, useCallback } from 'react'
 import {
   KeyRound,
   Hash,
@@ -38,6 +38,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
   const [showCode, setShowCode] = useState(true)
   const [localError, setLocalError] = useState<string | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const glareRef = useRef<HTMLDivElement>(null)
 
   // Simulated Loading State (~1.9s high-tech multi-step verification sequence)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -99,32 +100,14 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
     }
   }
 
-  // 3D Tilt & Glare State
-  const [tilt, setTilt] = useState({ rx: 0, ry: 0, glareX: 50, glareY: 50 })
-  const isHoveredRef = useRef(false)
-
-  // Ambient floating animation when idle
-  useEffect(() => {
-    let animId: number
-    let t = 0
-    const float = () => {
-      animId = requestAnimationFrame(float)
-      if (!isHoveredRef.current) {
-        t += 0.02
-        setTilt({
-          rx: Math.sin(t) * 2.5,
-          ry: Math.cos(t * 0.8) * 3,
-          glareX: 50 + Math.sin(t) * 15,
-          glareY: 50 + Math.cos(t * 0.8) * 15,
-        })
-      }
+  // 3D Tilt & Dynamic Glare:
+  // Desktop-only, direct DOM style mutation with zero React state re-renders
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Only apply 3D tilt on fine-pointer desktop devices with hover capability
+    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      return
     }
-    animId = requestAnimationFrame(float)
-    return () => cancelAnimationFrame(animId)
-  }, [])
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    isHoveredRef.current = true
     const card = cardRef.current
     if (!card) return
     const rect = card.getBoundingClientRect()
@@ -133,19 +116,31 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
     const centerX = rect.width / 2
     const centerY = rect.height / 2
 
-    const maxTilt = 9 // degrees
+    const maxTilt = 7 // subtle degrees
     const ry = ((x - centerX) / centerX) * maxTilt
     const rx = -((y - centerY) / centerY) * maxTilt
 
-    const glareX = (x / rect.width) * 100
-    const glareY = (y / rect.height) * 100
+    card.style.transform = `perspective(1000px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) translateZ(0)`
+    card.style.transition = 'transform 0.08s ease-out'
 
-    setTilt({ rx, ry, glareX, glareY })
-  }
+    if (glareRef.current) {
+      const glareX = ((x / rect.width) * 100).toFixed(1)
+      const glareY = ((y / rect.height) * 100).toFixed(1)
+      glareRef.current.style.background = `radial-gradient(circle 340px at ${glareX}% ${glareY}%, rgba(0, 242, 254, 0.16), transparent 70%)`
+      glareRef.current.style.opacity = '1'
+    }
+  }, [])
 
-  const handleMouseLeave = () => {
-    isHoveredRef.current = false
-  }
+  const handleMouseLeave = useCallback(() => {
+    const card = cardRef.current
+    if (card) {
+      card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0)'
+      card.style.transition = 'transform 0.4s ease-out'
+    }
+    if (glareRef.current) {
+      glareRef.current.style.opacity = '0'
+    }
+  }, [])
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -198,7 +193,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
           })
           .catch(() => {})
       }
-    }, 40)
+    }, 60)
   }
 
   const handleAccountIdChange = (val: string) => {
@@ -224,36 +219,37 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
     : null
 
   return (
-    <div className="relative z-30 perspective-container w-full max-w-md px-4 transition-all duration-700 ease-out animate-[fadeInScale_0.7s_ease-out]">
-      {/* Outer Border Beam Wrapper */}
+    <div className="relative z-30 perspective-container w-[min(94vw,440px)] mx-auto px-1 sm:px-0 transition-all duration-700 ease-out animate-[fadeInScale_0.7s_ease-out]">
+      {/* Outer Border Beam Wrapper with Ambient Floating Animation */}
       <div
         ref={cardRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={{
-          transform: `perspective(1200px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) translateZ(0)`,
-          transition: isHoveredRef.current ? 'transform 0.12s ease-out' : 'transform 0.4s ease-out',
+          transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0)',
+          willChange: 'transform',
         }}
-        className="relative rounded-3xl p-[1.5px] border-beam-container shadow-[0_30px_90px_-15px_rgba(0,0,0,0.95),0_0_45px_rgba(0,242,254,0.22)]"
+        className="relative rounded-3xl p-[1.5px] border-beam-container shadow-[0_24px_70px_-15px_rgba(0,0,0,0.95),0_0_35px_rgba(0,242,254,0.18)] animate-card-float touch-manipulation"
       >
         {/* Inner Card Chassis */}
-        <div className="relative rounded-[23px] border-beam-inner p-8 sm:p-10 overflow-hidden">
-          {/* Dynamic Glare Reflection Sheen */}
+        <div className="relative rounded-[23px] border-beam-inner p-6 sm:p-9 overflow-hidden">
+          {/* Dynamic Glare Reflection Sheen (Updated directly on desktop hover) */}
           <div
-            className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+            ref={glareRef}
+            className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300"
             style={{
-              background: `radial-gradient(circle 380px at ${tilt.glareX}% ${tilt.glareY}%, rgba(0, 242, 254, 0.16), transparent 70%)`,
+              background: 'radial-gradient(circle 340px at 50% 50%, rgba(0, 242, 254, 0.16), transparent 70%)',
             }}
           />
 
           {/* Cyber Corner Precision Brackets */}
-          <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-cyan-400/70" />
-          <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-cyan-400/70" />
-          <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-violet-400/70" />
-          <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-violet-400/70" />
+          <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-cyan-400/70 pointer-events-none" />
+          <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-cyan-400/70 pointer-events-none" />
+          <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-violet-400/70 pointer-events-none" />
+          <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-violet-400/70 pointer-events-none" />
 
           {/* Card Header & Brand Lockup */}
-          <div className="text-center space-y-2.5 mb-7 relative z-10">
+          <div className="text-center space-y-2 mb-6 sm:mb-7 relative z-10 pointer-events-none">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-mono-tech tracking-wider shadow-[0_0_15px_rgba(0,242,254,0.2)]">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
               <span>QUANTUM ENCRYPTED ACCESS</span>
@@ -265,7 +261,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
 
             {/* 1xBet Compatibility Badge */}
             <div className="flex items-center justify-center pt-0.5">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/35 text-emerald-300 text-[11px] font-mono-tech tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.18)]">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/35 text-emerald-300 text-[10.5px] sm:text-[11px] font-mono-tech tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.18)]">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
@@ -284,7 +280,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
           {/* Custom Sleek Cyber Error Alert */}
           {displayError && (
             <div
-              className={`mb-6 p-4 rounded-xl bg-red-950/40 border border-red-500/60 text-red-200 text-xs font-mono-tech flex items-start gap-3 shadow-[0_0_25px_rgba(239,68,68,0.3),inset_0_0_15px_rgba(239,68,68,0.15)] relative overflow-hidden backdrop-blur-md ${
+              className={`mb-5 p-3.5 sm:p-4 rounded-xl bg-red-950/40 border border-red-500/60 text-red-200 text-xs font-mono-tech flex items-start gap-3 shadow-[0_0_25px_rgba(239,68,68,0.3),inset_0_0_15px_rgba(239,68,68,0.15)] relative overflow-hidden backdrop-blur-md ${
                 isShaking ? 'animate-cyber-shake' : ''
               }`}
             >
@@ -310,7 +306,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
           )}
 
           {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 relative z-10 touch-manipulation">
             {/* Account ID Slot */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs font-mono-tech">
@@ -343,9 +339,10 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
                   onChange={(e) => handleAccountIdChange(e.target.value)}
                   placeholder="e.g. 583920194"
                   required
-                  className="w-full bg-[#030712]/85 border border-slate-700/80 group-hover:border-cyan-500/50 focus:border-cyan-400 focus:box-glow-cyan text-white text-sm font-mono-tech rounded-xl px-4 py-3.5 pl-11 pr-10 outline-none transition-all placeholder:text-slate-600 shadow-inner"
+                  autoComplete="off"
+                  className="w-full bg-[#030712]/90 border border-slate-700/80 group-hover:border-cyan-500/50 focus:border-cyan-400 focus:box-glow-cyan text-white text-base sm:text-sm font-mono-tech rounded-xl px-4 py-3 sm:py-3.5 pl-11 pr-10 outline-none transition-all placeholder:text-slate-600 shadow-inner select-text touch-manipulation"
                 />
-                <Shield className="w-4 h-4 text-slate-500 group-focus-within:text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2 transition-colors" />
+                <Shield className="w-4 h-4 text-slate-500 group-focus-within:text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2 transition-colors pointer-events-none" />
 
                 {accountId.length > 0 && (
                   <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -355,7 +352,8 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
                     <button
                       type="button"
                       onClick={() => setAccountId('')}
-                      className="text-slate-500 hover:text-slate-300 transition-colors p-0.5"
+                      className="text-slate-500 hover:text-slate-300 transition-colors p-1 touch-manipulation"
+                      aria-label="Clear account ID"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -381,13 +379,15 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
                   onChange={(e) => setAccessCode(e.target.value)}
                   placeholder="Enter access code"
                   required
-                  className="w-full bg-[#030712]/85 border border-slate-700/80 group-hover:border-violet-500/50 focus:border-violet-400 focus:box-glow-violet text-white text-sm font-mono-tech rounded-xl px-4 py-3.5 pl-11 pr-11 outline-none transition-all placeholder:text-slate-600 shadow-inner"
+                  autoComplete="off"
+                  className="w-full bg-[#030712]/90 border border-slate-700/80 group-hover:border-violet-500/50 focus:border-violet-400 focus:box-glow-violet text-white text-base sm:text-sm font-mono-tech rounded-xl px-4 py-3 sm:py-3.5 pl-11 pr-11 outline-none transition-all placeholder:text-slate-600 shadow-inner select-text touch-manipulation"
                 />
-                <Lock className="w-4 h-4 text-slate-500 group-focus-within:text-violet-400 absolute left-4 top-1/2 -translate-y-1/2 transition-colors" />
+                <Lock className="w-4 h-4 text-slate-500 group-focus-within:text-violet-400 absolute left-4 top-1/2 -translate-y-1/2 transition-colors pointer-events-none" />
                 <button
                   type="button"
                   onClick={() => setShowCode(!showCode)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors p-1 touch-manipulation"
+                  aria-label={showCode ? 'Hide access code' : 'Show access code'}
                 >
                   {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -395,11 +395,11 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
             </div>
 
             {/* Quick Paste Clipboard Helper */}
-            <div className="flex justify-end items-center pt-1 text-[11px] font-mono-tech">
+            <div className="flex justify-end items-center pt-0.5 text-[11px] font-mono-tech">
               <button
                 type="button"
                 onClick={handlePasteClipboard}
-                className="text-cyan-400/90 hover:text-cyan-300 flex items-center gap-1.5 transition-colors hover:underline px-2 py-1 rounded-lg hover:bg-cyan-500/10"
+                className="text-cyan-400/90 hover:text-cyan-300 flex items-center gap-1.5 transition-colors hover:underline px-2.5 py-1 rounded-lg hover:bg-cyan-500/10 touch-manipulation active:scale-95"
               >
                 <Zap className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Paste from Clipboard</span>
@@ -410,27 +410,27 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
             <button
               type="submit"
               disabled={loading || isVerifying || cooldownSeconds > 0 || !accountId || !accessCode}
-              className={`relative w-full group overflow-hidden rounded-xl font-display font-bold text-sm tracking-wider uppercase text-white py-4 px-6 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_25px_rgba(0,242,254,0.35)] hover:shadow-[0_0_40px_rgba(0,242,254,0.6)] shimmer-trigger mt-3 ${
+              className={`relative w-full group overflow-hidden rounded-xl font-display font-bold text-sm tracking-wider uppercase text-white py-3.5 sm:py-4 px-6 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_25px_rgba(0,242,254,0.35)] hover:shadow-[0_0_40px_rgba(0,242,254,0.6)] shimmer-trigger mt-3 touch-manipulation active:scale-[0.99] ${
                 cooldownSeconds > 0 ? 'border border-amber-500/50 bg-amber-950/40 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.3)]' : ''
               }`}
             >
               {/* Gradient Base */}
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 transition-all duration-500 group-hover:scale-105" />
-              <div className="absolute inset-0 bg-gradient-to-r from-violet-600 via-blue-600 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 transition-all duration-500 group-hover:scale-105 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-600 via-blue-600 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
               {/* Inner outline */}
-              <div className="absolute inset-[1px] rounded-[11px] bg-[#030712]/20 backdrop-blur-[2px] transition-all group-hover:bg-transparent" />
+              <div className="absolute inset-[1px] rounded-[11px] bg-[#030712]/20 backdrop-blur-[2px] transition-all group-hover:bg-transparent pointer-events-none" />
 
               {/* Dynamic Cybernetic Progress Fill Bar */}
               {(isVerifying || loading) && (
                 <div
-                  className="absolute bottom-0 left-0 top-0 bg-gradient-to-r from-cyan-400/40 via-violet-400/50 to-emerald-400/50 transition-all duration-100 pointer-events-none"
+                  className="absolute bottom-0 left-0 top-0 bg-gradient-to-r from-cyan-400/40 via-violet-400/50 to-emerald-400/50 transition-all duration-150 pointer-events-none"
                   style={{ width: `${isVerifying ? verifyProgress : 100}%` }}
                 />
               )}
 
               {/* Button Text & Neural Ring Loading Sequence */}
-              <div className="relative z-10 flex items-center justify-center gap-2.5">
+              <div className="relative z-10 flex items-center justify-center gap-2.5 pointer-events-none">
                 {cooldownSeconds > 0 ? (
                   <span className="font-mono-tech text-xs text-amber-300 font-bold tracking-widest flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
@@ -467,7 +467,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
           </form>
 
           {/* Footer inside card */}
-          <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono-tech text-slate-500 relative z-10">
+          <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center justify-between text-[10.5px] sm:text-[11px] font-mono-tech text-slate-500 relative z-10 pointer-events-none">
             <span className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />

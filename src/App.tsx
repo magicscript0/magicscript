@@ -59,8 +59,13 @@ export const App: React.FC = () => {
     [access]
   )
 
+  // Handle Bootloader Complete (Memoized to prevent restart re-triggers)
+  const handleBootComplete = useCallback(() => {
+    setBootState('ready')
+  }, [])
+
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#030712] text-slate-100 flex flex-col justify-center items-center select-none">
+    <div className="relative min-h-[100dvh] w-full overflow-hidden bg-[#030712] text-slate-100 flex flex-col justify-center items-center select-none">
       {/* 1. Real 3D Three.js WebGL Engine Canvas (Runs at 60 FPS in background) */}
       <CyberErrorBoundary moduleName="3D KINETIC ENGINE">
         <ThreeCanvas accelerate={bootState === 'booting'} />
@@ -71,7 +76,7 @@ export const App: React.FC = () => {
 
       {/* 3. Realistic Hardware Bootloader (Displays until 100% complete) */}
       {bootState === 'booting' && (
-        <BootLoader onComplete={() => setBootState('ready')} />
+        <BootLoader onComplete={handleBootComplete} />
       )}
 
       {/* 4. Ambient Public HUD - Only visible AFTER loading completely finishes */}
@@ -79,7 +84,7 @@ export const App: React.FC = () => {
 
       {/* 5. Main Center Stage - STRICTLY MOUNTED & REVEALED ONLY AFTER 100% BOOT COMPLETION */}
       {bootState === 'ready' && (
-        <main className="relative z-20 flex items-center justify-center w-full py-16 px-4">
+        <main className="relative z-20 flex items-center justify-center w-full py-8 sm:py-12 px-2 sm:px-4 flex-1">
           <CyberErrorBoundary moduleName="COMMAND MATRIX">
             {authorized && access.accountId ? (
               <GameConsoleView

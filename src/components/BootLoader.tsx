@@ -1,34 +1,34 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import {
-  Cpu,
-  Zap,
   Radio,
-  Terminal,
-  ShieldCheck,
-  Activity,
-  Layers,
-  Lock,
-  CheckCircle2,
   HardDrive,
+  Lock,
+  Zap,
+  Activity,
 } from 'lucide-react'
 
 interface BootLoaderProps {
   onComplete: () => void
 }
 
-interface LogEntry {
-  id: number
-  time: string
-  text: string
-  status: 'PENDING' | 'DONE' | 'VERIFIED'
-}
-
 export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
-  const [progress, setProgress] = useState(0)
   const [phase, setPhase] = useState<'loading' | 'locking' | 'revealing'>('loading')
-  const [activeLog, setActiveLog] = useState('')
-  const [bytesLoaded, setBytesLoaded] = useState(0)
   const totalBytes = 284000 // 284 KB
+
+  // Direct DOM refs for 60-120fps GPU updates with 0 React re-renders
+  const percentTextRef = useRef<HTMLSpanElement>(null)
+  const circleProgressRef = useRef<SVGCircleElement>(null)
+  const progressBarRef = useRef<HTMLDivElement>(null)
+  const bytesTextRef = useRef<HTMLSpanElement>(null)
+  const activeLogTextRef = useRef<HTMLSpanElement>(null)
+  const rpcStatusRef = useRef<HTMLSpanElement>(null)
+  const firebaseStatusRef = useRef<HTMLSpanElement>(null)
+
+  // Single-execution lifecycle guard (Strict-Mode safe)
+  const hasStartedRef = useRef(false)
+  const isCompleteRef = useRef(false)
+  const onCompleteRef = useRef(onComplete)
+  onCompleteRef.current = onComplete
 
   // Real Hardware Detection for 100% Authentic Telemetry
   const systemMetrics = useMemo(() => {
@@ -47,43 +47,89 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       }
     } catch {}
 
-    const cores = navigator.hardwareConcurrency || 8
-    const memory = (navigator as any).deviceMemory ? `${(navigator as any).deviceMemory} GB` : '8 GB'
-    const resolution = `${window.screen.width}x${window.screen.height}`
+    const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 8
+    const memory = typeof navigator !== 'undefined' && (navigator as any).deviceMemory ? `${(navigator as any).deviceMemory} GB` : '8 GB'
+    const resolution = typeof window !== 'undefined' ? `${window.screen.width}x${window.screen.height}` : '1920x1080'
 
     return { gpu, cores: `${cores} CORES`, memory, resolution }
   }, [])
 
-  // Realistic Boot Phases with Variable Burst Timing
+  // Realistic Boot Sequence with Decoupled RAF loop
   useEffect(() => {
+    if (hasStartedRef.current) return
+    hasStartedRef.current = true
+
     const stages = [
-      { p: 18, msg: 'KERNEL_INIT: Mounting WebGL 2.0 graphics pipeline...', delay: 280 },
-      { p: 34, msg: 'HARDWARE_PROBE: Handshaking host GPU & memory allocations...', delay: 420 },
-      { p: 58, msg: 'SUPABASE_RPC: Establishing secure TLS tunnel (AES-GCM-256)...', delay: 550 },
-      { p: 76, msg: 'FIREBASE_BRIDGE: Syncing /m11 realtime prediction telemetry...', delay: 480 },
-      { p: 92, msg: 'SPATIAL_CALIB: Calibrating 3D perspective & 60 FPS matrix...', delay: 420 },
-      { p: 100, msg: 'SYSTEM_VERIFIED: All security channels armed & ready.', delay: 350 },
+      { p: 18, msg: 'KERNEL_INIT: Mounting WebGL 2.0 graphics pipeline...', delay: 240 },
+      { p: 36, msg: 'HARDWARE_PROBE: Handshaking host GPU & memory allocations...', delay: 360 },
+      { p: 58, msg: 'SUPABASE_RPC: Establishing secure TLS tunnel (AES-GCM-256)...', delay: 420 },
+      { p: 78, msg: 'FIREBASE_BRIDGE: Syncing /m11 realtime prediction telemetry...', delay: 380 },
+      { p: 92, msg: 'SPATIAL_CALIB: Calibrating 3D perspective & 60 FPS matrix...', delay: 320 },
+      { p: 100, msg: 'SYSTEM_VERIFIED: All security channels armed & ready.', delay: 280 },
     ]
 
     let currentStage = 0
     let currentP = 0
+    let rafId: number | null = null
+    const timers: number[] = []
+
+    const circumference = 2 * Math.PI * 110 // r = 43% of 256px ≈ 110px
+
+    const updateDOM = (pct: number) => {
+      // 1. Center number percentage
+      if (percentTextRef.current) {
+        percentTextRef.current.textContent = `${pct}`
+      }
+      // 2. SVG circle stroke offset
+      if (circleProgressRef.current) {
+        const offset = circumference * (1 - pct / 100)
+        circleProgressRef.current.style.strokeDashoffset = `${offset}`
+      }
+      // 3. Progress bar width
+      if (progressBarRef.current) {
+        progressBarRef.current.style.width = `${pct}%`
+      }
+      // 4. Byte stream counter
+      if (bytesTextRef.current) {
+        const loaded = Math.round((pct / 100) * totalBytes)
+        bytesTextRef.current.textContent = `${(loaded / 1024).toFixed(1)} / ${(totalBytes / 1024).toFixed(1)} KB`
+      }
+      // 5. Status indicators
+      if (pct > 50 && rpcStatusRef.current && rpcStatusRef.current.textContent !== 'CONNECTED') {
+        rpcStatusRef.current.textContent = 'CONNECTED'
+        rpcStatusRef.current.className = 'text-emerald-400 font-bold'
+      }
+      if (pct > 75 && firebaseStatusRef.current && firebaseStatusRef.current.textContent !== 'SYNCHRONIZED') {
+        firebaseStatusRef.current.textContent = 'SYNCHRONIZED'
+        firebaseStatusRef.current.className = 'text-amber-400 font-bold'
+      }
+    }
 
     const runStage = () => {
+      if (isCompleteRef.current) return
+
       if (currentStage >= stages.length) {
-        // Step 2: Lock stage (100% confirmation)
+        updateDOM(100)
         setPhase('locking')
-        setTimeout(() => {
-          // Step 3: Trigger innovative shutter reveal
+
+        const tLock = window.setTimeout(() => {
+          if (isCompleteRef.current) return
           setPhase('revealing')
-          setTimeout(() => {
-            onComplete()
-          }, 600)
-        }, 400)
+
+          const tDone = window.setTimeout(() => {
+            isCompleteRef.current = true
+            onCompleteRef.current()
+          }, 500)
+          timers.push(tDone)
+        }, 350)
+        timers.push(tLock)
         return
       }
 
       const stage = stages[currentStage]
-      setActiveLog(stage.msg)
+      if (activeLogTextRef.current) {
+        activeLogTextRef.current.textContent = stage.msg
+      }
 
       const startP = currentP
       const targetP = stage.p
@@ -91,36 +137,42 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
       const duration = stage.delay
 
       const step = (now: number) => {
+        if (isCompleteRef.current) return
         const elapsed = now - startTime
         const factor = Math.min(1, elapsed / duration)
         // Natural ease-out interpolation
-        const nextP = Math.round(startP + (targetP - startP) * (1 - Math.pow(1 - factor, 2.5)))
+        const nextP = Math.round(startP + (targetP - startP) * (1 - Math.pow(1 - factor, 2.4)))
         currentP = nextP
-        setProgress(nextP)
-        setBytesLoaded(Math.round((nextP / 100) * totalBytes))
+        updateDOM(nextP)
 
         if (factor < 1) {
-          requestAnimationFrame(step)
+          rafId = requestAnimationFrame(step)
         } else {
           currentStage++
-          setTimeout(runStage, 90)
+          const tNext = window.setTimeout(runStage, 60)
+          timers.push(tNext)
         }
       }
 
-      requestAnimationFrame(step)
+      rafId = requestAnimationFrame(step)
     }
 
-    const timer = setTimeout(runStage, 200)
-    return () => clearTimeout(timer)
-  }, [onComplete])
+    const tInit = window.setTimeout(runStage, 100)
+    timers.push(tInit)
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId)
+      timers.forEach((t) => clearTimeout(t))
+    }
+  }, [])
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#030712] transition-all duration-700 select-none ${
-        phase === 'revealing' ? 'opacity-0 pointer-events-none scale-110' : 'opacity-100 scale-100'
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#030712] transition-all duration-500 ease-out select-none will-change-[opacity,transform] ${
+        phase === 'revealing' ? 'opacity-0 pointer-events-none scale-105' : 'opacity-100 scale-100'
       }`}
     >
-      {/* Background Ambience: Subtle Tech Grid */}
+      {/* Background Ambience: Tech Grid */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,242,254,0.08)_0,transparent_75%)] pointer-events-none" />
       <div className="absolute inset-0 scanlines-overlay opacity-25 pointer-events-none" />
 
@@ -158,7 +210,7 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
         </div>
         <div className="flex justify-between">
           <span>BYTE STREAM:</span>
-          <span className="text-cyan-300">{(bytesLoaded / 1024).toFixed(1)} / {(totalBytes / 1024).toFixed(1)} KB</span>
+          <span ref={bytesTextRef} className="text-cyan-300">0.0 / {(totalBytes / 1024).toFixed(1)} KB</span>
         </div>
       </div>
 
@@ -174,11 +226,11 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
         </div>
         <div className="flex justify-between">
           <span>RPC ENGINE:</span>
-          <span className="text-emerald-400">{progress > 50 ? 'CONNECTED' : 'STANDBY'}</span>
+          <span ref={rpcStatusRef} className="text-slate-500">STANDBY</span>
         </div>
         <div className="flex justify-between">
           <span>FIREBASE /m11:</span>
-          <span className="text-amber-400">{progress > 75 ? 'SYNCHRONIZED' : 'WAITING'}</span>
+          <span ref={firebaseStatusRef} className="text-slate-500">WAITING</span>
         </div>
         <div className="flex justify-between">
           <span>INTEGRITY HASH:</span>
@@ -219,6 +271,7 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
               fill="transparent"
             />
             <circle
+              ref={circleProgressRef}
               cx="50%"
               cy="50%"
               r="43%"
@@ -226,9 +279,9 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
               strokeWidth="5"
               fill="transparent"
               strokeDasharray={2 * Math.PI * 110}
-              strokeDashoffset={2 * Math.PI * 110 * (1 - progress / 100)}
+              strokeDashoffset={2 * Math.PI * 110}
               strokeLinecap="round"
-              className="transition-all duration-100"
+              className="transition-all duration-75 ease-linear"
             />
             <defs>
               <linearGradient id="bootGradientRealistic" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -242,8 +295,8 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
           {/* Center Digital Readout */}
           <div className="flex flex-col items-center justify-center z-10">
             <Zap className="w-6 h-6 text-cyan-400 animate-pulse mb-1" />
-            <div className="font-display text-4xl sm:text-5xl font-extrabold tracking-tight text-white glow-cyan">
-              {progress}
+            <div className="font-display text-4xl sm:text-5xl font-extrabold tracking-tight text-white glow-cyan flex items-baseline">
+              <span ref={percentTextRef}>0</span>
               <span className="text-xl text-cyan-400 font-mono-tech ml-0.5">%</span>
             </div>
             <span className="font-mono-tech text-[10px] text-slate-400 tracking-wider mt-1 uppercase">
@@ -256,18 +309,21 @@ export const BootLoader: React.FC<BootLoaderProps> = ({ onComplete }) => {
         <div className="mt-8 text-center space-y-3 w-full flex flex-col items-center">
           <div className="flex items-center justify-center gap-2 font-mono-tech text-xs tracking-wider text-cyan-300 px-4 py-1.5 rounded-full bg-slate-900/80 border border-slate-800">
             <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse flex-shrink-0" />
-            <span className="truncate max-w-[320px] sm:max-w-[420px]">{activeLog}</span>
+            <span ref={activeLogTextRef} className="truncate max-w-[320px] sm:max-w-[420px]">
+              KERNEL_INIT: Mounting WebGL 2.0 graphics pipeline...
+            </span>
           </div>
 
-          {/* Realistic Stepped Progress Bar */}
+          {/* Stepped Hardware Progress Bar */}
           <div className="w-64 sm:w-80 h-2 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-cyan-500/30 box-glow-cyan">
             <div
-              className="h-full bg-gradient-to-r from-cyan-400 via-violet-500 to-amber-300 rounded-full transition-all duration-100"
-              style={{ width: `${progress}%` }}
+              ref={progressBarRef}
+              className="h-full bg-gradient-to-r from-cyan-400 via-violet-500 to-amber-300 rounded-full transition-all duration-75 ease-linear"
+              style={{ width: '0%' }}
             />
           </div>
 
-          {/* Frequency Equalizer Bars (Pure visual) */}
+          {/* Frequency Equalizer Bars (CSS animated) */}
           <div className="flex items-end justify-center gap-1.5 h-5 mt-1">
             {[40, 75, 25, 90, 60, 100, 45, 80, 30, 95, 55, 85, 40, 70, 20, 90, 60, 100].map((h, i) => (
               <div
