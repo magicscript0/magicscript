@@ -4,6 +4,7 @@ import { ROWS, formatMultiplier } from '../config/game'
 import { LiveStatsPanel } from './LiveStatsPanel'
 import { RoundHistoryPanel } from './RoundHistoryPanel'
 import { useSessions } from '../hooks/useSessions'
+import { publishLabxRound } from '../services/labx'
 import { normalizePickColIndex, type LiveGameState, type BalanceState } from '../types/labx'
 
 export interface ViewerPanelProps {
@@ -40,6 +41,7 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
   const [endedSummary, setEndedSummary] = useState<EndedGameSummary | null>(null)
   const [showEndSummary, setShowEndSummary] = useState(false)
   const [lastGame, setLastGame] = useState<EndedGameSummary | null>(null)
+  const [isStartingGame, setIsStartingGame] = useState(false)
 
   // Snapshot ref of active game to reconstruct if game ends abruptly
   const activeSnapshotRef = useRef<{
@@ -170,6 +172,23 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
 
   const handleNewRound = () => {
     setShowEndSummary(false)
+  }
+
+  const handleStartLiveRound = async () => {
+    if (isStartingGame) return
+    setIsStartingGame(true)
+    try {
+      await publishLabxRound({} as any)
+      window.setTimeout(() => {
+        game.refetch()
+        balanceState.refetch()
+        sessionsState.refetch()
+      }, 400)
+    } catch (err) {
+      console.warn('[ViewerPanel] Start live round error:', err)
+    } finally {
+      setIsStartingGame(false)
+    }
   }
 
   // Generate 10 rows descending from 10 to 1
@@ -323,6 +342,15 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
                 <p className="mt-1 max-w-xs text-xs text-slate-400">
                   Start a round in your app or trigger a new game. Live grid cells and picks will stream here automatically.
                 </p>
+                <button
+                  type="button"
+                  disabled={isStartingGame}
+                  onClick={() => void handleStartLiveRound()}
+                  className="mt-4 flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 px-5 py-2.5 text-xs font-bold text-slate-950 shadow-[0_0_15px_rgba(0,242,254,0.3)] transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+                >
+                  <Sparkles className={`h-4 w-4 fill-slate-950 ${isStartingGame ? 'animate-spin' : ''}`} />
+                  <span>{isStartingGame ? 'Starting Round...' : 'Trigger Live Round'}</span>
+                </button>
               </div>
             )
           ) : (

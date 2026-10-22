@@ -13,6 +13,7 @@ import { ROWS, formatMultiplier } from '../config/game'
 import { LiveStatsPanel } from './LiveStatsPanel'
 import { RoundHistoryPanel } from './RoundHistoryPanel'
 import { useSessions } from '../hooks/useSessions'
+import { publishLabxRound } from '../services/labx'
 import { normalizePickColIndex, type LiveGameState, type BalanceState } from '../types/labx'
 
 export interface ViewerPanelProps {
@@ -51,6 +52,7 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
   const [endedSummary, setEndedSummary] = useState<EndedGameSummary | null>(null)
   const [showEndSummary, setShowEndSummary] = useState(false)
   const [lastGame, setLastGame] = useState<EndedGameSummary | null>(null)
+  const [isStartingGame, setIsStartingGame] = useState(false)
 
   // Snapshot ref of active game to reconstruct if game ends abruptly
   const activeSnapshotRef = useRef<{
@@ -196,6 +198,23 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
 
   const handleNewRound = () => {
     setShowEndSummary(false)
+  }
+
+  const handleStartLiveRound = async () => {
+    if (isStartingGame) return
+    setIsStartingGame(true)
+    try {
+      await publishLabxRound({} as any)
+      window.setTimeout(() => {
+        game.refetch()
+        balanceState.refetch()
+        sessionsState.refetch()
+      }, 400)
+    } catch (err) {
+      console.warn('[ViewerPanel] Start live round error:', err)
+    } finally {
+      setIsStartingGame(false)
+    }
   }
 
   // Generate 10 rows descending from 10 to 1
@@ -513,12 +532,22 @@ export function ViewerPanel({ game, balanceState }: ViewerPanelProps) {
                     Place your bet in the 1xBet app to begin. Predictions and live matrix outcomes will lock and stream here automatically.
                   </p>
 
-                  {/* Clean Realtime Engine Status (Legacy connection strings completely removed) */}
-                  <div className="mt-4 flex items-center justify-center">
-                    <span className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/25 flex items-center gap-2 text-[11px] font-mono-tech text-cyan-300 shadow-[0_0_15px_rgba(0,242,254,0.12)]">
+                  {/* Clean Realtime Engine Status and Direct Live Trigger */}
+                  <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2.5">
+                    <span className="px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/25 flex items-center gap-2 text-[11px] font-mono-tech text-cyan-300 shadow-[0_0_15px_rgba(0,242,254,0.12)]">
                       <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
                       PREDICTION ENGINE READY // LIVE SYNC
                     </span>
+
+                    <button
+                      type="button"
+                      disabled={isStartingGame}
+                      onClick={() => void handleStartLiveRound()}
+                      className="flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 px-5 py-2 text-xs font-bold uppercase tracking-wider text-slate-950 shadow-[0_0_20px_rgba(0,242,254,0.35)] transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+                    >
+                      <Sparkles className={`h-3.5 w-3.5 fill-slate-950 ${isStartingGame ? 'animate-spin' : ''}`} />
+                      <span>{isStartingGame ? 'INITIALIZING ROUND...' : 'TRIGGER LIVE ROUND'}</span>
+                    </button>
                   </div>
                 </div>
               </div>
