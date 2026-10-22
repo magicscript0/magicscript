@@ -37,6 +37,10 @@ export function describeAccountIdIssue(value: string): string | null {
   return null
 }
 
+export function normalizeAccessCode(code: string): string {
+  return code.trim().toUpperCase()
+}
+
 export function describeAccessCodeIssue(value: string): string | null {
   const trimmed = value.trim()
   if (trimmed.length === 0) return 'Enter your Access Code.'
@@ -183,7 +187,7 @@ export interface RedemptionResult {
  */
 export async function redeemGameAccess(accountId: string, plainCode: string): Promise<RedemptionResult> {
   const cleanAccountId = normalizeAccountId(accountId)
-  const cleanCode = plainCode.trim()
+  const cleanCode = normalizeAccessCode(plainCode)
   if (!isValidAccountId(cleanAccountId)) {
     throw new GameAccessError('invalid_account', describeAccountIdIssue(cleanAccountId) ?? 'Enter a valid Account ID.')
   }
@@ -206,7 +210,7 @@ export async function redeemGameAccess(accountId: string, plainCode: string): Pr
     if (error) throw classifyGameAccessError(error)
     const row = data?.[0]
     if (!row || typeof row.token !== 'string' || row.token.length === 0) {
-      throw new GameAccessError('unavailable', 'This Access Code is no longer active. Ask for a fresh code.')
+      throw new GameAccessError('unavailable', 'This Access Code is unavailable or rate limited. Please try again later.')
     }
     return { token: row.token, expiresAt: row.expires_at, serverNow: row.server_now, accountId: cleanAccountId }
   } catch (cause) {

@@ -10,6 +10,7 @@ import {
   gameAccessSessionEndsAt,
   isValidAccountId,
   normalizeAccountId,
+  normalizeAccessCode,
   redeemGameAccess,
 } from './gameAccess'
 import { requireClient } from './supabase'
@@ -51,6 +52,11 @@ describe('Account ID rules', () => {
 })
 
 describe('Access Code rules', () => {
+  it('normalizes surrounding whitespace and converts to uppercase', () => {
+    expect(normalizeAccessCode('  ms-abcde-12345  ')).toBe('MS-ABCDE-12345')
+    expect(normalizeAccessCode('MS-ABCDE-12345')).toBe('MS-ABCDE-12345')
+  })
+
   it('requires a non-empty, reasonably sized code', () => {
     expect(describeAccessCodeIssue('')).toBe('Enter your Access Code.')
     expect(describeAccessCodeIssue('   ')).toBe('Enter your Access Code.')

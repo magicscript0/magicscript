@@ -5,7 +5,7 @@ import { GameBrandLockup } from '../components/GameBrand'
 import { GameSocialLinks } from '../components/GameSocialLinks'
 import { PublicGameHud } from '../components/PublicGameHud'
 import { DEFAULT_CONTROL_SETTINGS } from '../services/control'
-import { describeAccessCodeIssue, describeAccountIdIssue, GameAccessError, normalizeAccountId } from '../services/gameAccess'
+import { describeAccessCodeIssue, describeAccountIdIssue, GameAccessError, normalizeAccountId, normalizeAccessCode } from '../services/gameAccess'
 import type { GameAccessEndReason } from '../hooks/useGameAccess'
 import type { ControlSettings } from '../types/supabase'
 
@@ -65,19 +65,20 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
     setError(null)
 
     const cleanAccountId = normalizeAccountId(accountId)
+    const cleanCode = normalizeAccessCode(accessCode)
     const accountIdIssue = describeAccountIdIssue(cleanAccountId)
     if (accountIdIssue) {
       setError(accountIdIssue)
       return
     }
-    const codeIssue = describeAccessCodeIssue(accessCode)
+    const codeIssue = describeAccessCodeIssue(cleanCode)
     if (codeIssue) {
       setError(codeIssue)
       return
     }
 
     setChecking(true)
-    void onLogin(cleanAccountId, accessCode.trim())
+    void onLogin(cleanAccountId, cleanCode)
       .catch((cause: unknown) => {
         setChecking(false)
         if (cause instanceof GameAccessError) {
@@ -155,7 +156,7 @@ export function GameLogin({ onLogin, endReason = null, ambient = true, settings 
                       spellCheck={false}
                       placeholder="Enter the code you received"
                       value={accessCode}
-                      onChange={(event) => setAccessCode(event.target.value)}
+                      onChange={(event) => setAccessCode(event.target.value.toUpperCase())}
                       disabled={checking}
                       className="pg-input mono uppercase"
                     />
