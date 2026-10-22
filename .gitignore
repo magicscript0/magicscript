@@ -4,5 +4,6 @@ dist/
 .env
 .env.*
 !.env.example
+supabase/.temp/
 coverage/
 .DS_Store

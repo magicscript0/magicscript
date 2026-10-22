@@ -1,0 +1,5 @@
+-- Migration 20260926000000 NEUTRALIZED / RETIRED
+-- This migration has been intentionally neutralized and replaced by:
+-- supabase/migrations/20260927000000_zero_trust_hardening_v3.sql
+--
+-- Do not apply this file. All improvements are consolidated into v3.

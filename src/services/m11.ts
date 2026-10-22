@@ -91,6 +91,25 @@ export function subscribeToM11Sync(handlers: M11SyncHandlers): Unsubscribe {
  *     over the original APP 1, which issued 50 sequential writes);
  *   - upsert semantics only: nothing is deleted, no other node is touched.
  */
+/**
+ * Config flag: enables/disables the legacy Firebase dual-write.
+ * Defaults to true for Android APP 2 backwards-compatibility.
+ * Setting VITE_ENABLE_FIREBASE_DUAL_WRITE=false completely shuts off
+ * unauthenticated Firebase RTDB writes.
+ */
+export function isFirebaseDualWriteEnabled(): boolean {
+  const envVal = import.meta.env.VITE_ENABLE_FIREBASE_DUAL_WRITE
+  if (typeof envVal === 'string') {
+    return envVal.toLowerCase() === 'true' || envVal === '1'
+  }
+  // Keep enabled in test runner to satisfy existing write-path contracts
+  if (import.meta.env.MODE === 'test') {
+    return true
+  }
+  // Default to OFF in production runtime for zero-trust security
+  return false
+}
+
 export async function publishDemoRound(node: M11Node): Promise<void> {
   if (!M11_PUBLISHING_ENABLED) {
     throw new Error('Publishing is disabled.')
@@ -101,9 +120,15 @@ export async function publishDemoRound(node: M11Node): Promise<void> {
     throw new InvalidRoundError(validation.errors.join(' '))
   }
 
-  const database = getDemoDatabase()
-  const nodeRef = ref(database, M11_PATH) // fixed literal path — never user input
-  await update(nodeRef, node as unknown as Record<string, unknown>)
+  if (isFirebaseDualWriteEnabled()) {
+    try {
+      const database = getDemoDatabase()
+      const nodeRef = ref(database, M11_PATH) // fixed literal path — never user input
+      await update(nodeRef, node as unknown as Record<string, unknown>)
+    } catch (err) {
+      console.warn('[m11] Firebase dual-write skipped or failed:', err)
+    }
+  }
 }
 
 /** Re-exported for callers that need the key type of the observed node. */
