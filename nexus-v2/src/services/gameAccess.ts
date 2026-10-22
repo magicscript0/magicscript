@@ -151,6 +151,9 @@ export function classifyGameAccessError(error: unknown): GameAccessError {
     return new GameAccessError('network', 'The access check could not be completed. Check your connection and try again.')
   }
   const message = postgrestMessage(error)
+  if (message.includes('RATE_LIMIT_EXCEEDED')) {
+    return new GameAccessError('unavailable', 'ACCESS COOLDOWN — Too many failed attempts. Security lock active for 5 minutes.')
+  }
   if (message.includes('INVALID_ACCOUNT_ID')) {
     return new GameAccessError('invalid_account', 'Enter a valid Account ID (9–11 digits).')
   }

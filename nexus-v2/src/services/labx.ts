@@ -104,6 +104,16 @@ interface CachedRound {
 
 let lastCachedRound: CachedRound | null = null
 
+/** Clears all in-memory prediction and round caches across sessions. */
+export function clearLabxCache(): void {
+  lastCachedRound = null
+}
+
+// Auto-purge cache whenever a kill-switch or session termination event fires
+if (typeof window !== 'undefined') {
+  window.addEventListener('ms:session-killed', clearLabxCache)
+}
+
 /**
  * Subscribes to labx.site live game state via defensive polling.
  * Matches the M11SyncHandlers signature from m11.ts.
@@ -297,7 +307,7 @@ export async function fetchLabxBalance(signal?: AbortSignal): Promise<{ balance:
       throw new Error(`HTTP ${response.status} fetching balance`)
     }
     const data = (await response.json()) as { balance?: unknown }
-    const balanceNum = typeof data?.balance === 'number' && !isNaN(data.balance) ? data.balance : 0
+    const balanceNum = typeof data?.balance === 'number' && Number.isFinite(data.balance) ? data.balance : 0
     return { balance: balanceNum }
   } finally {
     cleanup()

@@ -71,16 +71,22 @@ begin
 
   -- B. Rate Limit Enforcement: Max 5 failed attempts per Account in 5 minutes
   select count(*) into v_recent_failures
-  from public.game_access_rate_limits
-  where account_id = p_account_id
-    and success = false
-    and attempt_time > (now() - v_lockout_window);
+  from (
+    select attempt_time as ts
+    from public.game_access_rate_limits
+    where account_id = p_account_id
+      and success = false
+      and attempt_time > (now() - v_lockout_window)
+    union all
+    select created_at as ts
+    from public.security_events
+    where game_account_id = p_account_id
+      and event_type = 'game_login_failure'
+      and created_at > (now() - v_lockout_window)
+  ) recent_failures;
 
   if v_recent_failures >= v_max_failures then
-    -- Record excessive attempt event
-    insert into public.game_access_rate_limits (account_id, success, attempt_time)
-    values (p_account_id, false, now());
-
+    -- Do not insert another failure record during lockout to prevent indefinite lockout extensions (DoS)
     raise exception using 
       errcode = 'P0001', 
       message = 'RATE_LIMIT_EXCEEDED: Security threshold triggered. Too many failed attempts for this Account ID. Please wait 5 minutes before retrying.';
@@ -156,12 +162,12 @@ set search_path = public
 as $$
   select
     (
-      s.expires_at > timezone('utc', now())
+      s.expires_at > now()
       and c.active = true
       and c.revoked_at is null
     ) as valid,
     s.expires_at,
-    timezone('utc', now()) as server_now,
+    now() as server_now,
     s.account_id
   from public.game_access_sessions s
   join public.game_access_codes c on c.id = s.code_id

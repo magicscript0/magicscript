@@ -58,6 +58,8 @@ export function useGameAccess(): GameAccessState {
   const [remainingMs, setRemainingMs] = useState(0)
 
   const aliveRef = useRef(true)
+  const isRevalidatingRef = useRef(false)
+  const lastDriftCheckRef = useRef(0)
   const timersRef = useRef<TimerSet>({ expiry: null, heartbeat: null, tick: null })
   const baselineRef = useRef<MonotonicBaseline | null>(null)
 
@@ -138,8 +140,12 @@ export function useGameAccess(): GameAccessState {
       const wallElapsed = Date.now() - b.wallClockStart
       const clockDrift = Math.abs(wallElapsed - monotonicElapsed)
       if (wallElapsed < -1000 || clockDrift > 15_000) {
-        // Force server check immediately to prevent clock manipulation bypass
-        void revalidateRef.current()
+        // Throttle drift verification to once every 15s to avoid duplicate request storms
+        const now = Date.now()
+        if (now - lastDriftCheckRef.current > 15_000) {
+          lastDriftCheckRef.current = now
+          void revalidateRef.current()
+        }
       }
 
       if (currentRemaining <= 0) {
@@ -152,11 +158,13 @@ export function useGameAccess(): GameAccessState {
 
   /** Server revalidation of the stored token (heartbeat / focus path). */
   const revalidate = useCallback(async () => {
+    if (isRevalidatingRef.current) return
     const stored = readStoredGameSession()
     if (!stored) {
       failClosed('expired')
       return
     }
+    isRevalidatingRef.current = true
     try {
       const check = await checkGameAccess(stored.token)
       if (!aliveRef.current) return
@@ -174,6 +182,8 @@ export function useGameAccess(): GameAccessState {
       activate(stored, check.expiresAt, check.serverNow)
     } catch {
       // Transient network failure while inside deadline: retain session, retry on next heartbeat
+    } finally {
+      isRevalidatingRef.current = false
     }
   }, [activate, failClosed])
 
@@ -184,11 +194,13 @@ export function useGameAccess(): GameAccessState {
 
   /** Full restore path: always verifies against the server, fail-closed. */
   const verifyStoredSession = useCallback(async () => {
+    if (isRevalidatingRef.current) return
     const stored = readStoredGameSession()
     if (!stored) {
       failClosed('expired')
       return
     }
+    isRevalidatingRef.current = true
     try {
       const check = await checkGameAccess(stored.token)
       if (!aliveRef.current) return
@@ -206,6 +218,8 @@ export function useGameAccess(): GameAccessState {
       activate(stored, check.expiresAt, check.serverNow)
     } catch {
       failClosed('unverified')
+    } finally {
+      isRevalidatingRef.current = false
     }
   }, [activate, failClosed])
 
