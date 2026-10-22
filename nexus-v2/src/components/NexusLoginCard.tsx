@@ -46,6 +46,10 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
   const [isShaking, setIsShaking] = useState(false)
   const verifyTimerRef = useRef<number | null>(null)
 
+  // Progressive brute-force lockout / rate-limiting state
+  const [failedAttempts, setFailedAttempts] = useState(0)
+  const [cooldownSeconds, setCooldownSeconds] = useState(0)
+
   // Clear verification timer on unmount
   useEffect(() => {
     return () => {
@@ -53,14 +57,36 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
     }
   }, [])
 
-  // Trigger error shake micro-interaction when error or localError occurs
+  // Trigger error shake micro-interaction & progressive lockout on errors
   useEffect(() => {
     if (error || localError) {
       setIsShaking(true)
       const shakeTimer = window.setTimeout(() => setIsShaking(false), 500)
+
+      setFailedAttempts((prev) => {
+        const next = prev + 1
+        if (next >= 5) {
+          setCooldownSeconds(30)
+        } else if (next >= 4) {
+          setCooldownSeconds(15)
+        } else if (next >= 3) {
+          setCooldownSeconds(5)
+        }
+        return next
+      })
+
       return () => window.clearTimeout(shakeTimer)
     }
   }, [error, localError])
+
+  // Cooldown countdown tick
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return
+    const interval = window.setInterval(() => {
+      setCooldownSeconds((prev) => Math.max(0, prev - 1))
+    }, 1000)
+    return () => window.clearInterval(interval)
+  }, [cooldownSeconds])
 
   const handlePasteClipboard = async () => {
     try {
@@ -123,7 +149,7 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (loading || isVerifying) return
+    if (loading || isVerifying || cooldownSeconds > 0) return
     setLocalError(null)
 
     const cleanAccountId = normalizeAccountId(accountId)
@@ -164,7 +190,13 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
       if (elapsed >= totalDuration) {
         if (verifyTimerRef.current) clearInterval(verifyTimerRef.current)
         setIsVerifying(false)
-        onLogin(cleanAccountId, cleanCode).catch(() => {})
+        onLogin(cleanAccountId, cleanCode)
+          .then(() => {
+            // Reset failed counter on successful ignition
+            setFailedAttempts(0)
+            setCooldownSeconds(0)
+          })
+          .catch(() => {})
       }
     }, 40)
   }
@@ -374,11 +406,13 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
               </button>
             </div>
 
-            {/* High-Voltage Ignition Launch Button with Simulated Loading Sequence */}
+            {/* High-Voltage Ignition Launch Button with Progressive Lockout */}
             <button
               type="submit"
-              disabled={loading || isVerifying || !accountId || !accessCode}
-              className="relative w-full group overflow-hidden rounded-xl font-display font-bold text-sm tracking-wider uppercase text-white py-4 px-6 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_25px_rgba(0,242,254,0.35)] hover:shadow-[0_0_40px_rgba(0,242,254,0.6)] shimmer-trigger mt-3"
+              disabled={loading || isVerifying || cooldownSeconds > 0 || !accountId || !accessCode}
+              className={`relative w-full group overflow-hidden rounded-xl font-display font-bold text-sm tracking-wider uppercase text-white py-4 px-6 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_25px_rgba(0,242,254,0.35)] hover:shadow-[0_0_40px_rgba(0,242,254,0.6)] shimmer-trigger mt-3 ${
+                cooldownSeconds > 0 ? 'border border-amber-500/50 bg-amber-950/40 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.3)]' : ''
+              }`}
             >
               {/* Gradient Base */}
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 transition-all duration-500 group-hover:scale-105" />
@@ -397,7 +431,12 @@ export const NexusLoginCard: React.FC<NexusLoginCardProps> = ({
 
               {/* Button Text & Neural Ring Loading Sequence */}
               <div className="relative z-10 flex items-center justify-center gap-2.5">
-                {isVerifying ? (
+                {cooldownSeconds > 0 ? (
+                  <span className="font-mono-tech text-xs text-amber-300 font-bold tracking-widest flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+                    SECURITY COOLDOWN [{cooldownSeconds}s]
+                  </span>
+                ) : isVerifying ? (
                   <>
                     <div className="relative w-5 h-5 flex items-center justify-center">
                       <div className="w-5 h-5 rounded-full border-2 border-cyan-400/30 border-t-cyan-400 animate-spin" />

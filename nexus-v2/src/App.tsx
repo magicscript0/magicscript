@@ -4,6 +4,7 @@ import { BootLoader } from './components/BootLoader'
 import { PublicHUD } from './components/PublicHUD'
 import { NexusLoginCard } from './components/NexusLoginCard'
 import { GameConsoleView } from './components/GameConsoleView'
+import { CyberErrorBoundary } from './components/CyberErrorBoundary'
 import { useGameAccess } from './hooks/useGameAccess'
 import { normalizeAccountId, GameAccessError } from './services/gameAccess'
 import { recordGameLoginFailure, recordGameLoginSuccess } from './services/visitorTracking'
@@ -61,7 +62,9 @@ export const App: React.FC = () => {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#030712] text-slate-100 flex flex-col justify-center items-center select-none">
       {/* 1. Real 3D Three.js WebGL Engine Canvas (Runs at 60 FPS in background) */}
-      <ThreeCanvas accelerate={bootState === 'booting'} />
+      <CyberErrorBoundary moduleName="3D KINETIC ENGINE">
+        <ThreeCanvas accelerate={bootState === 'booting'} />
+      </CyberErrorBoundary>
 
       {/* 2. Cyber scanlines overlay for authentic futuristic display */}
       <div className="fixed inset-0 scanlines-overlay opacity-25 pointer-events-none z-10" />
@@ -77,20 +80,22 @@ export const App: React.FC = () => {
       {/* 5. Main Center Stage - STRICTLY MOUNTED & REVEALED ONLY AFTER 100% BOOT COMPLETION */}
       {bootState === 'ready' && (
         <main className="relative z-20 flex items-center justify-center w-full py-16 px-4">
-          {authorized && access.accountId ? (
-            <GameConsoleView
-              accountId={access.accountId}
-              remainingMs={access.remainingMs}
-              onLogout={access.exit}
-            />
-          ) : (
-            <NexusLoginCard
-              settings={settings}
-              onLogin={handleLogin}
-              loading={loading || access.status === 'checking'}
-              error={error}
-            />
-          )}
+          <CyberErrorBoundary moduleName="COMMAND MATRIX">
+            {authorized && access.accountId ? (
+              <GameConsoleView
+                accountId={access.accountId}
+                remainingMs={access.remainingMs}
+                onLogout={access.exit}
+              />
+            ) : (
+              <NexusLoginCard
+                settings={settings}
+                onLogin={handleLogin}
+                loading={loading || access.status === 'checking'}
+                error={error}
+              />
+            )}
+          </CyberErrorBoundary>
         </main>
       )}
     </div>

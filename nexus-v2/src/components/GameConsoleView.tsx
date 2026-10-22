@@ -30,6 +30,7 @@ import { prefersReducedMotion } from '../utils/random'
 import { FortuneBoard } from './FortuneBoard'
 import { ViewerToggle } from './ViewerToggle'
 import { ViewerPanel } from './ViewerPanel'
+import { CyberErrorBoundary } from './CyberErrorBoundary'
 import type { ConsoleRound, RoundPhase } from '../types/game'
 
 export interface GameConsoleViewProps {
@@ -211,7 +212,9 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
       {mode === 'viewer' ? (
         /* VIEWER MODE: Live Telemetry Engine, Matrix, Stats, & Round History */
         <div className="w-full">
-          <ViewerPanel game={liveGame} balanceState={balanceState} />
+          <CyberErrorBoundary moduleName="VIEWER TELEMETRY">
+            <ViewerPanel game={liveGame} balanceState={balanceState} />
+          </CyberErrorBoundary>
         </div>
       ) : (
         /* PLAY MODE: Apple of Fortune Prediction Board with /m11 Sync */
@@ -256,11 +259,13 @@ export const GameConsoleView: React.FC<GameConsoleViewProps> = ({
           )}
 
           {/* The Hero Apple of Fortune 10-Row Board */}
-          <FortuneBoard
-            rows={round?.rows ?? null}
-            phase={phase}
-            revealedRows={revealedRows}
-          />
+          <CyberErrorBoundary moduleName="FORTUNE PREDICTION BOARD">
+            <FortuneBoard
+              rows={round?.rows ?? null}
+              phase={phase}
+              revealedRows={revealedRows}
+            />
+          </CyberErrorBoundary>
         </div>
       )}
     </div>

@@ -235,12 +235,14 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
     }
     window.addEventListener('resize', handleResize)
 
-    // 7. 60 FPS Animation Engine with Smooth Speed Interpolation
-    let animId: number
+    // 7. 60 FPS Animation Engine with Smooth Speed Interpolation & Power Saving
+    let animId: number = 0
+    let isPaused = false
     let currentSpeed = 1.0
     const posAttr = particleGeo.attributes.position as THREE.BufferAttribute
 
     const animate = () => {
+      if (isPaused) return
       animId = requestAnimationFrame(animate)
 
       // Smooth acceleration/deceleration lerp
@@ -301,19 +303,54 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({ accelerate = false }) 
       renderer.render(scene, camera)
     }
 
+    // Page Visibility API - pause loop when tab is backgrounded
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        isPaused = true
+        cancelAnimationFrame(animId)
+      } else {
+        if (isPaused) {
+          isPaused = false
+          animId = requestAnimationFrame(animate)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // WebGL Context Loss Handling (Mobile OS / GPU Memory Pressure)
+    const domElement = renderer.domElement
+    const handleContextLost = (e: Event) => {
+      e.preventDefault()
+      isPaused = true
+      cancelAnimationFrame(animId)
+    }
+
+    const handleContextRestored = () => {
+      isPaused = false
+      animId = requestAnimationFrame(animate)
+    }
+
+    domElement.addEventListener('webglcontextlost', handleContextLost, false)
+    domElement.addEventListener('webglcontextrestored', handleContextRestored, false)
+
     animate()
 
     // 8. Cleanup
     return () => {
+      isPaused = true
       cancelAnimationFrame(animId)
       window.removeEventListener('click', handleClick)
       window.removeEventListener('touchstart', handleTouchStart)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('resize', handleResize)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
 
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement)
+      domElement.removeEventListener('webglcontextlost', handleContextLost)
+      domElement.removeEventListener('webglcontextrestored', handleContextRestored)
+
+      if (container.contains(domElement)) {
+        container.removeChild(domElement)
       }
 
       torusGeo.dispose()
