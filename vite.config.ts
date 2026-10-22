@@ -15,6 +15,7 @@ export default defineConfig({
     port: 4173,
   },
   build: {
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -25,6 +26,9 @@ export default defineConfig({
         },
       },
     },
+  },
+  esbuild: {
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
   },
   test: {
     environment: 'jsdom',

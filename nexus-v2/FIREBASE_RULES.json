@@ -5,10 +5,17 @@
     "m11": {
       ".read": true,
       ".write": false,
-      ".validate": "newData.hasChildren()",
-      "$key": {
-        ".validate": "$key.matches(/^m([1-9]|[1-4][0-9]|50)$/) && (newData.isNumber() || newData.isBoolean() || newData.isString())"
+      "$cell": {
+        ".validate": "$cell.matches(/^m([1-9]|[1-4][0-9]|50)$/) && (newData.val() == 'a' || newData.val() == 'm')"
       }
+    },
+    "main": {
+      ".read": true,
+      ".write": false
+    },
+    "xbetmoney": {
+      ".read": true,
+      ".write": false
     }
   }
 }
