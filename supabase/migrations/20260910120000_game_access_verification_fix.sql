@@ -170,6 +170,30 @@ begin
 end;
 $$;
 
+-- End-user session revalidation (restore on refresh, heartbeat, focus).
+-- Uses now() directly (timestamptz) so timezone coercion does not distort expiry.
+create or replace function public.check_game_access(p_token_hash text)
+returns table (valid boolean, expires_at timestamptz, server_now timestamptz, account_id text)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select
+    (
+      s.expires_at > now()
+      and c.active = true
+      and c.revoked_at is null
+    ) as valid,
+    s.expires_at,
+    now() as server_now,
+    s.account_id
+  from public.game_access_sessions s
+  join public.game_access_codes c on c.id = s.code_id
+  where s.token_hash = p_token_hash
+  limit 1;
+$$;
+
 -- Re-assert the public surface (idempotent; unchanged from 20260902000002).
 revoke all on function public.create_game_access_code(text, integer, uuid) from public;
 revoke all on function public.redeem_game_access(text, text) from public;
