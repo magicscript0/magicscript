@@ -25,6 +25,10 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
 const REPO_ROOT = join(__dirname, '..', '..')
 
 const ADMIN_ID = '11111111-1111-1111-1111-111111111111'
+const toEpochMs = (val: unknown): number => {
+  const str = String(val)
+  return Date.parse(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T') + 'Z')
+}
 const OPERATOR_ID = '22222222-2222-2222-2222-222222222222'
 const NOBODY_ID = '33333333-3333-3333-3333-333333333333'
 
@@ -220,7 +224,7 @@ describe('visitor/session creation and last-active updates', () => {
     expect(profile!.os).toBe('Android')
     expect(profile!.last_path).toBe('/')
     expect(profile!.referrer_host).toBe('t.co')
-    expect(Date.parse(String(profile!.first_seen_at))).toBeGreaterThan(Date.now() - 60_000)
+    expect(toEpochMs(profile!.first_seen_at)).toBeGreaterThan(Date.now() - 60_000)
 
     const log = await events()
     expect(log).toHaveLength(1)
@@ -259,7 +263,7 @@ describe('visitor/session creation and last-active updates', () => {
     expect(accepted[0].accepted).toBe(true)
 
     const refreshed = await visitor()
-    expect(Date.parse(String(refreshed!.last_seen_at))).toBeGreaterThan(Date.now() - 10_000)
+    expect(toEpochMs(refreshed!.last_seen_at)).toBeGreaterThan(Date.now() - 10_000)
     expect(await events()).toHaveLength(1) // only the original session_start
   })
 
