@@ -123,7 +123,7 @@ export function subscribeToLabxSync(
   pollIntervalMs = NORMAL_POLL_INTERVAL_MS,
 ): () => void {
   const baseUrl = getLabxApiUrl()
-  const endpoint = `${baseUrl}/_debug/live-game`
+  const endpoint = `${baseUrl}/api/live-game`
 
   let active = true
   let timerId: number | null = null
@@ -267,7 +267,7 @@ export async function publishLabxRound(_node: M11Node): Promise<void> {
  */
 export async function fetchLabxLiveGame(signal?: AbortSignal): Promise<LabxLiveGameResponse> {
   const baseUrl = getLabxApiUrl()
-  const endpoint = `${baseUrl}/_debug/live-game`
+  const endpoint = `${baseUrl}/api/live-game`
   const { signal: timeoutSignal, cleanup } = createTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS, signal)
 
   try {
@@ -294,7 +294,7 @@ export async function fetchLabxLiveGame(signal?: AbortSignal): Promise<LabxLiveG
  */
 export async function fetchLabxBalance(signal?: AbortSignal): Promise<{ balance: number }> {
   const baseUrl = getLabxApiUrl()
-  const endpoint = `${baseUrl}/_debug/balance`
+  const endpoint = `${baseUrl}/api/balance`
   const { signal: timeoutSignal, cleanup } = createTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS, signal)
 
   try {
@@ -319,7 +319,7 @@ export async function fetchLabxBalance(signal?: AbortSignal): Promise<{ balance:
  */
 export async function fetchLabxSessions(signal?: AbortSignal): Promise<import('../types/labx').LabxSessionRecord[]> {
   const baseUrl = getLabxApiUrl()
-  const endpoint = `${baseUrl}/_debug/sessions`
+  const endpoint = `${baseUrl}/api/sessions`
   const { signal: timeoutSignal, cleanup } = createTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS, signal)
 
   try {
