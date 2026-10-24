@@ -8,6 +8,14 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/labx-api/api/:path*",
+      "destination": "https://labx.site/api/:path*"
+    },
+    {
+      "source": "/labx-api/:path*",
+      "destination": "https://labx.site/api/:path*"
+    },
+    {
       "source": "/((?!assets/|images/|favicon\\.svg$|robots\\.txt$|sitemap\\.xml$).*)",
       "destination": "/index.html"
     }

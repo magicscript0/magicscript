@@ -57,6 +57,10 @@ export function getLabxApiUrl(): string {
   if (typeof custom === 'string' && custom.trim().length > 0) {
     return custom.trim().replace(/\/+$/, '')
   }
+  // In production browser, route through the same-origin reverse proxy to bypass any ISP-level blocking
+  if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost') {
+    return `${window.location.origin}/labx-api`
+  }
   return DEFAULT_LABX_URL
 }
 
